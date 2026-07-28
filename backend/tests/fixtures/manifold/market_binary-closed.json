@@ -1,0 +1,13 @@
+{
+  "id": "binary-closed",
+  "question": "Did the closed example event happen?",
+  "outcomeType": "BINARY",
+  "createdTime": 1709000003000,
+  "closeTime": 1715000000000,
+  "lastUpdatedTime": 1715000001000,
+  "probability": 0.4,
+  "volume": 50,
+  "isResolved": false,
+  "textDescription": "Sanitized closed market.",
+  "groupSlugs": ["examples"]
+}

@@ -1,0 +1,38 @@
+[
+  {
+    "id": "binary-closed",
+    "question": "Did the closed example event happen?",
+    "outcomeType": "BINARY",
+    "createdTime": 1709000003000,
+    "closeTime": 1715000000000,
+    "lastUpdatedTime": 1715000001000,
+    "probability": 0.4,
+    "volume": 50,
+    "isResolved": false
+  },
+  {
+    "id": "binary-resolved",
+    "question": "Did the resolved example event happen?",
+    "outcomeType": "BINARY",
+    "createdTime": 1709000002000,
+    "closeTime": 1714000000000,
+    "lastUpdatedTime": 1714000002000,
+    "resolutionTime": 1714000001000,
+    "probability": 1,
+    "volume": 75.25,
+    "isResolved": true,
+    "resolution": "YES"
+  },
+  {
+    "id": "binary-cancelled",
+    "question": "Was the cancelled example market voided?",
+    "outcomeType": "BINARY",
+    "createdTime": 1709000001000,
+    "closeTime": 1713000000000,
+    "lastUpdatedTime": 1713000002000,
+    "resolutionTime": 1713000001000,
+    "probability": 0.5,
+    "isResolved": true,
+    "resolution": "CANCEL"
+  }
+]

@@ -1,0 +1,1 @@
+"""Paper-trading domain types."""

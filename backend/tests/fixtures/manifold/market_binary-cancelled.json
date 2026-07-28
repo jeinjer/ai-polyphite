@@ -1,0 +1,14 @@
+{
+  "id": "binary-cancelled",
+  "question": "Was the cancelled example market voided?",
+  "outcomeType": "BINARY",
+  "createdTime": 1709000001000,
+  "closeTime": 1713000000000,
+  "lastUpdatedTime": 1713000002000,
+  "resolutionTime": 1713000001000,
+  "probability": 0.5,
+  "isResolved": true,
+  "resolution": "CANCEL",
+  "textDescription": "Sanitized cancelled market.",
+  "groupSlugs": ["examples"]
+}

@@ -1,0 +1,14 @@
+{
+  "id": "binary-open",
+  "question": "Will the example binary event happen before 2030?",
+  "outcomeType": "BINARY",
+  "createdTime": 1710000003000,
+  "closeTime": 1893456000000,
+  "lastUpdatedTime": 1711000003000,
+  "probability": 0.625,
+  "volume": 120.5,
+  "totalLiquidity": 45,
+  "isResolved": false,
+  "textDescription": "Sanitized binary market used by AI-Polyphite tests.",
+  "groupSlugs": ["technology", "examples"]
+}

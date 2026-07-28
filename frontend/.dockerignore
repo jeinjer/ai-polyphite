@@ -1,0 +1,8 @@
+node_modules
+.next
+out
+playwright-report
+test-results
+npm-debug.log*
+README.md
+tests

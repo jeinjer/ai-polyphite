@@ -1,0 +1,15 @@
+{
+  "id": "binary-resolved",
+  "question": "Did the resolved example event happen?",
+  "outcomeType": "BINARY",
+  "createdTime": 1709000002000,
+  "closeTime": 1714000000000,
+  "lastUpdatedTime": 1714000002000,
+  "resolutionTime": 1714000001000,
+  "probability": 1,
+  "volume": 75.25,
+  "isResolved": true,
+  "resolution": "YES",
+  "textDescription": "Sanitized resolved market.",
+  "groupSlugs": ["examples"]
+}

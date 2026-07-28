@@ -1,0 +1,10 @@
+{
+  "id": "numeric-ignored",
+  "question": "What numeric value will the example metric reach?",
+  "outcomeType": "NUMERIC",
+  "createdTime": 1710000002000,
+  "closeTime": 1893456000000,
+  "lastUpdatedTime": 1711000002000,
+  "isResolved": false,
+  "textDescription": "Sanitized incompatible market."
+}

@@ -1,0 +1,31 @@
+[
+  {
+    "id": "binary-open",
+    "question": "Will the example binary event happen before 2030?",
+    "outcomeType": "BINARY",
+    "createdTime": 1710000003000,
+    "closeTime": 1893456000000,
+    "lastUpdatedTime": 1711000003000,
+    "probability": 0.625,
+    "volume": 120.5,
+    "totalLiquidity": 45,
+    "isResolved": false,
+    "url": "https://manifold.markets/example/binary-open"
+  },
+  {
+    "id": "numeric-ignored",
+    "question": "What numeric value will the example metric reach?",
+    "outcomeType": "NUMERIC",
+    "createdTime": 1710000002000,
+    "closeTime": 1893456000000,
+    "isResolved": false
+  },
+  {
+    "id": "multiple-ignored",
+    "question": "Which example option will be selected?",
+    "outcomeType": "MULTIPLE_CHOICE",
+    "createdTime": 1710000001000,
+    "closeTime": 1893456000000,
+    "isResolved": false
+  }
+]
