@@ -4,8 +4,9 @@
 
 ## Estado general
 
-**Fase:** base histórica reproducible completa  
-**Estado:** implementado y validado; pendiente de aprobación del usuario  
+**Fase:** predicciones deterministas reproducibles completas
+
+**Estado:** implementado y validado; pendiente de aprobación del usuario
 **Dinero real:** prohibido y no implementado
 
 ## Flujos disponibles
@@ -25,6 +26,12 @@ JSONL versionado
   → PostgreSQL
   → ExperimentRun
   → API / dashboard avanzado
+
+Mercado visible as-of
+  → Reasoning / Market / Skeptic / Consensus
+  → PredictionRun durable
+  → API / dashboard Predicciones y Agentes
+  → evaluación posterior contra baselines
 ```
 
 ## Implementado
@@ -47,11 +54,23 @@ JSONL versionado
   - `GET /experiment-runs/{run_id}`.
 - Dashboard bilingüe, simple/avanzado, responsive y accesible.
 - Experimentos visibles en modo avanzado; aviso educativo mínimo en simple.
+- Contratos `PredictionAgent` y `ModelBackend`.
+- Backends deterministas RuleBased y Mock sin I/O externo.
+- ReasoningAgent, MarketAgent, SkepticAgent y ConsensusAgent versionados.
+- Orquestador transaccional, observable e idempotente.
+- `PredictionRun` y cuatro `AgentPrediction` reconstruibles.
+- Edge YES/NO, niveles configurables y abstención explícita.
+- Lecturas PostgreSQL as-of con barrera contra observaciones futuras.
+- `make replay-predict` con cadencia o timestamps explícitos.
+- API de predicciones por mercado y experimento.
+- Brier, log loss, error absoluto, accuracy, cobertura y calibración.
+- MarketBaseline y ConstantBaseline.
+- Vistas Predicciones y Agentes sin ROI ficticio.
 - Docker Compose para migración, API, frontend, PostgreSQL, Redis y worker.
 
 ## Decisiones vigentes
 
-Siete ADR aceptados:
+Ocho ADR aceptados:
 
 1. Monolito modular.
 2. Sistema de eventos durable como arquitectura futura.
@@ -60,11 +79,11 @@ Siete ADR aceptados:
 5. Ingesta at-least-once con checkpoints.
 6. Observaciones separadas de cotizaciones ejecutables.
 7. Reloj simulado y barrera contra lookahead.
+8. Agentes deterministas antes de integrar LLM.
 
 ## No implementado
 
-- Agentes, consenso, noticias o abstracción LLM.
-- Predicciones y comparación contra el mercado.
+- Noticias, backend LLM u Ollama.
 - Event Bus, outbox/inbox o Redis Streams funcional.
 - Paper trading, operaciones, cartera, P&L o ROI.
 - Ejecución real, wallets, brokers o credenciales de trading.
@@ -73,17 +92,16 @@ Siete ADR aceptados:
 
 ## Siguiente slice obligatorio
 
-Implementar, sin añadir más infraestructura base:
+Implementar paper trading sobre `PredictionRun`:
 
-1. `ReasoningAgent`;
-2. `MarketAgent`;
-3. `SkepticAgent`;
-4. `ConsensusAgent`;
-5. persistencia de predicciones;
-6. comparación reproducible contra la probabilidad del mercado.
+1. estrategias versionadas;
+2. portfolio y ledger virtual;
+3. decisiones idempotentes;
+4. posiciones YES/NO long-only;
+5. liquidación oficial;
+6. P&L y métricas exclusivamente simuladas.
 
-`NewsAgent` queda expresamente postergado hasta demostrar que el sistema puede
-producir y evaluar predicciones reproducibles con datos estructurados.
+No añadir NewsAgent, LLM, proveedores ni Event Bus antes de este slice.
 
 ## Fuente de verdad
 

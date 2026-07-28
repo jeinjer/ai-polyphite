@@ -14,10 +14,21 @@ def test_replay_cli_parses_required_modes() -> None:
     )
     step = parser.parse_args(["run", "--dataset", "synthetic-lab-v1", "--mode", "step"])
     reset = parser.parse_args(["reset", "--dataset", "synthetic-lab-v1"])
+    predict = parser.parse_args(
+        [
+            "predict",
+            "--dataset",
+            "synthetic-lab-v1",
+            "--interval-hours",
+            "12",
+        ]
+    )
 
     assert accelerated.mode == "accelerated"
     assert step.mode == "step"
     assert reset.command == "reset"
+    assert predict.command == "predict"
+    assert predict.interval_hours == 12
 
 
 def test_replay_cli_resolves_a_versioned_dataset() -> None:

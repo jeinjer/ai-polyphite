@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
@@ -15,6 +15,11 @@ from predictionlab.collectors import CollectorRunResult, MarketDataCollector
 from predictionlab.core.clock import ReplayClock, SystemClock
 from predictionlab.domain.experiments import ExperimentRun, ExperimentRunStatus
 from predictionlab.providers.replay import ReplayDatasetMetadata, ReplayModeError
+
+type ReplayArtifactHook = Callable[
+    [UUID, datetime, str],
+    Awaitable[tuple[str, ...]],
+]
 
 
 class ReplayMode(StrEnum):
@@ -27,6 +32,7 @@ class ReplayMode(StrEnum):
 class ReplayExecution:
     experiment: ExperimentRun
     collector_results: tuple[CollectorRunResult, ...]
+    artifact_hashes: tuple[str, ...] = ()
 
 
 class ReplayRunner:
@@ -59,6 +65,8 @@ class ReplayRunner:
         until: datetime | None = None,
         random_seed: int = 0,
         correlation_id: str | None = None,
+        artifact_hook: ReplayArtifactHook | None = None,
+        extension_configuration: Mapping[str, object] | None = None,
     ) -> ReplayExecution:
         _validate_mode(mode, until)
         run_id = self._id_factory()
@@ -69,6 +77,7 @@ class ReplayRunner:
             mode=mode,
             until=until,
             random_seed=random_seed,
+            extension_configuration=extension_configuration,
         )
         experiment = ExperimentRun(
             experiment_run_id=run_id,
@@ -88,12 +97,16 @@ class ReplayRunner:
         )
         await self._store.start(experiment)
         results: list[CollectorRunResult] = []
+        artifact_hashes: list[str] = []
         try:
             await self._execute(
+                experiment_run_id=run_id,
                 mode=mode,
                 until=until,
                 correlation_id=resolved_correlation_id,
                 results=results,
+                artifact_hook=artifact_hook,
+                artifact_hashes=artifact_hashes,
             )
             completed = experiment.complete(
                 finished_at=self._wall_clock(),
@@ -102,12 +115,14 @@ class ReplayRunner:
                     metadata=self._metadata,
                     configuration_hash=configuration_hash,
                     replay_end=self._clock.now(),
+                    artifact_hashes=tuple(artifact_hashes),
                 ),
             )
             await self._store.finish(completed)
             return ReplayExecution(
                 experiment=completed,
                 collector_results=tuple(results),
+                artifact_hashes=tuple(artifact_hashes),
             )
         except Exception as exc:
             failed = experiment.fail(
@@ -121,18 +136,33 @@ class ReplayRunner:
     async def _execute(
         self,
         *,
+        experiment_run_id: UUID,
         mode: ReplayMode,
         until: datetime | None,
         correlation_id: str,
         results: list[CollectorRunResult],
+        artifact_hook: ReplayArtifactHook | None,
+        artifact_hashes: list[str],
     ) -> None:
         if mode is ReplayMode.STEP:
-            await self._collect_next(correlation_id, results)
+            await self._collect_next(
+                experiment_run_id,
+                correlation_id,
+                results,
+                artifact_hook,
+                artifact_hashes,
+            )
             return
 
         if mode is ReplayMode.ACCELERATED:
             while self._clock.next_event_at is not None:
-                await self._collect_next(correlation_id, results)
+                await self._collect_next(
+                    experiment_run_id,
+                    correlation_id,
+                    results,
+                    artifact_hook,
+                    artifact_hashes,
+                )
             return
 
         assert until is not None
@@ -140,13 +170,22 @@ class ReplayRunner:
             self._clock.next_event_at is not None
             and self._clock.next_event_at <= until
         ):
-            await self._collect_next(correlation_id, results)
+            await self._collect_next(
+                experiment_run_id,
+                correlation_id,
+                results,
+                artifact_hook,
+                artifact_hashes,
+            )
         self._clock.advance_until(until)
 
     async def _collect_next(
         self,
+        experiment_run_id: UUID,
         correlation_id: str,
         results: list[CollectorRunResult],
+        artifact_hook: ReplayArtifactHook | None,
+        artifact_hashes: list[str],
     ) -> None:
         advanced = self._clock.advance_to_next()
         if advanced is None:
@@ -157,6 +196,14 @@ class ReplayRunner:
                 causation_id=f"replay:{advanced.isoformat()}",
             )
         )
+        if artifact_hook is not None:
+            artifact_hashes.extend(
+                await artifact_hook(
+                    experiment_run_id,
+                    advanced,
+                    correlation_id,
+                )
+            )
 
 
 def _validate_mode(mode: ReplayMode, until: datetime | None) -> None:
@@ -172,16 +219,20 @@ def _configuration_hash(
     mode: ReplayMode,
     until: datetime | None,
     random_seed: int,
+    extension_configuration: Mapping[str, object] | None,
 ) -> str:
+    payload: dict[str, object] = {
+        "content_sha256": metadata.content_sha256,
+        "dataset_id": metadata.dataset_id,
+        "dataset_version": metadata.version,
+        "mode": mode.value,
+        "random_seed": random_seed,
+        "until": until.isoformat() if until is not None else None,
+    }
+    if extension_configuration is not None:
+        payload["extension_configuration"] = dict(extension_configuration)
     canonical = json.dumps(
-        {
-            "content_sha256": metadata.content_sha256,
-            "dataset_id": metadata.dataset_id,
-            "dataset_version": metadata.version,
-            "mode": mode.value,
-            "random_seed": random_seed,
-            "until": until.isoformat() if until is not None else None,
-        },
+        payload,
         separators=(",", ":"),
         sort_keys=True,
     )
@@ -193,13 +244,17 @@ def _result_hash(
     metadata: ReplayDatasetMetadata,
     configuration_hash: str,
     replay_end: datetime,
+    artifact_hashes: tuple[str, ...] = (),
 ) -> str:
+    payload: dict[str, object] = {
+        "configuration_hash": configuration_hash,
+        "content_sha256": metadata.content_sha256,
+        "replay_end": replay_end.isoformat(),
+    }
+    if artifact_hashes:
+        payload["artifact_hashes"] = artifact_hashes
     canonical = json.dumps(
-        {
-            "configuration_hash": configuration_hash,
-            "content_sha256": metadata.content_sha256,
-            "replay_end": replay_end.isoformat(),
-        },
+        payload,
         separators=(",", ":"),
         sort_keys=True,
     )

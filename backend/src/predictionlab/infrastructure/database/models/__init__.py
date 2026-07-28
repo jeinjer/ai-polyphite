@@ -12,8 +12,13 @@ from predictionlab.infrastructure.database.models.markets import (
     MarketStateChangeModel,
     ProviderModel,
 )
+from predictionlab.infrastructure.database.models.predictions import (
+    AgentPredictionModel,
+    PredictionRunModel,
+)
 
 __all__ = [
+    "AgentPredictionModel",
     "CollectorCheckpointModel",
     "CollectorRunModel",
     "ExperimentRunModel",
@@ -21,5 +26,6 @@ __all__ = [
     "MarketObservationModel",
     "MarketSnapshotModel",
     "MarketStateChangeModel",
+    "PredictionRunModel",
     "ProviderModel",
 ]

@@ -11,10 +11,11 @@ mediante simulación.
 
 ## Estado
 
-El repositorio ya ejecuta ingesta y replay histórico determinista, auditoría de
-experimentos, API read-only y un dashboard bilingüe. `MockProvider` funciona por
-defecto; Manifold read-only se habilita explícitamente. Todavía no existen
-agentes, predicciones, paper trading ni operaciones.
+El repositorio ya ejecuta ingesta, replay histórico determinista y cuatro
+agentes reproducibles, persiste predicciones, las evalúa contra baselines y las
+muestra en un dashboard bilingüe. `MockProvider` funciona por defecto; Manifold
+read-only se habilita explícitamente. Paper trading y operaciones todavía no
+existen.
 
 Consulta:
 
@@ -25,6 +26,8 @@ Consulta:
   para el resumen verificable de este slice.
 - [`REPLAY_PROVIDER_IMPLEMENTATION_REPORT.md`](REPLAY_PROVIDER_IMPLEMENTATION_REPORT.md)
   para el cierre verificable de replay y experimentos.
+- [`PREDICTION_AGENTS_IMPLEMENTATION_REPORT.md`](PREDICTION_AGENTS_IMPLEMENTATION_REPORT.md)
+  para el cierre verificable de agentes y predicciones.
 - [`docs/`](docs/) para la especificación completa.
 - [`docs/adr/`](docs/adr/) para decisiones arquitectónicas aceptadas.
 - [`docs/14_MARKET_DOMAIN.md`](docs/14_MARKET_DOMAIN.md) para el primer vertical
@@ -45,6 +48,10 @@ Consulta:
 - [`docs/27_REPLAY_PROVIDER.md`](docs/27_REPLAY_PROVIDER.md),
   [`docs/28_REPLAY_DATASET_FORMAT.md`](docs/28_REPLAY_DATASET_FORMAT.md) y
   [`docs/30_REPLAY_EXPERIMENTS.md`](docs/30_REPLAY_EXPERIMENTS.md) para replay.
+- [`docs/31_PREDICTION_AGENT_ARCHITECTURE.md`](docs/31_PREDICTION_AGENT_ARCHITECTURE.md),
+  [`docs/32_PREDICTION_RUNS_AND_API.md`](docs/32_PREDICTION_RUNS_AND_API.md) y
+  [`docs/33_PREDICTION_EVALUATION.md`](docs/33_PREDICTION_EVALUATION.md) para
+  el pipeline predictivo.
 
 ## Arquitectura
 
@@ -134,6 +141,7 @@ pero no como registro histórico único.
    - Sincronizaciones: <http://localhost:8000/collector-runs>
    - Datasets: <http://localhost:8000/replay-datasets>
    - Experimentos: <http://localhost:8000/experiment-runs>
+   - Predicciones: <http://localhost:8000/predictions>
    - OpenAPI: <http://localhost:8000/docs>
 
 PostgreSQL y Redis solo publican puertos en `127.0.0.1`.
@@ -186,6 +194,7 @@ Replay histórico:
 make replay DATASET=synthetic-lab-v1 MODE=accelerated
 make replay-step DATASET=synthetic-lab-v1
 make replay-reset DATASET=synthetic-lab-v1
+make replay-predict DATASET=synthetic-lab-v1 PREDICTION_INTERVAL_HOURS=24
 ```
 
 ## Desarrollo local

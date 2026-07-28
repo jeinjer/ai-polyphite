@@ -13,6 +13,7 @@ from predictionlab.api.routes.collector_runs import router as collector_runs_rou
 from predictionlab.api.routes.experiments import router as experiments_router
 from predictionlab.api.routes.health import router as health_router
 from predictionlab.api.routes.markets import router as markets_router
+from predictionlab.api.routes.predictions import router as predictions_router
 from predictionlab.api.routes.sources import router as sources_router
 from predictionlab.application.collectors.service import CollectorRunQueryService
 from predictionlab.application.experiments import (
@@ -20,6 +21,10 @@ from predictionlab.application.experiments import (
     ReplayDatasetQueryService,
 )
 from predictionlab.application.markets.query_service import MarketQueryService
+from predictionlab.application.predictions import (
+    PredictionEvaluationService,
+    PredictionQueryService,
+)
 from predictionlab.application.sources import SourceHealthQueryService
 from predictionlab.core.logging import configure_logging
 from predictionlab.core.settings import Settings, get_settings
@@ -27,10 +32,12 @@ from predictionlab.infrastructure.database.queries import (
     SqlAlchemyCollectorRunReadRepository,
     SqlAlchemyExperimentRunReadRepository,
     SqlAlchemyMarketReadRepository,
+    SqlAlchemyPredictionReadRepository,
 )
 from predictionlab.infrastructure.observability.http_metrics import HttpRequestMetrics
 from predictionlab.infrastructure.replay import FileReplayDatasetCatalog
 from predictionlab.infrastructure.resources import create_resources
+from predictionlab.runtime.predictions import create_prediction_orchestrator
 from predictionlab.runtime.providers import (
     ProviderSourceHealthRepository,
     create_configured_provider_registry,
@@ -66,6 +73,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(collector_runs_router)
     application.include_router(sources_router)
     application.include_router(experiments_router)
+    application.include_router(predictions_router)
     return application
 
 
@@ -86,6 +94,19 @@ def _build_lifespan(settings: Settings) -> Lifespan[FastAPI]:
         )
         application.state.replay_dataset_query_service = ReplayDatasetQueryService(
             FileReplayDatasetCatalog(settings.replay_dataset_directory)
+        )
+        prediction_repository = SqlAlchemyPredictionReadRepository(
+            resources.session_factory
+        )
+        application.state.prediction_query_service = PredictionQueryService(
+            prediction_repository
+        )
+        application.state.prediction_evaluation_service = PredictionEvaluationService(
+            prediction_repository
+        )
+        application.state.prediction_orchestrator = create_prediction_orchestrator(
+            session_factory=resources.session_factory,
+            settings=settings,
         )
         application.state.source_health_service = SourceHealthQueryService(
             ProviderSourceHealthRepository(create_configured_provider_registry(settings))

@@ -86,17 +86,20 @@ completada hasta que su código, tests y documentación hayan sido validados.
 - [x] Validar determinismo y persistencia idéntica.
 - [x] Registrar ADR de reloj simulado y lookahead.
 
-## Next — Minimal agents and predictions
+## Completed — Minimal agents and predictions
 
-- [ ] Definir contrato neutral y runtime observable mínimo de agentes.
-- [ ] Implementar `ReasoningAgent`.
-- [ ] Implementar `MarketAgent`.
-- [ ] Implementar `SkepticAgent`.
-- [ ] Implementar `ConsensusAgent`.
-- [ ] Persistir predicciones reconstruibles y versionadas.
-- [ ] Comparar predicciones contra la probabilidad disponible del mercado.
-- [ ] Evaluar predicciones sobre ReplayProvider sin lookahead.
-- [ ] No implementar `NewsAgent` en este slice.
+- [x] Definir contrato neutral y runtime observable mínimo de agentes.
+- [x] Implementar `ReasoningAgent`.
+- [x] Implementar `MarketAgent`.
+- [x] Implementar `SkepticAgent`.
+- [x] Implementar `ConsensusAgent`.
+- [x] Persistir predicciones reconstruibles y versionadas.
+- [x] Comparar predicciones contra la probabilidad disponible del mercado.
+- [x] Evaluar predicciones sobre ReplayProvider sin lookahead.
+- [x] Integrar `make replay-predict` con múltiples timestamps.
+- [x] Exponer queries, API y dashboard de predicciones y agentes.
+- [x] Comparar Brier, log loss y error contra Market y Constant baselines.
+- [x] No implementar `NewsAgent` en este slice.
 
 ## Later — Provider data sources
 
@@ -123,7 +126,7 @@ completada hasta que su código, tests y documentación hayan sido validados.
 - [ ] Implementar provider Ollama.
 - [ ] Implementar `NewsAgent` sólo después de validar datos estructurados.
 
-## Paper trading
+## Next — Paper trading
 
 - [ ] Modelar estrategias y versiones.
 - [ ] Modelar portfolios y ledger.

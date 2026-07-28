@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from decimal import Decimal
 from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
@@ -15,6 +16,7 @@ from pydantic import (
     PostgresDsn,
     RedisDsn,
     field_validator,
+    model_validator,
 )
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
@@ -114,6 +116,44 @@ class Settings(BaseSettings):
             "AI_POLYPHITE_CODE_VERSION",
         ),
     )
+    enable_manual_prediction_runs: bool = Field(
+        default=False,
+        validation_alias=AliasChoices(
+            "enable_manual_prediction_runs",
+            "AI_POLYPHITE_ENABLE_MANUAL_PREDICTION_RUNS",
+        ),
+    )
+    replay_prediction_interval_hours: int = Field(
+        default=24,
+        ge=1,
+        le=24 * 365,
+        validation_alias=AliasChoices(
+            "replay_prediction_interval_hours",
+            "AI_POLYPHITE_REPLAY_PREDICTION_INTERVAL_HOURS",
+        ),
+    )
+    prediction_minimum_confidence: Decimal = Field(
+        default=Decimal("0.40"),
+        ge=0,
+        le=1,
+    )
+    prediction_maximum_disagreement: Decimal = Field(
+        default=Decimal("0.30"),
+        ge=0,
+        le=1,
+    )
+    prediction_maximum_observation_age_seconds: int = Field(
+        default=172_800,
+        ge=1,
+        le=31_536_000,
+    )
+    prediction_weak_edge: Decimal = Field(default=Decimal("0.03"), ge=0, le=1)
+    prediction_moderate_edge: Decimal = Field(
+        default=Decimal("0.08"),
+        ge=0,
+        le=1,
+    )
+    prediction_strong_edge: Decimal = Field(default=Decimal("0.15"), ge=0, le=1)
 
     @field_validator("cors_allowed_origins", mode="before")
     @classmethod
@@ -186,6 +226,16 @@ class Settings(BaseSettings):
                 raise ValueError("Provider intervals must be between 0 and 86400 seconds.")
         return value
 
+    @model_validator(mode="after")
+    def validate_prediction_thresholds(self) -> Settings:
+        if not (
+            self.prediction_weak_edge
+            < self.prediction_moderate_edge
+            < self.prediction_strong_edge
+        ):
+            raise ValueError("Prediction edge thresholds must be strictly increasing.")
+        return self
+
     @property
     def cors_origins(self) -> list[str]:
         return [str(origin).rstrip("/") for origin in self.cors_allowed_origins]
@@ -216,6 +266,8 @@ class Settings(BaseSettings):
             "collector_interval_seconds": self.collector_interval_seconds,
             "provider_intervals_seconds": self.provider_intervals_seconds,
             "collector_run_immediately": self.collector_run_immediately,
+            "enable_manual_prediction_runs": self.enable_manual_prediction_runs,
+            "replay_prediction_interval_hours": self.replay_prediction_interval_hours,
         }
 
 

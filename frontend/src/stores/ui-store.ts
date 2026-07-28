@@ -4,6 +4,8 @@ export type DashboardSection =
   | "home"
   | "markets"
   | "history"
+  | "predictions"
+  | "agents"
   | "experiments"
   | "sources"
   | "system"

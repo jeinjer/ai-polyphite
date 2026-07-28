@@ -98,6 +98,22 @@ versionada.
 - ADR de reloj simulado y prevención de lookahead.
 - Tests de determinismo, integridad, resolución temporal, persistencia,
   API, CLI y frontend.
+- Contratos neutrales `PredictionAgent` y `ModelBackend`.
+- Backends `RuleBasedModelBackend` y `MockModelBackend` sin dependencias
+  externas.
+- ReasoningAgent, MarketAgent, SkepticAgent y ConsensusAgent deterministas.
+- `PredictionOrchestrator` transaccional con correlation/causation IDs,
+  ejecución batch e idempotencia por experimento.
+- Persistencia `PredictionRun`/`AgentPrediction` y migración Alembic.
+- Edge YES/NO, niveles configurables y estrategia explícita de abstención.
+- Consultas as-of que excluyen estados y observaciones futuras.
+- Comando `make replay-predict` con hashes reproducibles.
+- API REST de predicciones, historial por mercado/experimento y evaluación.
+- Brier Score, log loss, error absoluto, accuracy, calibración, cobertura,
+  MarketBaseline y ConstantBaseline.
+- Secciones bilingües Predicciones y Agentes con vista simple/avanzada.
+- ADR de agentes deterministas antes de integrar LLM.
+- Tests unitarios, integración y E2E del pipeline predictivo.
 
 ### Security
 

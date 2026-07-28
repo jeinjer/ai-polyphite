@@ -34,11 +34,10 @@ infrastructure / integrations
 
 ## Estado
 
-Existe una base técnica observable y el primer dominio persistente:
-`Provider`, `Market` y `MarketSnapshot`, con servicios transaccionales e
-idempotencia concurrente, queries REST, Provider SDK y un Collector Layer
-incremental validado con `MockProvider`. No hay providers reales ni procesos
-worker/scheduler implementados.
+Existe ingesta multi-provider, histórico reproducible y un pipeline de cuatro
+agentes deterministas. `PredictionRun` conserva consenso, abstención, edge,
+salidas versionadas y hashes; la evaluación posterior compara contra el mercado
+y un baseline constante. Paper trading y ejecución real no existen.
 
 ## Contratos técnicos
 
@@ -47,6 +46,8 @@ worker/scheduler implementados.
   dependencia no está disponible.
 - `GET /markets`: listado paginado, filtrado y ordenado.
 - `GET /markets/{market_id}`: detalle con provider y último snapshot.
+- `GET /predictions`: predicciones filtrables y trazables.
+- `GET /predictions/{prediction_id}`: agregado completo con salidas de agentes.
 - Todas las respuestas propagan `X-Correlation-ID` y `traceparent`.
 
 La configuración y los contratos se detallan en

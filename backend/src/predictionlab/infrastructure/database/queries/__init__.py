@@ -9,9 +9,17 @@ from predictionlab.infrastructure.database.queries.experiments import (
 from predictionlab.infrastructure.database.queries.markets import (
     SqlAlchemyMarketReadRepository,
 )
+from predictionlab.infrastructure.database.queries.prediction_markets import (
+    SqlAlchemyPredictionMarketRepository,
+)
+from predictionlab.infrastructure.database.queries.predictions import (
+    SqlAlchemyPredictionReadRepository,
+)
 
 __all__ = [
     "SqlAlchemyCollectorRunReadRepository",
     "SqlAlchemyExperimentRunReadRepository",
     "SqlAlchemyMarketReadRepository",
+    "SqlAlchemyPredictionMarketRepository",
+    "SqlAlchemyPredictionReadRepository",
 ]

@@ -50,6 +50,8 @@ import type {
   Market,
   MarketStatus,
   Observation,
+  AgentPrediction,
+  PredictionRun,
   ReplayDataset,
   ResolutionOutcome,
   SourceHealth,
@@ -82,6 +84,8 @@ const navigation: {
   { section: "home", label: "nav.home", icon: Home },
   { section: "markets", label: "nav.markets", icon: BarChart3 },
   { section: "history", label: "nav.history", icon: History },
+  { section: "predictions", label: "nav.predictions", icon: ListChecks },
+  { section: "agents", label: "nav.agents", icon: Gauge },
   { section: "experiments", label: "nav.experiments", icon: FlaskConical },
   { section: "sources", label: "nav.sources", icon: Database },
   { section: "system", label: "nav.system", icon: Activity },
@@ -106,6 +110,10 @@ export function Dashboard() {
   const experimentsQuery = useQuery({
     queryKey: ["experiment-runs"],
     queryFn: api.experimentRuns,
+  });
+  const predictionsQuery = useQuery({
+    queryKey: ["predictions"],
+    queryFn: api.predictions,
   });
   const datasetsQuery = useQuery({
     queryKey: ["replay-datasets"],
@@ -148,12 +156,14 @@ export function Dashboard() {
     sourcesQuery.isLoading ||
     runsQuery.isLoading ||
     experimentsQuery.isLoading ||
+    predictionsQuery.isLoading ||
     datasetsQuery.isLoading;
   const hasError =
     marketsQuery.isError ||
     sourcesQuery.isError ||
     runsQuery.isError ||
     experimentsQuery.isError ||
+    predictionsQuery.isError ||
     datasetsQuery.isError;
 
   const retry = () => {
@@ -161,6 +171,7 @@ export function Dashboard() {
     void sourcesQuery.refetch();
     void runsQuery.refetch();
     void experimentsQuery.refetch();
+    void predictionsQuery.refetch();
     void datasetsQuery.refetch();
   };
 
@@ -310,6 +321,7 @@ export function Dashboard() {
                 sources={sourcesQuery.data ?? []}
                 runs={runsQuery.data?.items ?? []}
                 experiments={experimentsQuery.data?.items ?? []}
+                predictions={predictionsQuery.data?.items ?? []}
                 datasets={datasetsQuery.data ?? []}
                 selectedMarket={selectedMarket}
                 observations={observationsQuery.data?.items ?? []}
@@ -340,6 +352,7 @@ function DashboardContent({
   sources,
   runs,
   experiments,
+  predictions,
   datasets,
   selectedMarket,
   observations,
@@ -355,6 +368,7 @@ function DashboardContent({
   sources: SourceHealth[];
   runs: SyncRun[];
   experiments: ExperimentRun[];
+  predictions: PredictionRun[];
   datasets: ReplayDataset[];
   selectedMarket: Market | null;
   observations: Observation[];
@@ -391,6 +405,12 @@ function DashboardContent({
   }
   if (section === "sources") {
     return <SourcesView sources={sources} />;
+  }
+  if (section === "predictions") {
+    return <PredictionsView predictions={predictions} advanced={mode === "advanced"} />;
+  }
+  if (section === "agents") {
+    return <AgentsView predictions={predictions} advanced={mode === "advanced"} />;
   }
   if (section === "experiments") {
     return <ExperimentsView datasets={datasets} experiments={experiments} />;
@@ -940,6 +960,419 @@ function ExperimentsView({
         )}
       </Panel>
     </div>
+  );
+}
+
+function PredictionsView({
+  predictions,
+  advanced,
+}: Readonly<{ predictions: PredictionRun[]; advanced: boolean }>) {
+  const { locale, t } = useI18n();
+  return (
+    <div className="space-y-7">
+      <div>
+        <h2 className="text-xl font-semibold">{t("section.predictions")}</h2>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+          {t("predictions.description")}
+        </p>
+      </div>
+      {!predictions.length ? (
+        <Panel title={t("section.predictions")} icon={ListChecks}>
+          <EmptyState message={t("empty.predictions")} />
+        </Panel>
+      ) : (
+        <div className="space-y-5">
+          {predictions.map((prediction) => {
+            const warnings = [
+              ...new Set(
+                prediction.agent_predictions.flatMap((item) => item.warnings),
+              ),
+            ];
+            const abstained = prediction.recommendation === "abstain";
+            return (
+              <article
+                key={prediction.prediction_run_id}
+                className="overflow-hidden rounded-2xl border border-white/8 bg-white/[0.025]"
+              >
+                <header className="flex flex-col gap-4 border-b border-white/7 p-5 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <RecommendationBadge value={prediction.recommendation} />
+                      <OpportunityBadge value={prediction.opportunity_level} />
+                    </div>
+                    <h3 className="mt-3 text-base font-semibold leading-6">
+                      {prediction.market_title}
+                    </h3>
+                    <p className="mt-1 text-xs text-slate-600">
+                      {t("predictions.generatedAt")}{" "}
+                      {formatDate(prediction.predicted_at, locale)}
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 sm:min-w-[360px]">
+                    <PredictionMetric
+                      label={t("predictions.marketProbability")}
+                      value={formatProbability(prediction.market_probability)}
+                    />
+                    <PredictionMetric
+                      label={t("predictions.estimatedProbability")}
+                      value={formatProbability(prediction.consensus_probability)}
+                      tooltip={t("education.estimatedProbability")}
+                    />
+                    <PredictionMetric
+                      label={t("predictions.confidence")}
+                      value={formatProbability(prediction.consensus_confidence)}
+                      tooltip={t("education.confidence")}
+                    />
+                  </div>
+                </header>
+
+                <div className="p-5">
+                  <div
+                    className={`rounded-xl border p-4 ${
+                      abstained
+                        ? "border-amber-300/15 bg-amber-300/5"
+                        : "border-cyan-300/12 bg-cyan-300/5"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium">
+                        {abstained
+                          ? t("predictions.abstainedExplanation")
+                          : t("predictions.explanation", {
+                              system: formatProbability(
+                                prediction.consensus_probability,
+                              ),
+                              market: formatProbability(
+                                prediction.market_probability,
+                              ),
+                              edge: formatPercentagePoints(prediction.edge),
+                            })}
+                      </p>
+                      {abstained && (
+                        <InfoTooltip text={t("education.abstention")} />
+                      )}
+                    </div>
+                    {!abstained && (
+                      <p className="mt-2 text-xs leading-5 text-slate-500">
+                        {t("predictions.noGuarantee")}
+                      </p>
+                    )}
+                    {prediction.abstention_reason && (
+                      <p className="mt-2 text-xs text-amber-200/75">
+                        {prediction.abstention_reason}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    <PredictionMetric
+                      label={t("predictions.edge")}
+                      value={`${formatPercentagePoints(prediction.edge)} pp`}
+                      tooltip={t("education.estimatedEdge")}
+                    />
+                    <PredictionMetric
+                      label={t("predictions.disagreement")}
+                      value={formatProbability(prediction.disagreement_score)}
+                      tooltip={t("education.disagreement")}
+                    />
+                    <PredictionMetric
+                      label={t("predictions.opportunity")}
+                      value={t(
+                        `opportunity.${prediction.opportunity_level}` as MessageKey,
+                      )}
+                    />
+                  </div>
+
+                  {warnings.length > 0 && (
+                    <div className="mt-5">
+                      <p className="text-xs font-medium uppercase tracking-wider text-slate-600">
+                        {t("predictions.warning")}
+                      </p>
+                      <ul className="mt-2 space-y-1 text-xs leading-5 text-amber-200/70">
+                        {warnings.map((warning) => (
+                          <li key={warning}>• {warning}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {advanced && (
+                    <div className="mt-6 space-y-5 border-t border-white/7 pt-5">
+                      <div>
+                        <h4 className="text-sm font-semibold">
+                          {t("predictions.agentBreakdown")}
+                        </h4>
+                        <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                          {prediction.agent_predictions.map((agent) => (
+                            <AgentOutputCard
+                              key={agent.agent_prediction_id}
+                              agent={agent}
+                              advanced
+                            />
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-semibold">
+                          {t("predictions.traceability")}
+                        </h4>
+                        <dl className="mt-3 grid gap-3 text-xs md:grid-cols-2">
+                          <HashValue
+                            label={t("predictions.configHash")}
+                            value={prediction.agent_configuration_hash}
+                          />
+                          <HashValue
+                            label={t("predictions.inputHash")}
+                            value={prediction.input_hash}
+                          />
+                          <HashValue
+                            label={t("predictions.resultHash")}
+                            value={prediction.result_hash}
+                          />
+                          <HashValue
+                            label={t("advanced.correlation")}
+                            value={prediction.correlation_id}
+                          />
+                        </dl>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AgentsView({
+  predictions,
+  advanced,
+}: Readonly<{ predictions: PredictionRun[]; advanced: boolean }>) {
+  const { t } = useI18n();
+  const outputs = predictions.flatMap((prediction) =>
+    prediction.agent_predictions.map((agent) => ({
+      agent,
+      predictedAt: prediction.predicted_at,
+    })),
+  );
+  const names = ["reasoning", "market", "skeptic", "consensus"];
+  return (
+    <div className="space-y-7">
+      <div>
+        <h2 className="text-xl font-semibold">{t("section.agents")}</h2>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+          {t("agents.description")}
+        </p>
+      </div>
+      {!outputs.length ? (
+        <Panel title={t("section.agents")} icon={Gauge}>
+          <EmptyState message={t("empty.agents")} />
+        </Panel>
+      ) : (
+        <div className="grid gap-4 xl:grid-cols-2">
+          {names.map((name) => {
+            const matching = outputs.filter(
+              ({ agent }) => agent.agent_name === name,
+            );
+            const latest = matching[0];
+            if (!latest) return null;
+            return (
+              <article
+                key={name}
+                className="rounded-2xl border border-white/8 bg-white/[0.025] p-5"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-base font-semibold">
+                      {t(`agents.${name}` as MessageKey)}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-600">
+                      {t("agents.version", {
+                        value: latest.agent.agent_version,
+                      })}
+                    </p>
+                  </div>
+                  <span className="rounded-lg bg-emerald-300/8 px-2 py-1 text-[11px] text-emerald-300">
+                    {t("agents.deterministic")}
+                  </span>
+                </div>
+                <div className="mt-5 grid grid-cols-3 gap-2">
+                  <PredictionMetric
+                    label={t("agents.executions", { value: matching.length })}
+                    value={formatProbability(
+                      latest.agent.predicted_probability,
+                    )}
+                  />
+                  <PredictionMetric
+                    label={t("predictions.confidence")}
+                    value={formatProbability(latest.agent.confidence)}
+                    tooltip={t("education.confidence")}
+                  />
+                  <PredictionMetric
+                    label={t("agents.latest")}
+                    value={formatShortDate(latest.predictedAt)}
+                  />
+                </div>
+                <div className="mt-5">
+                  <p className="text-xs font-medium uppercase tracking-wider text-slate-600">
+                    {t("agents.rationale")}
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-slate-300">
+                    {latest.agent.rationale_summary}
+                  </p>
+                </div>
+                {advanced && (
+                  <div className="mt-5 border-t border-white/7 pt-5">
+                    <AgentOutputCard agent={latest.agent} advanced />
+                  </div>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AgentOutputCard({
+  agent,
+  advanced,
+}: Readonly<{ agent: AgentPrediction; advanced: boolean }>) {
+  const { t } = useI18n();
+  return (
+    <div className="rounded-xl border border-white/7 bg-black/10 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium">
+            {t(`agents.${agent.agent_name}` as MessageKey)}
+          </p>
+          <p className="mt-1 text-xs text-slate-600">
+            {t("agents.version", { value: agent.agent_version })}
+          </p>
+        </div>
+        <RecommendationBadge value={agent.recommendation} />
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <PredictionMetric
+          label={t("predictions.estimatedProbability")}
+          value={formatProbability(agent.predicted_probability)}
+          tooltip={t("education.estimatedProbability")}
+        />
+        <PredictionMetric
+          label={t("predictions.confidence")}
+          value={formatProbability(agent.confidence)}
+          tooltip={t("education.confidence")}
+        />
+      </div>
+      <p className="mt-4 text-xs leading-5 text-slate-400">
+        {agent.rationale_summary}
+      </p>
+      {advanced && (
+        <>
+          {!!agent.evidence.length && (
+            <div className="mt-4">
+              <p className="text-[11px] font-medium uppercase tracking-wider text-slate-600">
+                {t("agents.evidence")}
+              </p>
+              <ul className="mt-2 space-y-1 text-xs leading-5 text-slate-400">
+                {agent.evidence.map((item) => (
+                  <li key={`${item.code}-${item.direction}`}>• {item.summary}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {!!Object.keys(agent.agent_weights).length && (
+            <div className="mt-4">
+              <p className="text-[11px] font-medium uppercase tracking-wider text-slate-600">
+                {t("agents.weights")}
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {Object.entries(agent.agent_weights).map(([name, weight]) => (
+                  <span
+                    key={name}
+                    className="rounded-lg bg-white/[0.035] px-2 py-1 font-mono text-[11px] text-slate-400"
+                  >
+                    {name}: {formatProbability(weight)}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          <dl className="mt-4 grid gap-2">
+            <HashValue
+              label={t("predictions.inputHash")}
+              value={agent.input_hash}
+            />
+            <HashValue
+              label={t("predictions.outputHash")}
+              value={agent.output_hash}
+            />
+          </dl>
+        </>
+      )}
+    </div>
+  );
+}
+
+function PredictionMetric({
+  label,
+  value,
+  tooltip,
+}: Readonly<{ label: string; value: string; tooltip?: string }>) {
+  return (
+    <div className="rounded-xl border border-white/7 bg-black/10 p-3">
+      <div className="flex items-center gap-1">
+        <p className="text-[10px] uppercase tracking-wider text-slate-600">
+          {label}
+        </p>
+        {tooltip && <InfoTooltip text={tooltip} />}
+      </div>
+      <p className="mt-2 font-mono text-sm text-slate-200">{value}</p>
+    </div>
+  );
+}
+
+function HashValue({
+  label,
+  value,
+}: Readonly<{ label: string; value: string }>) {
+  return (
+    <div>
+      <dt className="text-slate-600">{label}</dt>
+      <dd className="mt-1 break-all font-mono text-slate-400">{value}</dd>
+    </div>
+  );
+}
+
+function RecommendationBadge({
+  value,
+}: Readonly<{ value: PredictionRun["recommendation"] }>) {
+  const { t } = useI18n();
+  const classes =
+    value === "yes"
+      ? "bg-emerald-300/10 text-emerald-300"
+      : value === "no"
+        ? "bg-red-300/10 text-red-300"
+        : "bg-amber-300/10 text-amber-200";
+  return (
+    <span className={`rounded-lg px-2 py-1 text-[11px] font-medium ${classes}`}>
+      {t(`recommendation.${value}` as MessageKey)}
+    </span>
+  );
+}
+
+function OpportunityBadge({
+  value,
+}: Readonly<{ value: PredictionRun["opportunity_level"] }>) {
+  const { t } = useI18n();
+  return (
+    <span className="rounded-lg bg-white/[0.05] px-2 py-1 text-[11px] text-slate-400">
+      {t(`opportunity.${value}` as MessageKey)}
+    </span>
   );
 }
 
@@ -1636,6 +2069,8 @@ function alert(
     home: "alerts.action.system",
     markets: "alerts.action.markets",
     history: "alerts.action.history",
+    predictions: "alerts.action.history",
+    agents: "alerts.action.system",
     experiments: "alerts.action.history",
     sources: "alerts.action.sources",
     system: "alerts.action.system",
@@ -1686,6 +2121,16 @@ function formatProbability(value: string | null | undefined): string {
   return value === null || value === undefined
     ? "—"
     : `${(Number(value) * 100).toFixed(1)}%`;
+}
+
+function formatPercentagePoints(value: string | null): string {
+  if (value === null) return "—";
+  const points = Number(value) * 100;
+  return `${points >= 0 ? "+" : ""}${points.toFixed(1)}`;
+}
+
+function formatShortDate(value: string): string {
+  return new Date(value).toISOString().slice(0, 10);
 }
 
 function statusKey(status: MarketStatus): MessageKey {

@@ -122,6 +122,80 @@ const experimentRun = {
   reproducible: true,
 };
 
+const agentPrediction = {
+  agent_prediction_id: "00000000-0000-4000-8000-000000000051",
+  agent_name: "consensus",
+  agent_version: "1.0.0",
+  predicted_probability: "0.6700000000",
+  confidence: "0.7200000000",
+  recommendation: "yes",
+  rationale_summary: "Consenso ponderado por rol y confianza.",
+  evidence: [
+    {
+      code: "weighted_consensus",
+      summary: "Los agentes se ponderaron por rol.",
+      direction: "yes",
+      strength: "0.6000000000",
+    },
+  ],
+  warnings: ["No se utilizó conocimiento externo ni noticias."],
+  input_hash: "d".repeat(64),
+  output_hash: "e".repeat(64),
+  duration_ms: "1.200",
+  disagreement_score: "0.0800000000",
+  agent_weights: {
+    reasoning: "0.2500000000",
+    market: "0.3500000000",
+    skeptic: "0.4000000000",
+  },
+};
+
+const predictionRun = {
+  prediction_run_id: "00000000-0000-4000-8000-000000000050",
+  experiment_run_id: experimentRun.experiment_run_id,
+  market_id: market.market_id,
+  market_title: market.title,
+  category: market.category,
+  predicted_at: now,
+  market_probability: "0.5200000000",
+  consensus_probability: "0.6700000000",
+  consensus_confidence: "0.7200000000",
+  recommendation: "yes",
+  edge: "0.1500000000",
+  no_edge: "-0.1500000000",
+  opportunity_level: "strong",
+  disagreement_score: "0.0800000000",
+  status: "completed",
+  agent_configuration_hash: "f".repeat(64),
+  input_hash: "a".repeat(64),
+  result_hash: "b".repeat(64),
+  duration_ms: "5.400",
+  safe_error_type: null,
+  abstention_reason: null,
+  correlation_id: "prediction-correlation",
+  causation_id: "replay-predict",
+  created_at: now,
+  agent_weights: agentPrediction.agent_weights,
+  agent_predictions: [
+    {
+      ...agentPrediction,
+      agent_prediction_id: "00000000-0000-4000-8000-000000000052",
+      agent_name: "reasoning",
+    },
+    {
+      ...agentPrediction,
+      agent_prediction_id: "00000000-0000-4000-8000-000000000053",
+      agent_name: "market",
+    },
+    {
+      ...agentPrediction,
+      agent_prediction_id: "00000000-0000-4000-8000-000000000054",
+      agent_name: "skeptic",
+    },
+    agentPrediction,
+  ],
+};
+
 type ApiFixture = {
   markets?: object[];
   sources?: object[];
@@ -130,13 +204,14 @@ type ApiFixture = {
   history?: object[];
   datasets?: object[];
   experiments?: object[];
+  predictions?: object[];
   delayMs?: number;
   status?: number;
 };
 
 async function installApi(page: Page, fixture: ApiFixture = {}) {
   await page.route(
-    /\/(markets|sources|collector-runs|experiment-runs|replay-datasets)(\/.*)?(\?.*)?$/,
+    /\/(markets|sources|collector-runs|experiment-runs|replay-datasets|predictions)(\/.*)?(\?.*)?$/,
     async (route) => {
       if (fixture.delayMs) {
         await new Promise((resolve) => setTimeout(resolve, fixture.delayMs));
@@ -185,6 +260,12 @@ async function fulfillApiRoute(route: Route, fixture: ApiFixture) {
   if (path === "/experiment-runs") {
     await route.fulfill({
       json: page(fixture.experiments ?? [experimentRun]),
+    });
+    return;
+  }
+  if (path === "/predictions") {
+    await route.fulfill({
+      json: page(fixture.predictions ?? [predictionRun]),
     });
     return;
   }
@@ -276,6 +357,51 @@ test("shows reproducible experiments only in advanced mode", async ({ page }) =>
   await expect(page.getByText("Sí", { exact: true })).toBeVisible();
 });
 
+test("explains predictions without presenting fictional returns", async ({ page }) => {
+  await installApi(page);
+  await page.goto("/");
+
+  await page.getByRole("button", { name: "Predicciones", exact: true }).click();
+
+  await expect(
+    page.getByRole("heading", { name: "Predicciones reproducibles" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/AI-Polyphite estima 67.0%, mientras que la fuente mostraba 52.0%/),
+  ).toBeVisible();
+  await expect(
+    page.getByLabel(/Estimación generada por AI-Polyphite/).first(),
+  ).toBeVisible();
+  await expect(
+    page.getByLabel(/No equivale a probabilidad de acierto/).first(),
+  ).toBeVisible();
+
+  const visibleText = await page.locator("body").innerText();
+  expect(visibleText).not.toMatch(/\bROI\b/);
+  expect(visibleText).not.toContain("rentabilidad");
+});
+
+test("shows advanced agent traceability and the agent monitor", async ({ page }) => {
+  await installApi(page);
+  await page.goto("/");
+
+  await page.getByRole("button", { name: "Vista avanzada" }).click();
+  await page.getByRole("button", { name: "Predicciones", exact: true }).click();
+  await expect(page.getByText("Resultados de los agentes")).toBeVisible();
+  await expect(page.getByText("Hash de configuración")).toBeVisible();
+  await expect(page.getByText("Pesos del consenso").first()).toBeVisible();
+
+  await page.getByRole("button", { name: "Agentes", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Agentes deterministas" }),
+  ).toBeVisible();
+  await expect(page.getByText("Reasoning Agent").first()).toBeVisible();
+  await expect(page.getByText("Consensus Agent").first()).toBeVisible();
+  await expect(
+    page.getByText("Backend determinista por reglas").first(),
+  ).toBeVisible();
+});
+
 test("shows a translated loading state", async ({ page }) => {
   await installApi(page, { delayMs: 700 });
   await page.goto("/");
@@ -291,6 +417,7 @@ test("shows an empty market state", async ({ page }) => {
     history: [],
     datasets: [],
     experiments: [],
+    predictions: [],
   });
   await page.goto("/");
   await page.getByRole("button", { name: "Mercados", exact: true }).click();

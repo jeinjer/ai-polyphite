@@ -1,5 +1,8 @@
 export type MarketStatus = "open" | "closed" | "resolved" | "cancelled";
 export type ResolutionOutcome = "unresolved" | "yes" | "no" | "cancelled" | "other";
+export type Recommendation = "yes" | "no" | "abstain";
+export type PredictionStatus = "completed" | "abstained" | "failed";
+export type OpportunityLevel = "none" | "weak" | "moderate" | "strong";
 
 export type Observation = {
   observation_id: string;
@@ -121,4 +124,57 @@ export type HistoryEvent = {
   volume: string | null;
   liquidity: string | null;
   source: string | null;
+};
+
+export type AgentEvidence = {
+  code: string;
+  summary: string;
+  direction: Recommendation | "neutral";
+  strength: string;
+};
+
+export type AgentPrediction = {
+  agent_prediction_id: string;
+  agent_name: string;
+  agent_version: string;
+  predicted_probability: string | null;
+  confidence: string;
+  recommendation: Recommendation;
+  rationale_summary: string;
+  evidence: AgentEvidence[];
+  warnings: string[];
+  input_hash: string;
+  output_hash: string;
+  duration_ms: string;
+  disagreement_score: string | null;
+  agent_weights: Record<string, string>;
+};
+
+export type PredictionRun = {
+  prediction_run_id: string;
+  experiment_run_id: string | null;
+  market_id: string;
+  market_title: string;
+  category: string | null;
+  predicted_at: string;
+  market_probability: string | null;
+  consensus_probability: string | null;
+  consensus_confidence: string;
+  recommendation: Recommendation;
+  edge: string | null;
+  no_edge: string | null;
+  opportunity_level: OpportunityLevel;
+  disagreement_score: string;
+  status: PredictionStatus;
+  agent_configuration_hash: string;
+  input_hash: string;
+  result_hash: string;
+  duration_ms: string;
+  safe_error_type: string | null;
+  abstention_reason: string | null;
+  correlation_id: string;
+  causation_id: string | null;
+  created_at: string;
+  agent_weights: Record<string, string>;
+  agent_predictions: AgentPrediction[];
 };

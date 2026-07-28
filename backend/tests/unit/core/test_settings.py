@@ -174,3 +174,24 @@ def test_default_configuration_does_not_enable_a_real_provider() -> None:
     registry = create_configured_provider_registry(settings)
 
     assert registry.registered_codes == ("mock",)
+
+
+def test_prediction_policy_is_configurable_and_validated() -> None:
+    settings = Settings(
+        _env_file=None,
+        prediction_weak_edge="0.02",
+        prediction_moderate_edge="0.07",
+        prediction_strong_edge="0.12",
+        prediction_minimum_confidence="0.35",
+    )
+
+    assert str(settings.prediction_weak_edge) == "0.02"
+    assert str(settings.prediction_minimum_confidence) == "0.35"
+
+    with pytest.raises(ValidationError, match="strictly increasing"):
+        Settings(
+            _env_file=None,
+            prediction_weak_edge="0.08",
+            prediction_moderate_edge="0.07",
+            prediction_strong_edge="0.12",
+        )

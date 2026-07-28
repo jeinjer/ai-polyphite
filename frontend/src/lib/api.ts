@@ -4,6 +4,7 @@ import type {
   Market,
   Observation,
   Page,
+  PredictionRun,
   ReplayDataset,
   SourceHealth,
   SyncRun,
@@ -31,6 +32,10 @@ export const api = {
   experimentRuns: () =>
     request<Page<ExperimentRun>>("/experiment-runs?page=1&page_size=50"),
   replayDatasets: () => request<ReplayDataset[]>("/replay-datasets"),
+  predictions: () =>
+    request<Page<PredictionRun>>(
+      "/predictions?page=1&page_size=100",
+    ),
   observations: (marketId: string) =>
     request<Page<Observation>>(
       `/markets/${marketId}/observations?page=1&page_size=500`,

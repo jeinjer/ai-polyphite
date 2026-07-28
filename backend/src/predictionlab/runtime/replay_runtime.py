@@ -8,6 +8,7 @@ from typing import cast
 
 from predictionlab.application.markets import ServiceDependencies
 from predictionlab.application.markets.unit_of_work import MarketUnitOfWork
+from predictionlab.application.predictions import PredictionOrchestrator
 from predictionlab.collectors import MarketDataCollector
 from predictionlab.core.clock import ReplayClock
 from predictionlab.core.settings import Settings
@@ -27,6 +28,7 @@ from predictionlab.infrastructure.resources import (
     create_resources,
 )
 from predictionlab.providers.replay import ReplayProvider, load_replay_dataset
+from predictionlab.runtime.predictions import create_prediction_orchestrator
 from predictionlab.runtime.replay_runner import ReplayRunner
 
 
@@ -36,6 +38,7 @@ class ReplayRuntime:
     provider: ReplayProvider
     clock: ReplayClock
     runner: ReplayRunner
+    prediction_orchestrator: PredictionOrchestrator
 
     async def close(self) -> None:
         await self.resources.close()
@@ -44,13 +47,15 @@ class ReplayRuntime:
 def create_replay_runtime(
     settings: Settings,
     dataset_path: Path,
+    *,
+    provider_code: str = "replay",
 ) -> ReplayRuntime:
     dataset = load_replay_dataset(dataset_path)
     clock = ReplayClock(
         start_at=dataset.metadata.replay_start,
         event_times=dataset.event_times,
     )
-    provider = ReplayProvider(dataset_path, clock=clock)
+    provider = ReplayProvider(dataset_path, clock=clock, code=provider_code)
     resources = create_resources(settings)
 
     def unit_of_work() -> MarketUnitOfWork:
@@ -78,9 +83,15 @@ def create_replay_runtime(
         experiment_store=SqlAlchemyExperimentRunStore(resources.session_factory),
         code_version=settings.code_version,
     )
+    prediction_orchestrator = create_prediction_orchestrator(
+        session_factory=resources.session_factory,
+        settings=settings,
+        clock=clock,
+    )
     return ReplayRuntime(
         resources=resources,
         provider=provider,
         clock=clock,
         runner=runner,
+        prediction_orchestrator=prediction_orchestrator,
     )
