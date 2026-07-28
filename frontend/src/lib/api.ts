@@ -3,11 +3,18 @@ import type {
   ExperimentRun,
   Market,
   Observation,
+  PaperPerformance,
+  PaperPortfolio,
+  PaperPosition,
+  PaperSettlement,
+  PaperTrade,
   Page,
   PredictionRun,
   ReplayDataset,
   SourceHealth,
   SyncRun,
+  TradeDecision,
+  EquityCurvePoint,
 } from "./api-types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -35,6 +42,22 @@ export const api = {
   predictions: () =>
     request<Page<PredictionRun>>(
       "/predictions?page=1&page_size=100",
+    ),
+  paperPortfolios: () =>
+    request<Page<PaperPortfolio>>("/paper-portfolios?page=1&page_size=100"),
+  tradeDecisions: () =>
+    request<Page<TradeDecision>>("/trade-decisions?page=1&page_size=100"),
+  paperTrades: () =>
+    request<Page<PaperTrade>>("/paper-trades?page=1&page_size=100"),
+  paperPositions: () =>
+    request<Page<PaperPosition>>("/paper-positions?page=1&page_size=100"),
+  paperSettlements: () =>
+    request<Page<PaperSettlement>>("/paper-settlements?page=1&page_size=100"),
+  paperPerformance: (portfolioId: string) =>
+    request<PaperPerformance>(`/paper-portfolios/${portfolioId}/performance`),
+  paperEquityCurve: (portfolioId: string) =>
+    request<EquityCurvePoint[]>(
+      `/paper-portfolios/${portfolioId}/equity-curve`,
     ),
   observations: (marketId: string) =>
     request<Page<Observation>>(

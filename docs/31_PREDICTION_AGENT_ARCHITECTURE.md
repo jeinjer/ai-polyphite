@@ -149,4 +149,5 @@ Los logs operativos no reemplazan la persistencia durable.
 - No búsquedas web.
 - No Ollama ni APIs LLM.
 - No Event Bus en este slice.
-- No paper trading ni dinero real.
+- Los agentes no ejecutan paper trading; Application consume después el
+  `PredictionRun` persistido. No existe dinero real.

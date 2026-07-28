@@ -114,6 +114,24 @@ versionada.
 - Secciones bilingües Predicciones y Agentes con vista simple/avanzada.
 - ADR de agentes deterministas antes de integrar LLM.
 - Tests unitarios, integración y E2E del pipeline predictivo.
+- Dominio completo de paper trading con portfolios, decisiones, órdenes,
+  trades, posiciones, settlements, ledger y snapshots de performance.
+- Unidades inequívocas `USD_SIMULATED` y `MANA_SIMULATED`.
+- Políticas versionadas de entrada por umbral, sizing fijo o ajustado,
+  límites de exposición y costes simulados.
+- Migración Alembic para ocho tablas durables de simulación y auditoría.
+- Unit of Work transaccional e idempotencia por experimento, predicción y
+  posición.
+- Liquidación oficial YES/NO/CANCELLED y tratamiento conservador de OTHER.
+- Mark-to-market informativo con barrera temporal estricta.
+- `make replay-trade` y replay doble con resultados deterministas.
+- ROI y P&L simulados, drawdown, exposición, costes, cobertura, desgloses,
+  estado de evidencia, alertas y baselines comparables.
+- API read-only de portfolio, decisiones, trades, posiciones, settlements,
+  equity curve y performance; controles POST bloqueados en producción.
+- Dashboard bilingüe de Cartera, Operaciones, Posiciones y Rendimiento.
+- ADR de frontera estructural entre simulación y ejecución real.
+- Tests unitarios, integración PostgreSQL, OpenAPI y Playwright del slice.
 
 ### Security
 

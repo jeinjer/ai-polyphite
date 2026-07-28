@@ -7,7 +7,7 @@ from decimal import Decimal
 from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import (
     AliasChoices,
@@ -154,6 +154,110 @@ class Settings(BaseSettings):
         le=1,
     )
     prediction_strong_edge: Decimal = Field(default=Decimal("0.15"), ge=0, le=1)
+    enable_manual_paper_trading: bool = Field(
+        default=False,
+        validation_alias=AliasChoices(
+            "enable_manual_paper_trading",
+            "AI_POLYPHITE_ENABLE_MANUAL_PAPER_TRADING",
+        ),
+    )
+    paper_currency_unit: Literal["USD_SIMULATED", "MANA_SIMULATED"] = (
+        "USD_SIMULATED"
+    )
+    paper_initial_balance: Decimal = Field(default=Decimal("100"), gt=0)
+    paper_entry_minimum_edge: Decimal = Field(
+        default=Decimal("0.03"),
+        ge=0,
+        le=1,
+    )
+    paper_entry_minimum_confidence: Decimal = Field(
+        default=Decimal("0.45"),
+        ge=0,
+        le=1,
+    )
+    paper_maximum_data_age_seconds: int = Field(
+        default=172_800,
+        ge=1,
+        le=31_536_000,
+    )
+    paper_allow_yes: bool = True
+    paper_allow_no: bool = True
+    paper_minimum_stake: Decimal = Field(default=Decimal("0.50"), gt=0)
+    paper_maximum_stake: Decimal = Field(default=Decimal("10.00"), gt=0)
+    paper_sizing_policy: Literal["fixed_fraction", "confidence_adjusted"] = (
+        "confidence_adjusted"
+    )
+    paper_base_equity_fraction: Decimal = Field(
+        default=Decimal("0.01"),
+        gt=0,
+        le=1,
+    )
+    paper_maximum_market_fraction: Decimal = Field(
+        default=Decimal("0.02"),
+        gt=0,
+        le=1,
+    )
+    paper_maximum_category_fraction: Decimal = Field(
+        default=Decimal("0.15"),
+        gt=0,
+        le=1,
+    )
+    paper_maximum_total_exposure_fraction: Decimal = Field(
+        default=Decimal("0.50"),
+        gt=0,
+        le=1,
+    )
+    paper_disagreement_reduction: Decimal = Field(
+        default=Decimal("0.50"),
+        ge=0,
+        le=1,
+    )
+    paper_low_liquidity_reduction: Decimal = Field(
+        default=Decimal("0.50"),
+        ge=0,
+        le=1,
+    )
+    paper_stale_data_reduction: Decimal = Field(
+        default=Decimal("0.50"),
+        ge=0,
+        le=1,
+    )
+    paper_low_liquidity_threshold: Decimal = Field(default=Decimal("25"), ge=0)
+    paper_sizing_stale_after_seconds: int = Field(
+        default=86_400,
+        ge=1,
+        le=31_536_000,
+    )
+    paper_cost_model: Literal["zero", "conservative"] = "conservative"
+    paper_percentage_fee: Decimal = Field(
+        default=Decimal("0.005"),
+        ge=0,
+        le=1,
+    )
+    paper_fixed_fee: Decimal = Field(default=Decimal("0"), ge=0)
+    paper_slippage_probability_points: Decimal = Field(
+        default=Decimal("0.005"),
+        ge=0,
+        le=1,
+    )
+    paper_low_liquidity_penalty_points: Decimal = Field(
+        default=Decimal("0.005"),
+        ge=0,
+        le=1,
+    )
+    paper_stale_observation_penalty_points: Decimal = Field(
+        default=Decimal("0.005"),
+        ge=0,
+        le=1,
+    )
+    paper_evidence_preliminary_trades: int = Field(default=10, ge=1)
+    paper_evidence_observation_trades: int = Field(default=30, ge=1)
+    paper_evidence_expansion_trades: int = Field(default=100, ge=1)
+    paper_evidence_maximum_concentration: Decimal = Field(
+        default=Decimal("0.25"),
+        ge=0,
+        le=1,
+    )
 
     @field_validator("cors_allowed_origins", mode="before")
     @classmethod
@@ -234,6 +338,16 @@ class Settings(BaseSettings):
             < self.prediction_strong_edge
         ):
             raise ValueError("Prediction edge thresholds must be strictly increasing.")
+        if self.paper_minimum_stake > self.paper_maximum_stake:
+            raise ValueError("Paper minimum stake cannot exceed maximum stake.")
+        if not (
+            self.paper_evidence_preliminary_trades
+            < self.paper_evidence_observation_trades
+            < self.paper_evidence_expansion_trades
+        ):
+            raise ValueError(
+                "Paper evidence thresholds must be strictly increasing."
+            )
         return self
 
     @property
@@ -267,7 +381,12 @@ class Settings(BaseSettings):
             "provider_intervals_seconds": self.provider_intervals_seconds,
             "collector_run_immediately": self.collector_run_immediately,
             "enable_manual_prediction_runs": self.enable_manual_prediction_runs,
+            "enable_manual_paper_trading": self.enable_manual_paper_trading,
             "replay_prediction_interval_hours": self.replay_prediction_interval_hours,
+            "paper_currency_unit": self.paper_currency_unit,
+            "paper_initial_balance": str(self.paper_initial_balance),
+            "paper_sizing_policy": self.paper_sizing_policy,
+            "paper_cost_model": self.paper_cost_model,
         }
 
 

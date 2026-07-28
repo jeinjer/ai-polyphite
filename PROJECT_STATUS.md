@@ -4,7 +4,7 @@
 
 ## Estado general
 
-**Fase:** predicciones deterministas reproducibles completas
+**Fase:** MVP reproducible con paper trading completo
 
 **Estado:** implementado y validado; pendiente de aprobación del usuario
 **Dinero real:** prohibido y no implementado
@@ -32,6 +32,12 @@ Mercado visible as-of
   → PredictionRun durable
   → API / dashboard Predicciones y Agentes
   → evaluación posterior contra baselines
+
+PredictionRun durable
+  → políticas de entrada, sizing, riesgo y costes
+  → decisión, orden, trade y posición simulados
+  → settlement oficial y ledger
+  → métricas, baselines y dashboard
 ```
 
 ## Implementado
@@ -66,11 +72,22 @@ Mercado visible as-of
 - Brier, log loss, error absoluto, accuracy, cobertura y calibración.
 - MarketBaseline y ConstantBaseline.
 - Vistas Predicciones y Agentes sin ROI ficticio.
+- Portfolio y ledger virtual en `USD_SIMULATED` o `MANA_SIMULATED`.
+- Decisiones idempotentes derivadas exclusivamente de `PredictionRun`.
+- Posiciones YES/NO long-only, sin leverage y una por mercado.
+- Políticas versionadas de entrada, sizing, riesgo y costes.
+- Apertura y liquidación transaccionales con procedencia completa.
+- Mark-to-market explícitamente informativo.
+- Liquidación YES, NO y CANCELLED; OTHER queda pendiente con alerta.
+- Replay trade determinista integrado al mismo reloj histórico.
+- Métricas simuladas, evidencia, alertas y baselines comparables.
+- API read-only de portfolios, decisiones, trades, posiciones y settlements.
+- Vistas bilingües Cartera, Operaciones, Posiciones y Rendimiento.
 - Docker Compose para migración, API, frontend, PostgreSQL, Redis y worker.
 
 ## Decisiones vigentes
 
-Ocho ADR aceptados:
+Nueve ADR aceptados:
 
 1. Monolito modular.
 2. Sistema de eventos durable como arquitectura futura.
@@ -80,28 +97,28 @@ Ocho ADR aceptados:
 6. Observaciones separadas de cotizaciones ejecutables.
 7. Reloj simulado y barrera contra lookahead.
 8. Agentes deterministas antes de integrar LLM.
+9. Frontera estructural de simulación y evaluación.
 
 ## No implementado
 
 - Noticias, backend LLM u Ollama.
 - Event Bus, outbox/inbox o Redis Streams funcional.
-- Paper trading, operaciones, cartera, P&L o ROI.
 - Ejecución real, wallets, brokers o credenciales de trading.
 - HistoricalProvider, Metaculus o Polymarket.
 - Scheduler distribuido, WebSockets o autenticación.
 
-## Siguiente slice obligatorio
+## Siguiente etapa recomendada
 
-Implementar paper trading sobre `PredictionRun`:
+Congelar el MVP y estabilizarlo mediante validación paper continua:
 
-1. estrategias versionadas;
-2. portfolio y ledger virtual;
-3. decisiones idempotentes;
-4. posiciones YES/NO long-only;
-5. liquidación oficial;
-6. P&L y métricas exclusivamente simuladas.
+1. ejecutar datasets históricos más extensos sin cambiar parámetros;
+2. observar errores, staleness, concentración y drawdown;
+3. comparar periodos y categorías contra los mismos baselines;
+4. preparar una ejecución paper continua de 30 días;
+5. revisar evidencia antes de añadir NewsAgent o LLM.
 
-No añadir NewsAgent, LLM, proveedores ni Event Bus antes de este slice.
+No añadir ejecución real, optimización automática ni nuevos agentes durante la
+estabilización.
 
 ## Fuente de verdad
 

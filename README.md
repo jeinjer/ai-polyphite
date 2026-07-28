@@ -5,17 +5,16 @@ en agentes de IA puede encontrar ventajas estadísticas en mercados de predicci�
 mediante simulación.
 
 > [!IMPORTANT]
-> AI-Polyphite no ejecuta operaciones con dinero real. El alcance actual es
-> ingesta y experimentación histórica; paper trading todavía no está
-> implementado.
+> AI-Polyphite no ejecuta operaciones con dinero real. El alcance actual incluye
+> paper trading reproducible exclusivamente con unidades simuladas.
 
 ## Estado
 
 El repositorio ya ejecuta ingesta, replay histórico determinista y cuatro
-agentes reproducibles, persiste predicciones, las evalúa contra baselines y las
-muestra en un dashboard bilingüe. `MockProvider` funciona por defecto; Manifold
-read-only se habilita explícitamente. Paper trading y operaciones todavía no
-existen.
+agentes reproducibles, persiste predicciones y simula portfolios, operaciones y
+liquidaciones auditables. Los resultados y baselines se muestran en un dashboard
+bilingüe. `MockProvider` funciona por defecto; Manifold read-only se habilita
+explícitamente.
 
 Consulta:
 
@@ -28,6 +27,8 @@ Consulta:
   para el cierre verificable de replay y experimentos.
 - [`PREDICTION_AGENTS_IMPLEMENTATION_REPORT.md`](PREDICTION_AGENTS_IMPLEMENTATION_REPORT.md)
   para el cierre verificable de agentes y predicciones.
+- [`PAPER_TRADING_IMPLEMENTATION_REPORT.md`](PAPER_TRADING_IMPLEMENTATION_REPORT.md)
+  para el cierre verificable del MVP simulado.
 - [`docs/`](docs/) para la especificación completa.
 - [`docs/adr/`](docs/adr/) para decisiones arquitectónicas aceptadas.
 - [`docs/14_MARKET_DOMAIN.md`](docs/14_MARKET_DOMAIN.md) para el primer vertical
@@ -52,6 +53,13 @@ Consulta:
   [`docs/32_PREDICTION_RUNS_AND_API.md`](docs/32_PREDICTION_RUNS_AND_API.md) y
   [`docs/33_PREDICTION_EVALUATION.md`](docs/33_PREDICTION_EVALUATION.md) para
   el pipeline predictivo.
+- [`docs/34_PAPER_TRADING_ARCHITECTURE.md`](docs/34_PAPER_TRADING_ARCHITECTURE.md)
+  y [`docs/35_PAPER_PORTFOLIO_AND_ACCOUNTING.md`](docs/35_PAPER_PORTFOLIO_AND_ACCOUNTING.md)
+  para arquitectura y contabilidad virtual.
+- [`docs/36_PAPER_TRADING_POLICIES.md`](docs/36_PAPER_TRADING_POLICIES.md),
+  [`docs/37_PAPER_SETTLEMENT_PERFORMANCE_AND_API.md`](docs/37_PAPER_SETTLEMENT_PERFORMANCE_AND_API.md)
+  y [`docs/38_REPLAY_TRADE.md`](docs/38_REPLAY_TRADE.md) para políticas,
+  liquidación, métricas, API y replay.
 
 ## Arquitectura
 
@@ -142,6 +150,8 @@ pero no como registro histórico único.
    - Datasets: <http://localhost:8000/replay-datasets>
    - Experimentos: <http://localhost:8000/experiment-runs>
    - Predicciones: <http://localhost:8000/predictions>
+   - Portfolios simulados: <http://localhost:8000/paper-portfolios>
+   - Operaciones simuladas: <http://localhost:8000/paper-trades>
    - OpenAPI: <http://localhost:8000/docs>
 
 PostgreSQL y Redis solo publican puertos en `127.0.0.1`.
@@ -195,7 +205,11 @@ make replay DATASET=synthetic-lab-v1 MODE=accelerated
 make replay-step DATASET=synthetic-lab-v1
 make replay-reset DATASET=synthetic-lab-v1
 make replay-predict DATASET=synthetic-lab-v1 PREDICTION_INTERVAL_HOURS=24
+make replay-trade DATASET=synthetic-lab-v1 PREDICTION_INTERVAL_HOURS=24
 ```
+
+`replay-trade` deriva cada decisión de un `PredictionRun` persistido, usa el
+mismo reloj anti-lookahead y liquida sólo resoluciones ya visibles.
 
 ## Desarrollo local
 

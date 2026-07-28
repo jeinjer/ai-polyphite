@@ -23,12 +23,23 @@ def test_replay_cli_parses_required_modes() -> None:
             "12",
         ]
     )
+    trade = parser.parse_args(
+        [
+            "trade",
+            "--dataset",
+            "synthetic-lab-v1",
+            "--interval-hours",
+            "24",
+        ]
+    )
 
     assert accelerated.mode == "accelerated"
     assert step.mode == "step"
     assert reset.command == "reset"
     assert predict.command == "predict"
     assert predict.interval_hours == 12
+    assert trade.command == "trade"
+    assert trade.interval_hours == 24
 
 
 def test_replay_cli_resolves_a_versioned_dataset() -> None:

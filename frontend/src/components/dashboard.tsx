@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
   AlertTriangle,
+  ArrowLeftRight,
   BarChart3,
   CheckCircle2,
   ChevronRight,
@@ -18,14 +19,16 @@ import {
   Info,
   Languages,
   LineChart as LineChartIcon,
+  Layers3,
   ListChecks,
   LoaderCircle,
   Menu,
   RefreshCw,
   Settings,
   ShieldAlert,
-  SlidersHorizontal,
   TriangleAlert,
+  TrendingUp,
+  WalletCards,
   XCircle,
   type LucideIcon,
 } from "lucide-react";
@@ -40,6 +43,7 @@ import {
   YAxis,
 } from "recharts";
 
+import { PaperTradingView } from "@/components/paper-trading";
 import { educationalTextKeys } from "@/i18n/educational";
 import { useI18n } from "@/i18n/i18n-provider";
 import type { MessageKey } from "@/i18n/messages";
@@ -50,12 +54,19 @@ import type {
   Market,
   MarketStatus,
   Observation,
+  EquityCurvePoint,
+  PaperPerformance,
+  PaperPortfolio,
+  PaperPosition,
+  PaperSettlement,
+  PaperTrade,
   AgentPrediction,
   PredictionRun,
   ReplayDataset,
   ResolutionOutcome,
   SourceHealth,
   SyncRun,
+  TradeDecision,
 } from "@/lib/api-types";
 import {
   useUiStore,
@@ -86,6 +97,10 @@ const navigation: {
   { section: "history", label: "nav.history", icon: History },
   { section: "predictions", label: "nav.predictions", icon: ListChecks },
   { section: "agents", label: "nav.agents", icon: Gauge },
+  { section: "portfolio", label: "nav.portfolio", icon: WalletCards },
+  { section: "trades", label: "nav.trades", icon: ArrowLeftRight },
+  { section: "positions", label: "nav.positions", icon: Layers3 },
+  { section: "performance", label: "nav.performance", icon: TrendingUp },
   { section: "experiments", label: "nav.experiments", icon: FlaskConical },
   { section: "sources", label: "nav.sources", icon: Database },
   { section: "system", label: "nav.system", icon: Activity },
@@ -118,6 +133,37 @@ export function Dashboard() {
   const datasetsQuery = useQuery({
     queryKey: ["replay-datasets"],
     queryFn: api.replayDatasets,
+  });
+  const paperPortfoliosQuery = useQuery({
+    queryKey: ["paper-portfolios"],
+    queryFn: api.paperPortfolios,
+  });
+  const decisionsQuery = useQuery({
+    queryKey: ["trade-decisions"],
+    queryFn: api.tradeDecisions,
+  });
+  const paperTradesQuery = useQuery({
+    queryKey: ["paper-trades"],
+    queryFn: api.paperTrades,
+  });
+  const paperPositionsQuery = useQuery({
+    queryKey: ["paper-positions"],
+    queryFn: api.paperPositions,
+  });
+  const paperSettlementsQuery = useQuery({
+    queryKey: ["paper-settlements"],
+    queryFn: api.paperSettlements,
+  });
+  const paperPortfolio = paperPortfoliosQuery.data?.items[0] ?? null;
+  const paperPerformanceQuery = useQuery({
+    queryKey: ["paper-performance", paperPortfolio?.portfolio_id],
+    queryFn: () => api.paperPerformance(paperPortfolio?.portfolio_id ?? ""),
+    enabled: paperPortfolio !== null,
+  });
+  const paperEquityQuery = useQuery({
+    queryKey: ["paper-equity", paperPortfolio?.portfolio_id],
+    queryFn: () => api.paperEquityCurve(paperPortfolio?.portfolio_id ?? ""),
+    enabled: paperPortfolio !== null,
   });
   const markets = useMemo(
     () => marketsQuery.data?.items ?? [],
@@ -157,14 +203,28 @@ export function Dashboard() {
     runsQuery.isLoading ||
     experimentsQuery.isLoading ||
     predictionsQuery.isLoading ||
-    datasetsQuery.isLoading;
+    datasetsQuery.isLoading ||
+    paperPortfoliosQuery.isLoading ||
+    decisionsQuery.isLoading ||
+    paperTradesQuery.isLoading ||
+    paperPositionsQuery.isLoading ||
+    paperSettlementsQuery.isLoading ||
+    paperPerformanceQuery.isLoading ||
+    paperEquityQuery.isLoading;
   const hasError =
     marketsQuery.isError ||
     sourcesQuery.isError ||
     runsQuery.isError ||
     experimentsQuery.isError ||
     predictionsQuery.isError ||
-    datasetsQuery.isError;
+    datasetsQuery.isError ||
+    paperPortfoliosQuery.isError ||
+    decisionsQuery.isError ||
+    paperTradesQuery.isError ||
+    paperPositionsQuery.isError ||
+    paperSettlementsQuery.isError ||
+    paperPerformanceQuery.isError ||
+    paperEquityQuery.isError;
 
   const retry = () => {
     void marketsQuery.refetch();
@@ -173,6 +233,13 @@ export function Dashboard() {
     void experimentsQuery.refetch();
     void predictionsQuery.refetch();
     void datasetsQuery.refetch();
+    void paperPortfoliosQuery.refetch();
+    void decisionsQuery.refetch();
+    void paperTradesQuery.refetch();
+    void paperPositionsQuery.refetch();
+    void paperSettlementsQuery.refetch();
+    void paperPerformanceQuery.refetch();
+    void paperEquityQuery.refetch();
   };
 
   const selectSection = (nextSection: DashboardSection) => {
@@ -214,23 +281,6 @@ export function Dashboard() {
               />
               ))}
           </nav>
-
-          <div className="mt-8 border-t border-white/8 pt-5">
-            <button
-              type="button"
-              disabled
-              title={t("nav.disabled")}
-              className="flex w-full cursor-not-allowed items-center gap-3 rounded-xl px-3 py-3 text-left text-sm text-slate-600"
-            >
-              <SlidersHorizontal aria-hidden="true" className="size-4" />
-              <span>
-                {t("nav.simulation")}
-                <span className="mt-1 block text-[11px] leading-4">
-                  {t("nav.disabled")}
-                </span>
-              </span>
-            </button>
-          </div>
 
           <div className="absolute inset-x-5 bottom-5 rounded-xl border border-cyan-300/10 bg-cyan-300/5 p-3 text-xs leading-5 text-slate-400">
             <Info aria-hidden="true" className="mb-2 size-4 text-cyan-300" />
@@ -323,6 +373,13 @@ export function Dashboard() {
                 experiments={experimentsQuery.data?.items ?? []}
                 predictions={predictionsQuery.data?.items ?? []}
                 datasets={datasetsQuery.data ?? []}
+                paperPortfolio={paperPortfolio}
+                tradeDecisions={decisionsQuery.data?.items ?? []}
+                paperTrades={paperTradesQuery.data?.items ?? []}
+                paperPositions={paperPositionsQuery.data?.items ?? []}
+                paperSettlements={paperSettlementsQuery.data?.items ?? []}
+                paperPerformance={paperPerformanceQuery.data ?? null}
+                paperEquity={paperEquityQuery.data ?? []}
                 selectedMarket={selectedMarket}
                 observations={observationsQuery.data?.items ?? []}
                 history={historyQuery.data?.items ?? []}
@@ -354,6 +411,13 @@ function DashboardContent({
   experiments,
   predictions,
   datasets,
+  paperPortfolio,
+  tradeDecisions,
+  paperTrades,
+  paperPositions,
+  paperSettlements,
+  paperPerformance,
+  paperEquity,
   selectedMarket,
   observations,
   history,
@@ -370,6 +434,13 @@ function DashboardContent({
   experiments: ExperimentRun[];
   predictions: PredictionRun[];
   datasets: ReplayDataset[];
+  paperPortfolio: PaperPortfolio | null;
+  tradeDecisions: TradeDecision[];
+  paperTrades: PaperTrade[];
+  paperPositions: PaperPosition[];
+  paperSettlements: PaperSettlement[];
+  paperPerformance: PaperPerformance | null;
+  paperEquity: EquityCurvePoint[];
   selectedMarket: Market | null;
   observations: Observation[];
   history: HistoryEvent[];
@@ -378,6 +449,26 @@ function DashboardContent({
   onSelectMarket: (marketId: string) => void;
   onNavigate: (section: DashboardSection) => void;
 }>) {
+  if (
+    section === "portfolio" ||
+    section === "trades" ||
+    section === "positions" ||
+    section === "performance"
+  ) {
+    return (
+      <PaperTradingView
+        section={section}
+        mode={mode}
+        portfolio={paperPortfolio}
+        decisions={tradeDecisions}
+        trades={paperTrades}
+        positions={paperPositions}
+        settlements={paperSettlements}
+        performance={paperPerformance}
+        equityCurve={paperEquity}
+      />
+    );
+  }
   if (section === "markets") {
     return (
       <MarketsView
@@ -2071,6 +2162,10 @@ function alert(
     history: "alerts.action.history",
     predictions: "alerts.action.history",
     agents: "alerts.action.system",
+    portfolio: "alerts.action.system",
+    trades: "alerts.action.history",
+    positions: "alerts.action.history",
+    performance: "alerts.action.system",
     experiments: "alerts.action.history",
     sources: "alerts.action.sources",
     system: "alerts.action.system",

@@ -13,6 +13,7 @@ from predictionlab.api.routes.collector_runs import router as collector_runs_rou
 from predictionlab.api.routes.experiments import router as experiments_router
 from predictionlab.api.routes.health import router as health_router
 from predictionlab.api.routes.markets import router as markets_router
+from predictionlab.api.routes.paper_trading import router as paper_trading_router
 from predictionlab.api.routes.predictions import router as predictions_router
 from predictionlab.api.routes.sources import router as sources_router
 from predictionlab.application.collectors.service import CollectorRunQueryService
@@ -21,6 +22,10 @@ from predictionlab.application.experiments import (
     ReplayDatasetQueryService,
 )
 from predictionlab.application.markets.query_service import MarketQueryService
+from predictionlab.application.paper_trading import (
+    PaperPerformanceService,
+    PaperTradingQueryService,
+)
 from predictionlab.application.predictions import (
     PredictionEvaluationService,
     PredictionQueryService,
@@ -32,11 +37,16 @@ from predictionlab.infrastructure.database.queries import (
     SqlAlchemyCollectorRunReadRepository,
     SqlAlchemyExperimentRunReadRepository,
     SqlAlchemyMarketReadRepository,
+    SqlAlchemyPaperTradingReadRepository,
     SqlAlchemyPredictionReadRepository,
 )
 from predictionlab.infrastructure.observability.http_metrics import HttpRequestMetrics
 from predictionlab.infrastructure.replay import FileReplayDatasetCatalog
 from predictionlab.infrastructure.resources import create_resources
+from predictionlab.runtime.paper_trading import (
+    create_paper_cost_model,
+    create_paper_trading_orchestrator,
+)
 from predictionlab.runtime.predictions import create_prediction_orchestrator
 from predictionlab.runtime.providers import (
     ProviderSourceHealthRepository,
@@ -74,6 +84,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(sources_router)
     application.include_router(experiments_router)
     application.include_router(predictions_router)
+    application.include_router(paper_trading_router)
     return application
 
 
@@ -95,16 +106,26 @@ def _build_lifespan(settings: Settings) -> Lifespan[FastAPI]:
         application.state.replay_dataset_query_service = ReplayDatasetQueryService(
             FileReplayDatasetCatalog(settings.replay_dataset_directory)
         )
-        prediction_repository = SqlAlchemyPredictionReadRepository(
-            resources.session_factory
-        )
-        application.state.prediction_query_service = PredictionQueryService(
-            prediction_repository
-        )
+        prediction_repository = SqlAlchemyPredictionReadRepository(resources.session_factory)
+        application.state.prediction_query_service = PredictionQueryService(prediction_repository)
         application.state.prediction_evaluation_service = PredictionEvaluationService(
             prediction_repository
         )
         application.state.prediction_orchestrator = create_prediction_orchestrator(
+            session_factory=resources.session_factory,
+            settings=settings,
+        )
+        paper_repository = SqlAlchemyPaperTradingReadRepository(resources.session_factory)
+        application.state.paper_trading_query_service = PaperTradingQueryService(paper_repository)
+        application.state.paper_performance_service = PaperPerformanceService(
+            paper_repository,
+            preliminary_threshold=settings.paper_evidence_preliminary_trades,
+            observation_threshold=settings.paper_evidence_observation_trades,
+            expansion_threshold=settings.paper_evidence_expansion_trades,
+            maximum_concentration=(settings.paper_evidence_maximum_concentration),
+            cost_model=create_paper_cost_model(settings),
+        )
+        application.state.paper_trading_orchestrator = create_paper_trading_orchestrator(
             session_factory=resources.session_factory,
             settings=settings,
         )

@@ -196,6 +196,208 @@ const predictionRun = {
   ],
 };
 
+const paperPortfolio = {
+  portfolio_id: "00000000-0000-4000-8000-000000000060",
+  name: "Replay synthetic-lab-v1",
+  currency_unit: "USD_SIMULATED",
+  initial_balance: "100.00000000",
+  cash_balance: "101.00000000",
+  reserved_balance: "0.00000000",
+  realized_pnl: "1.00000000",
+  unrealized_pnl: "0.00000000",
+  equity: "101.00000000",
+  total_exposure: "0.00000000",
+  status: "active",
+  strategy_configuration_hash: "1".repeat(64),
+  experiment_run_id: experimentRun.experiment_run_id,
+  created_at: now,
+  updated_at: now,
+  simulation_only: true,
+};
+
+const tradeDecision = {
+  decision_id: "00000000-0000-4000-8000-000000000061",
+  prediction_run_id: predictionRun.prediction_run_id,
+  portfolio_id: paperPortfolio.portfolio_id,
+  market_id: market.market_id,
+  market_title: market.title,
+  category: market.category,
+  decided_at: now,
+  decision: "buy_yes",
+  side: "yes",
+  market_probability: "0.5200000000",
+  system_probability: "0.6700000000",
+  edge: "0.1500000000",
+  confidence: "0.7200000000",
+  opportunity_level: "strong",
+  proposed_stake: "1.00000000",
+  approved_stake: "1.00000000",
+  rejection_reasons: [],
+  risk_checks: ["capital:passed", "market_exposure:passed"],
+  configuration_hash: "2".repeat(64),
+  result_hash: "3".repeat(64),
+  correlation_id: "paper-correlation",
+  causation_id: "replay-trade",
+  experiment_run_id: experimentRun.experiment_run_id,
+  prediction_result_hash: predictionRun.result_hash,
+  simulation_only: true,
+};
+
+const paperTrade = {
+  trade_id: "00000000-0000-4000-8000-000000000062",
+  order_id: "00000000-0000-4000-8000-000000000063",
+  decision_id: tradeDecision.decision_id,
+  portfolio_id: paperPortfolio.portfolio_id,
+  prediction_run_id: predictionRun.prediction_run_id,
+  market_id: market.market_id,
+  market_title: market.title,
+  category: market.category,
+  executed_at: now,
+  side: "yes",
+  entry_probability: "0.5200000000",
+  effective_probability: "0.5250000000",
+  units: "1.89573459",
+  gross_cost: "0.98578199",
+  fees: "0.00495262",
+  slippage_cost: "0.00947867",
+  net_cost: "1.00021328",
+  maximum_loss: "1.00021328",
+  potential_payout: "1.89573459",
+  execution_model: "conservative_cost:1.0.0",
+  result_hash: "4".repeat(64),
+  decision_reasons: tradeDecision.risk_checks,
+  prediction_result_hash: predictionRun.result_hash,
+  experiment_run_id: experimentRun.experiment_run_id,
+  simulation_only: true,
+  probability_is_informative: true,
+};
+
+const paperPosition = {
+  position_id: "00000000-0000-4000-8000-000000000064",
+  portfolio_id: paperPortfolio.portfolio_id,
+  market_id: market.market_id,
+  market_title: market.title,
+  category: market.category,
+  side: "yes",
+  opened_at: now,
+  closed_at: now,
+  status: "settled",
+  units: paperTrade.units,
+  average_entry_probability: paperTrade.effective_probability,
+  invested_amount: paperTrade.net_cost,
+  current_mark_probability: "1.0000000000",
+  unrealized_pnl: "0.00000000",
+  realized_pnl: "0.89552131",
+  settlement_outcome: "yes",
+  prediction_run_id: predictionRun.prediction_run_id,
+  trade_id: paperTrade.trade_id,
+  opportunity_level: "strong",
+  entry_edge: "0.1500000000",
+  entry_confidence: "0.7200000000",
+  experiment_run_id: experimentRun.experiment_run_id,
+  simulation_only: true,
+  mark_is_informative: true,
+};
+
+const paperSettlement = {
+  settlement_id: "00000000-0000-4000-8000-000000000065",
+  position_id: paperPosition.position_id,
+  portfolio_id: paperPortfolio.portfolio_id,
+  market_id: market.market_id,
+  market_title: market.title,
+  resolved_at: now,
+  outcome: "yes",
+  gross_payout: paperTrade.units,
+  fees: "0.00000000",
+  net_payout: paperTrade.units,
+  realized_pnl: paperPosition.realized_pnl,
+  settlement_policy: "official_binary_outcome",
+  result_hash: "5".repeat(64),
+  created_at: now,
+  correlation_id: "paper-correlation",
+  causation_id: "replay-settle",
+  experiment_run_id: experimentRun.experiment_run_id,
+  simulation_only: true,
+};
+
+const equityCurve = [
+  {
+    recorded_at: now,
+    equity: "100.00000000",
+    drawdown: "0.0000000000",
+    exposure: "0.00000000",
+    realized_pnl: "0.00000000",
+    unrealized_pnl: "0.00000000",
+    cumulative_costs: "0.00000000",
+    result_hash: "6".repeat(64),
+    valuation_is_simulated: true,
+  },
+  {
+    recorded_at: now,
+    equity: "101.00000000",
+    drawdown: "0.0000000000",
+    exposure: "0.00000000",
+    realized_pnl: "1.00000000",
+    unrealized_pnl: "0.00000000",
+    cumulative_costs: "0.01443129",
+    result_hash: "7".repeat(64),
+    valuation_is_simulated: true,
+  },
+];
+
+const paperPerformance = {
+  portfolio: paperPortfolio,
+  metrics: {
+    initial_capital: "100",
+    final_capital: "101",
+    net_profit: "1",
+    simulated_roi: "0.01",
+    realized_pnl: "1",
+    unrealized_pnl: "0",
+    total_costs: "0.01443129",
+    decision_count: 1,
+    open_trade_count: 0,
+    closed_trade_count: 1,
+    abstention_count: 0,
+    rejection_count: 0,
+    win_rate: "1",
+    average_profit: "1",
+    average_loss: null,
+    profit_factor: "999",
+    maximum_drawdown: "0",
+    maximum_exposure: "1",
+    coverage: "1",
+    independent_resolved_markets: 1,
+    largest_trade_profit_share: "1",
+    evidence_state: "insufficient_sample",
+    by_category: [{ key: "ejemplos", trade_count: 1, net_pnl: "1" }],
+    by_opportunity_level: [{ key: "strong", trade_count: 1, net_pnl: "1" }],
+    by_edge_range: [{ key: "10-20pp", trade_count: 1, net_pnl: "1" }],
+    by_confidence_range: [{ key: "70-85%", trade_count: 1, net_pnl: "1" }],
+  },
+  baselines: [
+    {
+      name: "no_trade",
+      initial_capital: "100",
+      final_capital: "100",
+      net_profit: "0",
+      simulated_roi: "0",
+      trade_count: 0,
+      total_costs: "0",
+    },
+  ],
+  alerts: [
+    {
+      code: "insufficient_closed_trades",
+      severity: "info",
+      message: "The resolved sample is too small.",
+    },
+  ],
+  strategy_configuration_hash: paperPortfolio.strategy_configuration_hash,
+  simulation_only: true,
+  disclaimer: "Simulated research results.",
+};
+
 type ApiFixture = {
   markets?: object[];
   sources?: object[];
@@ -205,13 +407,20 @@ type ApiFixture = {
   datasets?: object[];
   experiments?: object[];
   predictions?: object[];
+  paperPortfolios?: object[];
+  tradeDecisions?: object[];
+  paperTrades?: object[];
+  paperPositions?: object[];
+  paperSettlements?: object[];
+  paperPerformance?: object;
+  equityCurve?: object[];
   delayMs?: number;
   status?: number;
 };
 
 async function installApi(page: Page, fixture: ApiFixture = {}) {
   await page.route(
-    /\/(markets|sources|collector-runs|experiment-runs|replay-datasets|predictions)(\/.*)?(\?.*)?$/,
+    /\/(markets|sources|collector-runs|experiment-runs|replay-datasets|predictions|paper-portfolios|trade-decisions|paper-trades|paper-positions|paper-settlements)(\/.*)?(\?.*)?$/,
     async (route) => {
       if (fixture.delayMs) {
         await new Promise((resolve) => setTimeout(resolve, fixture.delayMs));
@@ -269,6 +478,38 @@ async function fulfillApiRoute(route: Route, fixture: ApiFixture) {
     });
     return;
   }
+  if (path.endsWith("/performance")) {
+    await route.fulfill({
+      json: fixture.paperPerformance ?? paperPerformance,
+    });
+    return;
+  }
+  if (path.endsWith("/equity-curve")) {
+    await route.fulfill({ json: fixture.equityCurve ?? equityCurve });
+    return;
+  }
+  if (path === "/paper-portfolios") {
+    await route.fulfill({
+      json: page(fixture.paperPortfolios ?? []),
+    });
+    return;
+  }
+  if (path === "/trade-decisions") {
+    await route.fulfill({ json: page(fixture.tradeDecisions ?? []) });
+    return;
+  }
+  if (path === "/paper-trades") {
+    await route.fulfill({ json: page(fixture.paperTrades ?? []) });
+    return;
+  }
+  if (path === "/paper-positions") {
+    await route.fulfill({ json: page(fixture.paperPositions ?? []) });
+    return;
+  }
+  if (path === "/paper-settlements") {
+    await route.fulfill({ json: page(fixture.paperSettlements ?? []) });
+    return;
+  }
   await route.fulfill({ json: page(fixture.runs ?? [syncRun]) });
 }
 
@@ -304,9 +545,50 @@ test("defaults to an understandable Spanish simple view", async ({ page }) => {
   expect(visibleText).not.toMatch(
     /\b(Provider|Collector|Snapshot|Checkpoint|DTO|Registry|ROI)\b/,
   );
-  expect(visibleText).not.toContain("Operaciones");
   expect(visibleText).not.toContain("rentabilidad");
   expect(visibleText).not.toContain("Ganancia o pérdida");
+});
+
+test("shows simulated portfolio, trades, positions and performance", async ({
+  page,
+}) => {
+  await installApi(page, {
+    paperPortfolios: [paperPortfolio],
+    tradeDecisions: [tradeDecision],
+    paperTrades: [paperTrade],
+    paperPositions: [paperPosition],
+    paperSettlements: [paperSettlement],
+    paperPerformance,
+    equityCurve,
+  });
+  await page.goto("/");
+
+  await page
+    .getByRole("button", { name: "Cartera simulada", exact: true })
+    .click();
+  await expect(
+    page.getByText(
+      "Resultados simulados. No representan dinero real ni garantizan rendimientos futuros.",
+    ),
+  ).toBeVisible();
+  await expect(page.getByText("101.00 USD_SIMULATED").first()).toBeVisible();
+
+  await page.getByRole("button", { name: "Operaciones", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Operaciones simuladas" }),
+  ).toBeVisible();
+  await expect(page.getByText("Capital en riesgo")).toBeVisible();
+
+  await page.getByRole("button", { name: "Posiciones", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Posiciones simuladas" }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Rendimiento", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Rendimiento experimental" }),
+  ).toBeVisible();
+  await expect(page.getByText("Muestra insuficiente")).toBeVisible();
 });
 
 test("switches the complete interface to English", async ({ page }) => {

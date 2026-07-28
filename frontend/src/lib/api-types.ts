@@ -3,6 +3,10 @@ export type ResolutionOutcome = "unresolved" | "yes" | "no" | "cancelled" | "oth
 export type Recommendation = "yes" | "no" | "abstain";
 export type PredictionStatus = "completed" | "abstained" | "failed";
 export type OpportunityLevel = "none" | "weak" | "moderate" | "strong";
+export type CurrencyUnit = "USD_SIMULATED" | "MANA_SIMULATED";
+export type PositionSide = "yes" | "no";
+export type TradeDecisionType = "buy_yes" | "buy_no" | "abstain" | "rejected";
+export type PaperPositionStatus = "open" | "settled" | "cancelled";
 
 export type Observation = {
   observation_id: string;
@@ -177,4 +181,203 @@ export type PredictionRun = {
   created_at: string;
   agent_weights: Record<string, string>;
   agent_predictions: AgentPrediction[];
+};
+
+export type PaperPortfolio = {
+  portfolio_id: string;
+  name: string;
+  currency_unit: CurrencyUnit;
+  initial_balance: string;
+  cash_balance: string;
+  reserved_balance: string;
+  realized_pnl: string;
+  unrealized_pnl: string;
+  equity: string;
+  total_exposure: string;
+  status: "active" | "paused" | "closed";
+  strategy_configuration_hash: string;
+  experiment_run_id: string | null;
+  created_at: string;
+  updated_at: string;
+  simulation_only: true;
+};
+
+export type TradeDecision = {
+  decision_id: string;
+  prediction_run_id: string;
+  portfolio_id: string;
+  market_id: string;
+  market_title: string;
+  category: string | null;
+  decided_at: string;
+  decision: TradeDecisionType;
+  side: PositionSide | null;
+  market_probability: string | null;
+  system_probability: string | null;
+  edge: string | null;
+  confidence: string;
+  opportunity_level: OpportunityLevel;
+  proposed_stake: string;
+  approved_stake: string;
+  rejection_reasons: string[];
+  risk_checks: string[];
+  configuration_hash: string;
+  result_hash: string;
+  correlation_id: string;
+  causation_id: string | null;
+  experiment_run_id: string | null;
+  prediction_result_hash: string;
+  simulation_only: true;
+};
+
+export type PaperTrade = {
+  trade_id: string;
+  order_id: string;
+  decision_id: string;
+  portfolio_id: string;
+  prediction_run_id: string;
+  market_id: string;
+  market_title: string;
+  category: string | null;
+  executed_at: string;
+  side: PositionSide;
+  entry_probability: string;
+  effective_probability: string;
+  units: string;
+  gross_cost: string;
+  fees: string;
+  slippage_cost: string;
+  net_cost: string;
+  maximum_loss: string;
+  potential_payout: string;
+  execution_model: string;
+  result_hash: string;
+  decision_reasons: string[];
+  prediction_result_hash: string;
+  experiment_run_id: string | null;
+  simulation_only: true;
+  probability_is_informative: true;
+};
+
+export type PaperPosition = {
+  position_id: string;
+  portfolio_id: string;
+  market_id: string;
+  market_title: string;
+  category: string | null;
+  side: PositionSide;
+  opened_at: string;
+  closed_at: string | null;
+  status: PaperPositionStatus;
+  units: string;
+  average_entry_probability: string;
+  invested_amount: string;
+  current_mark_probability: string | null;
+  unrealized_pnl: string;
+  realized_pnl: string;
+  settlement_outcome: ResolutionOutcome | null;
+  prediction_run_id: string;
+  trade_id: string;
+  opportunity_level: OpportunityLevel;
+  entry_edge: string;
+  entry_confidence: string;
+  experiment_run_id: string | null;
+  simulation_only: true;
+  mark_is_informative: true;
+};
+
+export type PaperSettlement = {
+  settlement_id: string;
+  position_id: string;
+  portfolio_id: string;
+  market_id: string;
+  market_title: string;
+  resolved_at: string;
+  outcome: ResolutionOutcome;
+  gross_payout: string;
+  fees: string;
+  net_payout: string;
+  realized_pnl: string;
+  settlement_policy: string;
+  result_hash: string;
+  created_at: string;
+  correlation_id: string;
+  causation_id: string | null;
+  experiment_run_id: string | null;
+  simulation_only: true;
+};
+
+export type EquityCurvePoint = {
+  recorded_at: string;
+  equity: string;
+  drawdown: string;
+  exposure: string;
+  realized_pnl: string;
+  unrealized_pnl: string;
+  cumulative_costs: string;
+  result_hash: string;
+  valuation_is_simulated: true;
+};
+
+export type StrategyBreakdown = {
+  key: string;
+  trade_count: number;
+  net_pnl: string;
+};
+
+export type BaselinePerformance = {
+  name: string;
+  initial_capital: string;
+  final_capital: string;
+  net_profit: string;
+  simulated_roi: string;
+  trade_count: number;
+  total_costs: string;
+};
+
+export type SimulationAlert = {
+  code: string;
+  severity: string;
+  message: string;
+};
+
+export type PaperPerformance = {
+  portfolio: PaperPortfolio;
+  metrics: {
+    initial_capital: string;
+    final_capital: string;
+    net_profit: string;
+    simulated_roi: string;
+    realized_pnl: string;
+    unrealized_pnl: string;
+    total_costs: string;
+    decision_count: number;
+    open_trade_count: number;
+    closed_trade_count: number;
+    abstention_count: number;
+    rejection_count: number;
+    win_rate: string | null;
+    average_profit: string | null;
+    average_loss: string | null;
+    profit_factor: string | null;
+    maximum_drawdown: string;
+    maximum_exposure: string;
+    coverage: string;
+    independent_resolved_markets: number;
+    largest_trade_profit_share: string;
+    evidence_state:
+      | "insufficient_sample"
+      | "preliminary_result"
+      | "under_observation"
+      | "sufficient_to_expand_validation";
+    by_category: StrategyBreakdown[];
+    by_opportunity_level: StrategyBreakdown[];
+    by_edge_range: StrategyBreakdown[];
+    by_confidence_range: StrategyBreakdown[];
+  };
+  baselines: BaselinePerformance[];
+  alerts: SimulationAlert[];
+  strategy_configuration_hash: string;
+  simulation_only: true;
+  disclaimer: string;
 };

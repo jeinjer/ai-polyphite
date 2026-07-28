@@ -37,7 +37,9 @@ infrastructure / integrations
 Existe ingesta multi-provider, histórico reproducible y un pipeline de cuatro
 agentes deterministas. `PredictionRun` conserva consenso, abstención, edge,
 salidas versionadas y hashes; la evaluación posterior compara contra el mercado
-y un baseline constante. Paper trading y ejecución real no existen.
+y un baseline constante. Paper trading reproducible agrega portfolios, trades,
+posiciones, settlements, ledger y métricas sólo en unidades simuladas. La
+ejecución real no existe.
 
 ## Contratos técnicos
 
@@ -48,6 +50,10 @@ y un baseline constante. Paper trading y ejecución real no existen.
 - `GET /markets/{market_id}`: detalle con provider y último snapshot.
 - `GET /predictions`: predicciones filtrables y trazables.
 - `GET /predictions/{prediction_id}`: agregado completo con salidas de agentes.
+- `GET /paper-portfolios`: portfolios virtuales y balances reconciliables.
+- `GET /paper-trades`: fills simulados con costes y procedencia.
+- `GET /paper-positions`: posiciones long-only y estado de liquidación.
+- `GET /paper-settlements`: resultados oficiales aplicados.
 - Todas las respuestas propagan `X-Correlation-ID` y `traceparent`.
 
 La configuración y los contratos se detallan en

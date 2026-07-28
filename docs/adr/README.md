@@ -25,3 +25,4 @@ nuevo ADR que referencia y reemplaza al anterior.
 | [0006](0006-observation-vs-executable-quote.md) | Accepted | Observaciones separadas de cotizaciones ejecutables |
 | [0007](0007-simulated-clock-and-lookahead-barrier.md) | Accepted | Reloj simulado y barrera contra lookahead |
 | [0008](0008-deterministic-agents-before-llm.md) | Accepted | Agentes deterministas antes de integrar LLM |
+| [0009](0009-simulated-performance-boundary.md) | Accepted | Frontera estructural de simulación y evaluación |

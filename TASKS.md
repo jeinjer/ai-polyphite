@@ -126,15 +126,19 @@ completada hasta que su código, tests y documentación hayan sido validados.
 - [ ] Implementar provider Ollama.
 - [ ] Implementar `NewsAgent` sólo después de validar datos estructurados.
 
-## Next — Paper trading
+## Completed — Paper trading
 
-- [ ] Modelar estrategias y versiones.
-- [ ] Modelar portfolios y ledger.
-- [ ] Implementar decisiones simuladas idempotentes.
-- [ ] Implementar posiciones YES/NO long-only.
-- [ ] Implementar liquidación oficial.
-- [ ] Implementar P&L y métricas básicas.
-- [ ] Probar invariantes financieras y concurrencia.
+- [x] Modelar estrategias y versiones.
+- [x] Modelar portfolios y ledger.
+- [x] Implementar decisiones simuladas idempotentes.
+- [x] Implementar posiciones YES/NO long-only.
+- [x] Implementar liquidación oficial.
+- [x] Implementar P&L, drawdown, exposición, costes y baselines.
+- [x] Integrar replay determinista de predicciones y trades.
+- [x] Exponer API read-only y controles dev-only.
+- [x] Crear vistas bilingües de portfolio, trades, posiciones y performance.
+- [x] Probar invariantes financieras, atomicidad, idempotencia y determinismo.
+- [x] Registrar ADR de separación estructural entre simulación y trading real.
 
 ## Dashboard and operations
 
@@ -142,10 +146,19 @@ completada hasta que su código, tests y documentación hayan sido validados.
 - [ ] Implementar actualizaciones WebSocket.
 - [x] Crear overview inicial del sistema.
 - [ ] Crear detalle reconstruible de predicción.
-- [ ] Crear vistas de portfolio, posiciones y agent runs.
+- [x] Crear vistas de portfolio, posiciones y agent runs.
 - [ ] Añadir métricas de CPU, RAM, GPU y latencia.
 - [ ] Crear backup y restore test.
 - [ ] Preparar ejecución continua de 30 días.
+
+## Next — MVP stabilization
+
+- [ ] Congelar políticas y configuración del MVP.
+- [ ] Ejecutar validación paper continua sobre datos más extensos.
+- [ ] Añadir reconciliación operativa automatizada de ledger y balances.
+- [ ] Medir concentración por periodo, categoría y mercado.
+- [ ] Definir criterios de promoción o descarte de una estrategia.
+- [ ] Publicar un informe de 30 días sin optimización retrospectiva.
 
 ## Later
 

@@ -6,7 +6,7 @@ import hashlib
 import json
 from collections.abc import Mapping
 from dataclasses import asdict, is_dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from enum import Enum
 from typing import Any
@@ -38,6 +38,12 @@ def _json_value(value: object) -> Any:
         if value.tzinfo is None or value.utcoffset() is None:
             raise ValueError("canonical hashes require timezone-aware timestamps")
         return value.isoformat()
+    if isinstance(value, timedelta):
+        return {
+            "days": value.days,
+            "seconds": value.seconds,
+            "microseconds": value.microseconds,
+        }
     if isinstance(value, UUID):
         return str(value)
     if isinstance(value, Enum):
@@ -46,6 +52,17 @@ def _json_value(value: object) -> Any:
         return _json_value(asdict(value))
     if isinstance(value, Mapping):
         return {str(key): _json_value(item) for key, item in value.items()}
-    if isinstance(value, list | tuple | set | frozenset):
+    if isinstance(value, set | frozenset):
+        normalized = [_json_value(item) for item in value]
+        return sorted(
+            normalized,
+            key=lambda item: json.dumps(
+                item,
+                ensure_ascii=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            ),
+        )
+    if isinstance(value, list | tuple):
         return [_json_value(item) for item in value]
     raise TypeError(f"unsupported canonical hash value: {type(value).__name__}")

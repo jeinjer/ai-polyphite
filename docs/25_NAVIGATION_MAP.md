@@ -21,15 +21,26 @@ Historial
 Experimentos (vista avanzada)
 ├── datasets disponibles
 └── ejecuciones reproducibles
+Cartera simulada
+├── capital, cash y exposición
+└── estado de evidencia y trazabilidad
+Operaciones
+└── entrada, riesgo, costes, resultado y predicción
+Posiciones
+└── abiertas, liquidadas y mark informativo
+Rendimiento
+├── equity curve y drawdown
+├── métricas y alertas
+└── baselines y desgloses
 Fuentes de datos
 Estado del sistema
 Configuración
 ├── vista simple/avanzada
 └── es-ES/en-US
-Simulación (deshabilitada)
 ```
 
 En móvil la navegación usa un panel desplegable; en escritorio permanece
 visible. Seleccionar un cambio principal abre el mercado correspondiente.
-En vista simple no aparece la navegación de Experimentos; sólo se comunica que
-el laboratorio histórico está disponible.
+En vista simple no aparece la navegación de Experimentos; las cuatro vistas de
+paper trading sí están disponibles con detalle reducido y disclaimer fijo. La
+vista avanzada agrega hashes, IDs, checks, configuración y trazabilidad.

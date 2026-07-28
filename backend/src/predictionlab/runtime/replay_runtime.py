@@ -8,6 +8,7 @@ from typing import cast
 
 from predictionlab.application.markets import ServiceDependencies
 from predictionlab.application.markets.unit_of_work import MarketUnitOfWork
+from predictionlab.application.paper_trading import PaperTradingOrchestrator
 from predictionlab.application.predictions import PredictionOrchestrator
 from predictionlab.collectors import MarketDataCollector
 from predictionlab.core.clock import ReplayClock
@@ -28,6 +29,7 @@ from predictionlab.infrastructure.resources import (
     create_resources,
 )
 from predictionlab.providers.replay import ReplayProvider, load_replay_dataset
+from predictionlab.runtime.paper_trading import create_paper_trading_orchestrator
 from predictionlab.runtime.predictions import create_prediction_orchestrator
 from predictionlab.runtime.replay_runner import ReplayRunner
 
@@ -39,6 +41,7 @@ class ReplayRuntime:
     clock: ReplayClock
     runner: ReplayRunner
     prediction_orchestrator: PredictionOrchestrator
+    paper_trading_orchestrator: PaperTradingOrchestrator
 
     async def close(self) -> None:
         await self.resources.close()
@@ -88,10 +91,16 @@ def create_replay_runtime(
         settings=settings,
         clock=clock,
     )
+    paper_trading_orchestrator = create_paper_trading_orchestrator(
+        session_factory=resources.session_factory,
+        settings=settings,
+        clock=clock,
+    )
     return ReplayRuntime(
         resources=resources,
         provider=provider,
         clock=clock,
         runner=runner,
         prediction_orchestrator=prediction_orchestrator,
+        paper_trading_orchestrator=paper_trading_orchestrator,
     )

@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from predictionlab.application.predictions import PredictionOrchestrator
+from predictionlab.domain.predictions import PredictionRun
 
 
 class ReplayPredictionSchedule:
@@ -63,6 +64,7 @@ class PredictionReplayHook:
         self._schedule = schedule
         self._random_seed = random_seed
         self.prediction_count = 0
+        self.last_prediction_runs: tuple[PredictionRun, ...] = ()
 
     async def __call__(
         self,
@@ -71,6 +73,7 @@ class PredictionReplayHook:
         correlation_id: str,
     ) -> tuple[str, ...]:
         result_hashes: list[str] = []
+        current_runs: list[PredictionRun] = []
         for predicted_at in self._schedule.due(visible_at):
             predictions = await self._orchestrator.run_batch(
                 predicted_at=predicted_at,
@@ -79,8 +82,10 @@ class PredictionReplayHook:
                 correlation_id=correlation_id,
                 causation_id=f"replay-predict:{predicted_at.isoformat()}",
             )
+            current_runs.extend(predictions)
             result_hashes.extend(item.result_hash for item in predictions)
             self.prediction_count += len(predictions)
+        self.last_prediction_runs = tuple(current_runs)
         return tuple(result_hashes)
 
 

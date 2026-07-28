@@ -12,6 +12,16 @@ from predictionlab.infrastructure.database.models.markets import (
     MarketStateChangeModel,
     ProviderModel,
 )
+from predictionlab.infrastructure.database.models.paper_trading import (
+    PaperLedgerEntryModel,
+    PaperOrderModel,
+    PaperPerformanceSnapshotModel,
+    PaperPortfolioModel,
+    PaperPositionModel,
+    PaperSettlementModel,
+    PaperTradeModel,
+    TradeDecisionModel,
+)
 from predictionlab.infrastructure.database.models.predictions import (
     AgentPredictionModel,
     PredictionRunModel,
@@ -26,6 +36,14 @@ __all__ = [
     "MarketObservationModel",
     "MarketSnapshotModel",
     "MarketStateChangeModel",
+    "PaperLedgerEntryModel",
+    "PaperOrderModel",
+    "PaperPerformanceSnapshotModel",
+    "PaperPortfolioModel",
+    "PaperPositionModel",
+    "PaperSettlementModel",
+    "PaperTradeModel",
     "PredictionRunModel",
     "ProviderModel",
+    "TradeDecisionModel",
 ]
