@@ -27,6 +27,7 @@ from predictionlab.application.paper_trading.models import (
     TradingPredictionContext,
 )
 from predictionlab.domain.paper_trading import (
+    CurrencyUnit,
     PaperLedgerEntry,
     PaperOrder,
     PaperPerformanceSnapshot,
@@ -50,6 +51,14 @@ class PaperTradingRepository(Protocol):
         self,
         *,
         experiment_run_id: UUID,
+        strategy_configuration_hash: str,
+    ) -> PaperPortfolio | None: ...
+
+    async def find_live_portfolio(
+        self,
+        *,
+        name: str,
+        currency_unit: CurrencyUnit,
         strategy_configuration_hash: str,
     ) -> PaperPortfolio | None: ...
 

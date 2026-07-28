@@ -1,9 +1,10 @@
 # Runtime
 
-Entry points futuros para:
+Composition roots y procesos explícitos del monolito modular:
 
-- Workers que consumen comandos y eventos.
-- Scheduler que publica comandos periódicos.
+- `collector_cli`: ingesta manual o periódica por proveedor.
+- `replay_cli`: replay, predicciones y paper trading histórico.
+- `paper_validation_cli`: validación paper continua manual o periódica.
 
-No se incluyen procesos placeholder. Los entrypoints se crearán cuando se
-implemente el sistema de eventos.
+Los workers usan apagado cooperativo y PostgreSQL como fuente de verdad. No se
+incluyen Celery, scheduler distribuido ni procesos placeholder.

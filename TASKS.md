@@ -150,13 +150,13 @@ completada hasta que su código, tests y documentación hayan sido validados.
 - [x] Crear vistas de portfolio, posiciones y agent runs.
 - [ ] Añadir métricas de CPU, RAM, GPU y latencia.
 - [ ] Crear backup y restore test.
-- [ ] Preparar ejecución continua de 30 días.
+- [x] Preparar ejecución continua de 30 días.
 
 ## Next — MVP stabilization
 
-- [ ] Congelar políticas y configuración del MVP.
+- [x] Congelar políticas y configuración del MVP mediante hash durable.
 - [ ] Ejecutar validación paper continua sobre datos más extensos.
-- [ ] Añadir reconciliación operativa automatizada de ledger y balances.
+- [x] Añadir reconciliación operativa automatizada de ledger y balances.
 - [ ] Medir concentración por periodo, categoría y mercado.
 - [ ] Definir criterios de promoción o descarte de una estrategia.
 - [ ] Publicar un informe de 30 días sin optimización retrospectiva.

@@ -82,6 +82,32 @@ class SqlAlchemyPaperTradingRepository:
         )
         return _portfolio(model) if model is not None else None
 
+    async def find_live_portfolio(
+        self,
+        *,
+        name: str,
+        currency_unit: CurrencyUnit,
+        strategy_configuration_hash: str,
+    ) -> PaperPortfolio | None:
+        model = (
+            await self._session.scalars(
+                select(PaperPortfolioModel)
+                .where(
+                    PaperPortfolioModel.experiment_run_id.is_(None),
+                    PaperPortfolioModel.name == name,
+                    PaperPortfolioModel.currency_unit == currency_unit.value,
+                    PaperPortfolioModel.strategy_configuration_hash
+                    == strategy_configuration_hash,
+                )
+                .order_by(
+                    PaperPortfolioModel.created_at,
+                    PaperPortfolioModel.portfolio_id,
+                )
+                .limit(1)
+            )
+        ).first()
+        return _portfolio(model) if model is not None else None
+
     async def add_portfolio(self, portfolio: PaperPortfolio) -> None:
         self._session.add(
             PaperPortfolioModel(

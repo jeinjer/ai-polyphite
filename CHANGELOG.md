@@ -132,6 +132,13 @@ versionada.
 - Dashboard bilingüe de Cartera, Operaciones, Posiciones y Rendimiento.
 - ADR de frontera estructural entre simulación y ejecución real.
 - Tests unitarios, integración PostgreSQL, OpenAPI y Playwright del slice.
+- Runtime periódico y manual de validación paper continua por slots UTC.
+- Configuración congelada mediante hash y portfolio estable por estrategia.
+- Advisory lock PostgreSQL e idempotencia end-to-end de cada ciclo.
+- Auditoría durable `PaperValidationRun` con estados, contadores y trazabilidad.
+- Reconciliación automática de ledger, balances, P&L, equity y exposición.
+- CLI, script PowerShell y perfil Compose opt-in para campañas de validación.
+- Tests unitarios e integración PostgreSQL de retries y drift contable.
 
 ### Security
 

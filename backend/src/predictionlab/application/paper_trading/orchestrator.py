@@ -124,6 +124,16 @@ class PaperTradingOrchestrator:
                     _assert_compatible_portfolio(existing, command)
                     await unit_of_work.commit()
                     return CreatePaperPortfolioResult(existing, False)
+            else:
+                existing = await repository.find_live_portfolio(
+                    name=command.name,
+                    currency_unit=command.currency_unit,
+                    strategy_configuration_hash=self.configuration_hash,
+                )
+                if existing is not None:
+                    _assert_compatible_portfolio(existing, command)
+                    await unit_of_work.commit()
+                    return CreatePaperPortfolioResult(existing, False)
             portfolio = PaperPortfolio(
                 portfolio_id=self._id_factory(),
                 name=command.name,

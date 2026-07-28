@@ -29,6 +29,8 @@ Consulta:
   para el cierre verificable de agentes y predicciones.
 - [`PAPER_TRADING_IMPLEMENTATION_REPORT.md`](PAPER_TRADING_IMPLEMENTATION_REPORT.md)
   para el cierre verificable del MVP simulado.
+- [`CONTINUOUS_PAPER_VALIDATION_IMPLEMENTATION_REPORT.md`](CONTINUOUS_PAPER_VALIDATION_IMPLEMENTATION_REPORT.md)
+  para el cierre verificable del runtime de estabilización.
 - [`docs/`](docs/) para la especificación completa.
 - [`docs/adr/`](docs/adr/) para decisiones arquitectónicas aceptadas.
 - [`docs/14_MARKET_DOMAIN.md`](docs/14_MARKET_DOMAIN.md) para el primer vertical
@@ -60,6 +62,8 @@ Consulta:
   [`docs/37_PAPER_SETTLEMENT_PERFORMANCE_AND_API.md`](docs/37_PAPER_SETTLEMENT_PERFORMANCE_AND_API.md)
   y [`docs/38_REPLAY_TRADE.md`](docs/38_REPLAY_TRADE.md) para políticas,
   liquidación, métricas, API y replay.
+- [`docs/39_CONTINUOUS_PAPER_VALIDATION.md`](docs/39_CONTINUOUS_PAPER_VALIDATION.md)
+  para ciclos periódicos, auditoría, reconciliación y operación de 30 días.
 
 ## Arquitectura
 
@@ -216,6 +220,17 @@ make replay-trade DATASET=synthetic-lab-v1 PREDICTION_INTERVAL_HOURS=24
 
 `replay-trade` deriva cada decisión de un `PredictionRun` persistido, usa el
 mismo reloj anti-lookahead y liquida sólo resoluciones ya visibles.
+
+Validación paper continua:
+
+```powershell
+make paper-validate-once
+make paper-validation-worker
+docker compose --profile validation up -d --build paper-validator
+```
+
+El servicio Compose es opt-in. Cada ciclo usa una configuración hasheada,
+registra su auditoría y verifica ledger y balances antes de declararse completo.
 
 ## Desarrollo local
 

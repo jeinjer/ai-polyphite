@@ -22,6 +22,9 @@ from predictionlab.infrastructure.database.models.paper_trading import (
     PaperTradeModel,
     TradeDecisionModel,
 )
+from predictionlab.infrastructure.database.models.paper_validation import (
+    PaperValidationRunModel,
+)
 from predictionlab.infrastructure.database.models.predictions import (
     AgentPredictionModel,
     PredictionRunModel,
@@ -43,6 +46,7 @@ __all__ = [
     "PaperPositionModel",
     "PaperSettlementModel",
     "PaperTradeModel",
+    "PaperValidationRunModel",
     "PredictionRunModel",
     "ProviderModel",
     "TradeDecisionModel",

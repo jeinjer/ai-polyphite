@@ -4,7 +4,7 @@
 
 ## Estado general
 
-**Fase:** MVP reproducible con paper trading completo
+**Fase:** estabilización del MVP mediante validación paper continua
 
 **Estado:** implementado y validado; pendiente de aprobación del usuario
 **Dinero real:** prohibido y no implementado
@@ -38,6 +38,12 @@ PredictionRun durable
   → decisión, orden, trade y posición simulados
   → settlement oficial y ledger
   → métricas, baselines y dashboard
+
+Mercados abiertos visibles por slot UTC
+  → predicciones y decisiones idempotentes
+  → settlement / mark-to-market
+  → reconciliación ledger ↔ portfolio
+  → auditoría PaperValidationRun
 ```
 
 ## Implementado
@@ -86,6 +92,12 @@ PredictionRun durable
 - Hosts locales unificados en `127.0.0.1` y CORS validado para ambos origins
   de desarrollo mediante tests y Playwright contra Docker.
 - Docker Compose para migración, API, frontend, PostgreSQL, Redis y worker.
+- Runtime `once`/`worker` para validación paper continua por slots UTC.
+- Configuración congelada mediante hash y portfolio estable por estrategia.
+- Advisory lock y retries sin duplicar predicciones, decisiones ni operaciones.
+- Auditoría durable `PaperValidationRun` para cada intento.
+- Reconciliación automática de ledger, balances, P&L, equity y exposición.
+- Perfil Compose `validation` opt-in y runbook operativo.
 
 ## Decisiones vigentes
 
@@ -116,7 +128,7 @@ Congelar el MVP y estabilizarlo mediante validación paper continua:
 1. ejecutar datasets históricos más extensos sin cambiar parámetros;
 2. observar errores, staleness, concentración y drawdown;
 3. comparar periodos y categorías contra los mismos baselines;
-4. preparar una ejecución paper continua de 30 días;
+4. ejecutar la ventana paper continua preparada durante 30 días;
 5. revisar evidencia antes de añadir NewsAgent o LLM.
 
 No añadir ejecución real, optimización automática ni nuevos agentes durante la

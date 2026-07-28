@@ -260,6 +260,40 @@ class Settings(BaseSettings):
         ge=0,
         le=1,
     )
+    paper_validation_interval_seconds: int = Field(
+        default=3600,
+        ge=60,
+        le=86_400,
+        validation_alias=AliasChoices(
+            "paper_validation_interval_seconds",
+            "AI_POLYPHITE_PAPER_VALIDATION_INTERVAL_SECONDS",
+        ),
+    )
+    paper_validation_run_immediately: bool = Field(
+        default=True,
+        validation_alias=AliasChoices(
+            "paper_validation_run_immediately",
+            "AI_POLYPHITE_PAPER_VALIDATION_RUN_IMMEDIATELY",
+        ),
+    )
+    paper_validation_portfolio_name: str = Field(
+        default="MVP continuous validation",
+        min_length=1,
+        max_length=160,
+        validation_alias=AliasChoices(
+            "paper_validation_portfolio_name",
+            "AI_POLYPHITE_PAPER_VALIDATION_PORTFOLIO_NAME",
+        ),
+    )
+    paper_validation_random_seed: int = Field(
+        default=17,
+        ge=0,
+        le=2_147_483_647,
+        validation_alias=AliasChoices(
+            "paper_validation_random_seed",
+            "AI_POLYPHITE_PAPER_VALIDATION_RANDOM_SEED",
+        ),
+    )
 
     @field_validator("cors_allowed_origins", mode="before")
     @classmethod
@@ -390,6 +424,14 @@ class Settings(BaseSettings):
             "paper_initial_balance": str(self.paper_initial_balance),
             "paper_sizing_policy": self.paper_sizing_policy,
             "paper_cost_model": self.paper_cost_model,
+            "paper_validation_interval_seconds": (
+                self.paper_validation_interval_seconds
+            ),
+            "paper_validation_run_immediately": (
+                self.paper_validation_run_immediately
+            ),
+            "paper_validation_portfolio_name": self.paper_validation_portfolio_name,
+            "paper_validation_random_seed": self.paper_validation_random_seed,
         }
 
 
