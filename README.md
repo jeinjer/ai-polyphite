@@ -141,18 +141,18 @@ pero no como registro histórico único.
 
 4. Verifica:
 
-   - Frontend: <http://localhost:3000>
-   - Backend liveness: <http://localhost:8000/health/live>
-   - Backend readiness: <http://localhost:8000/health/ready>
-   - Mercados: <http://localhost:8000/markets>
-   - Fuentes: <http://localhost:8000/sources>
-   - Sincronizaciones: <http://localhost:8000/collector-runs>
-   - Datasets: <http://localhost:8000/replay-datasets>
-   - Experimentos: <http://localhost:8000/experiment-runs>
-   - Predicciones: <http://localhost:8000/predictions>
-   - Portfolios simulados: <http://localhost:8000/paper-portfolios>
-   - Operaciones simuladas: <http://localhost:8000/paper-trades>
-   - OpenAPI: <http://localhost:8000/docs>
+   - Frontend: <http://127.0.0.1:3000>
+   - Backend liveness: <http://127.0.0.1:8000/health/live>
+   - Backend readiness: <http://127.0.0.1:8000/health/ready>
+   - Mercados: <http://127.0.0.1:8000/markets>
+   - Fuentes: <http://127.0.0.1:8000/sources>
+   - Sincronizaciones: <http://127.0.0.1:8000/collector-runs>
+   - Datasets: <http://127.0.0.1:8000/replay-datasets>
+   - Experimentos: <http://127.0.0.1:8000/experiment-runs>
+   - Predicciones: <http://127.0.0.1:8000/predictions>
+   - Portfolios simulados: <http://127.0.0.1:8000/paper-portfolios>
+   - Operaciones simuladas: <http://127.0.0.1:8000/paper-trades>
+   - OpenAPI: <http://127.0.0.1:8000/docs>
 
 PostgreSQL y Redis solo publican puertos en `127.0.0.1`.
 
@@ -175,6 +175,12 @@ Los logs se emiten como JSON. Cada request recibe o propaga:
 Ambos headers se devuelven en la respuesta. Los valores inválidos se reemplazan
 por identificadores seguros. La especificación completa está en
 [`docs/13_PLATFORM_FOUNDATION.md`](docs/13_PLATFORM_FOUNDATION.md).
+
+El frontend obtiene la URL pública de la API exclusivamente desde
+`NEXT_PUBLIC_API_URL`. El entorno local usa `http://127.0.0.1:8000`. FastAPI
+autoriza explícitamente ambos origins de desarrollo
+(`http://127.0.0.1:3000` y `http://localhost:3000`) mediante
+`CORS_ALLOWED_ORIGINS`; no se utiliza una allowlist global.
 
 Fuentes y worker:
 

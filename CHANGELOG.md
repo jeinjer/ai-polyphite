@@ -139,3 +139,13 @@ versionada.
 - Ausencia deliberada de wallets, claves y adaptadores de trading real.
 - Resumen de configuración basado en lista permitida, sin URLs ni credenciales.
 - Respuestas de readiness sin detalles internos de errores.
+
+### Fixed
+
+- Corregida la allowlist CORS local para reconocer explícitamente
+  `127.0.0.1:3000` y `localhost:3000`.
+- Unificados frontend, Compose, Dockerfile y documentación sobre
+  `http://127.0.0.1:8000` mediante `NEXT_PUBLIC_API_URL`.
+- Añadidos tests de origin permitido/no permitido, headers CORS, preflight
+  `OPTIONS`, endpoints del dashboard y navegación Playwright contra el stack
+  Docker real.

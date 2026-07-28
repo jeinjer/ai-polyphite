@@ -61,6 +61,25 @@ aplicación a FastAPI.
 Esta etapa propaga contexto, pero todavía no exporta spans a un backend de
 OpenTelemetry.
 
+## CORS y hosts locales
+
+La allowlist CORS se valida como una tupla de URLs en `Settings` y se entrega a
+`CORSMiddleware` al crear la aplicación. Los defaults de desarrollo son:
+
+```env
+NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
+CORS_ALLOWED_ORIGINS=http://127.0.0.1:3000,http://localhost:3000
+CORS_ALLOW_CREDENTIALS=false
+```
+
+`127.0.0.1` y `localhost` son origins diferentes para el navegador. El frontend
+y la documentación local usan `127.0.0.1` de forma canónica; `localhost:3000`
+permanece permitido para desarrollo manual. Métodos y headers están enumerados,
+sin wildcard de origins ni credenciales implícitas.
+
+Los tests cubren requests simples y preflight `OPTIONS` para los endpoints que
+consume el dashboard, además del rechazo de origins no autorizados.
+
 ## Health checks
 
 La API expone dos contratos técnicos distintos:

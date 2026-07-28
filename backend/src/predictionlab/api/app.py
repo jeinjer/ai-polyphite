@@ -73,9 +73,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.add_middleware(
         CORSMiddleware,
         allow_origins=resolved_settings.cors_origins,
-        allow_credentials=False,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_credentials=resolved_settings.cors_allow_credentials,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=[
+            "Accept",
+            "Authorization",
+            "Content-Type",
+            "X-Correlation-ID",
+            "traceparent",
+        ],
+        expose_headers=["X-Correlation-ID", "traceparent"],
     )
     application.add_middleware(RequestContextMiddleware, metrics=request_metrics)
     application.include_router(health_router)

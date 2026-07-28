@@ -69,8 +69,10 @@ class Settings(BaseSettings):
     ollama_base_url: AnyHttpUrl = AnyHttpUrl("http://localhost:11434")
 
     cors_allowed_origins: Annotated[tuple[AnyHttpUrl, ...], NoDecode] = (
+        AnyHttpUrl("http://127.0.0.1:3000"),
         AnyHttpUrl("http://localhost:3000"),
     )
+    cors_allow_credentials: bool = False
     readiness_timeout_seconds: float = Field(default=2.0, gt=0.0, le=30.0)
     enabled_providers: Annotated[tuple[str, ...], NoDecode] = Field(
         default=("mock",),
@@ -375,6 +377,7 @@ class Settings(BaseSettings):
             "backend_host": self.backend_host,
             "backend_port": self.backend_port,
             "cors_allowed_origins": self.cors_origins,
+            "cors_allow_credentials": self.cors_allow_credentials,
             "readiness_timeout_seconds": self.readiness_timeout_seconds,
             "enabled_providers": list(self.enabled_providers),
             "collector_interval_seconds": self.collector_interval_seconds,

@@ -42,7 +42,11 @@ def test_settings_use_typed_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.app_env is AppEnvironment.DEVELOPMENT
     assert settings.log_level is LogLevel.INFO
     assert settings.backend_port == 8000
-    assert settings.cors_origins == ["http://localhost:3000"]
+    assert settings.cors_origins == [
+        "http://127.0.0.1:3000",
+        "http://localhost:3000",
+    ]
+    assert settings.cors_allow_credentials is False
 
 
 def test_settings_source_precedence(

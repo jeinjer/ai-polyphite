@@ -16,6 +16,7 @@ completada hasta que su código, tests y documentación hayan sido validados.
 - [x] Propagar correlation ID y trace context en la API.
 - [x] Añadir readiness checks para PostgreSQL y Redis.
 - [x] Configurar CI para lint, typing, tests y builds.
+- [x] Unificar hosts locales y validar CORS/preflight del dashboard.
 - [x] Modelar `Provider`, `Market` y `MarketSnapshot`.
 - [x] Implementar invariantes del Market Domain.
 - [x] Crear modelos SQLAlchemy y migración inicial de mercados.

@@ -83,6 +83,8 @@ PredictionRun durable
 - Métricas simuladas, evidencia, alertas y baselines comparables.
 - API read-only de portfolios, decisiones, trades, posiciones y settlements.
 - Vistas bilingües Cartera, Operaciones, Posiciones y Rendimiento.
+- Hosts locales unificados en `127.0.0.1` y CORS validado para ambos origins
+  de desarrollo mediante tests y Playwright contra Docker.
 - Docker Compose para migración, API, frontend, PostgreSQL, Redis y worker.
 
 ## Decisiones vigentes
