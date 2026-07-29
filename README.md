@@ -13,8 +13,8 @@ mediante simulación.
 El repositorio ya ejecuta ingesta, replay histórico determinista y cuatro
 agentes reproducibles, persiste predicciones y simula portfolios, operaciones y
 liquidaciones auditables. Los resultados y baselines se muestran en un dashboard
-bilingüe. `MockProvider` funciona por defecto; Manifold read-only se habilita
-explícitamente.
+bilingüe. El entorno Python aislado conserva `MockProvider` como default seguro;
+Docker Compose inicia la campaña autónoma read-only con Manifold.
 
 Consulta:
 
@@ -31,6 +31,8 @@ Consulta:
   para el cierre verificable del MVP simulado.
 - [`CONTINUOUS_PAPER_VALIDATION_IMPLEMENTATION_REPORT.md`](CONTINUOUS_PAPER_VALIDATION_IMPLEMENTATION_REPORT.md)
   para el cierre verificable del runtime de estabilización.
+- [`AUTONOMOUS_OPERATION_IMPLEMENTATION_REPORT.md`](AUTONOMOUS_OPERATION_IMPLEMENTATION_REPORT.md)
+  para rutas, datos públicos, operación continua y verificación de arranque.
 - [`docs/`](docs/) para la especificación completa.
 - [`docs/adr/`](docs/adr/) para decisiones arquitectónicas aceptadas.
 - [`docs/14_MARKET_DOMAIN.md`](docs/14_MARKET_DOMAIN.md) para el primer vertical
@@ -143,6 +145,19 @@ pero no como registro histórico único.
    docker compose up --build
    ```
 
+   Con los defaults versionados, Compose ejecuta automáticamente y sin dinero
+   real:
+
+   ```text
+   Manifold público → collector (60 min) → predicciones nuevas
+   → decisiones/operaciones paper → liquidación/reconciliación
+   ```
+
+   Sólo se predice un mercado cuando existe una observación pública posterior a
+   su última predicción live. PostgreSQL se respalda cada 24 horas en
+   `backups/`, con validación del archivo y retención de 7 días. Los logs de
+   cada contenedor rotan a 5 archivos de 10 MB.
+
 4. Verifica:
 
    - Frontend: <http://127.0.0.1:3000>
@@ -157,6 +172,11 @@ pero no como registro histórico único.
    - Portfolios simulados: <http://127.0.0.1:8000/paper-portfolios>
    - Operaciones simuladas: <http://127.0.0.1:8000/paper-trades>
    - OpenAPI: <http://127.0.0.1:8000/docs>
+
+   Todas las secciones del dashboard tienen URL propia: `/markets`,
+   `/predictions`, `/agents`, `/portfolio`, `/trades`, `/positions`,
+   `/performance`, `/experiments`, `/sources`, `/system` y `/settings`.
+   El detalle de mercado usa `/markets/{market_id}`.
 
 PostgreSQL y Redis solo publican puertos en `127.0.0.1`.
 
@@ -189,16 +209,20 @@ autoriza explícitamente ambos origins de desarrollo
 Fuentes y worker:
 
 ```env
-AI_POLYPHITE_ENABLED_PROVIDERS=mock
-AI_POLYPHITE_COLLECTOR_INTERVAL_SECONDS=300
-AI_POLYPHITE_PROVIDER_INTERVALS_SECONDS=mock=300,manifold=600
+AI_POLYPHITE_ENABLED_PROVIDERS=manifold
+AI_POLYPHITE_COLLECTOR_INTERVAL_SECONDS=3600
+AI_POLYPHITE_PROVIDER_INTERVALS_SECONDS=manifold=3600
 AI_POLYPHITE_COLLECTOR_RUN_IMMEDIATELY=true
+AI_POLYPHITE_COLLECTOR_PAGE_SIZE=1000
+AI_POLYPHITE_COLLECTOR_MAX_PAGES_PER_RUN=1
+AI_POLYPHITE_MANIFOLD_SYNC_MODE=recent
 ```
 
-Manifold nunca se activa implícitamente. Para habilitarlo:
+Para desarrollo aislado sin red se puede volver al proveedor mock:
 
 ```env
-AI_POLYPHITE_ENABLED_PROVIDERS=mock,manifold
+AI_POLYPHITE_ENABLED_PROVIDERS=mock
+AI_POLYPHITE_PROVIDER_INTERVALS_SECONDS=mock=300
 ```
 
 Ejecución manual:
@@ -226,11 +250,12 @@ Validación paper continua:
 ```powershell
 make paper-validate-once
 make paper-validation-worker
-docker compose --profile validation up -d --build paper-validator
+docker compose up -d --build
 ```
 
-El servicio Compose es opt-in. Cada ciclo usa una configuración hasheada,
-registra su auditoría y verifica ledger y balances antes de declararse completo.
+Compose mantiene el servicio activo por defecto. Cada ciclo usa una
+configuración hasheada, registra su auditoría y verifica ledger y balances antes
+de declararse completo.
 
 ## Desarrollo local
 

@@ -10,6 +10,16 @@ versionada.
 
 ### Added
 
+- Rutas navegables y enlazables para todas las secciones del dashboard y
+  `/markets/{market_id}` para el detalle.
+- Refresco automático en segundo plano cada 60 segundos.
+- Operación autónoma Compose con Manifold público, collector y validador paper
+  cada hora.
+- Selección de predicciones por proveedor y sólo ante observaciones nuevas.
+- Aislamiento de conflictos de observación externos para que un timestamp
+  inconsistente no detenga todo el catálogo.
+- Backups diarios de PostgreSQL, validación del archivo y retención de 7 días.
+- Rotación de logs Docker para proteger el disco en campañas largas.
 - Scaffold inicial del monorepo.
 - Configuración base de backend FastAPI y frontend Next.js.
 - Docker Compose para frontend, backend, PostgreSQL y Redis.

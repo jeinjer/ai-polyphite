@@ -23,6 +23,7 @@ from predictionlab.application.markets import (
     SynchronizeMarket,
     SynchronizeProvider,
 )
+from predictionlab.application.markets.errors import ObservationConflictError
 from predictionlab.collectors.errors import (
     CollectorProtocolError,
     CollectorRunFailedError,
@@ -400,18 +401,32 @@ class MarketDataCollector:
             return
         progress.observations_fetched += 1
         _validate_observation_reference(observation, market)
-        write = await self._observation_service.record(
-            RecordMarketObservation(
-                market_id=market.market_id,
-                observed_at=observation.observed_at,
-                provider_code=self._provider.code,
-                probability=observation.probability,
-                volume=observation.volume,
-                liquidity=observation.liquidity,
-                source_updated_at=observation.source_updated_at,
-                raw_payload_hash=observation.raw_payload_hash,
+        try:
+            write = await self._observation_service.record(
+                RecordMarketObservation(
+                    market_id=market.market_id,
+                    observed_at=observation.observed_at,
+                    provider_code=self._provider.code,
+                    probability=observation.probability,
+                    volume=observation.volume,
+                    liquidity=observation.liquidity,
+                    source_updated_at=observation.source_updated_at,
+                    raw_payload_hash=observation.raw_payload_hash,
+                )
             )
-        )
+        except ObservationConflictError:
+            progress.observations_skipped += 1
+            logger.debug(
+                "collector_observation_conflict_skipped",
+                extra={
+                    **log_context,
+                    "provider_market_id": external_market.provider_market_id,
+                    "market_id": str(market.market_id),
+                    "observed_at": observation.observed_at.isoformat(),
+                    "safe_error_type": "ObservationConflictError",
+                },
+            )
+            return
         if write.created:
             progress.observations_created += 1
         else:

@@ -59,8 +59,8 @@ class CollectorConfig:
     collect_latest_observations: bool = True
 
     def __post_init__(self) -> None:
-        if not 1 <= self.page_size <= 500:
-            raise ValueError("page_size must be between 1 and 500.")
+        if not 1 <= self.page_size <= 1_000:
+            raise ValueError("page_size must be between 1 and 1000.")
         if self.max_pages_per_run < 1:
             raise ValueError("max_pages_per_run must be positive.")
         if not isfinite(self.watermark_overlap_seconds) or self.watermark_overlap_seconds < 0:

@@ -44,3 +44,26 @@ visible. Seleccionar un cambio principal abre el mercado correspondiente.
 En vista simple no aparece la navegación de Experimentos; las cuatro vistas de
 paper trading sí están disponibles con detalle reducido y disclaimer fijo. La
 vista avanzada agrega hashes, IDs, checks, configuración y trazabilidad.
+
+## Rutas
+
+| Sección | Ruta |
+| --- | --- |
+| Inicio | `/` |
+| Mercados | `/markets` |
+| Detalle de mercado | `/markets/{market_id}` |
+| Historial | `/history` |
+| Predicciones | `/predictions` |
+| Agentes | `/agents` |
+| Cartera | `/portfolio` |
+| Operaciones | `/trades` |
+| Posiciones | `/positions` |
+| Rendimiento | `/performance` |
+| Experimentos | `/experiments` |
+| Fuentes | `/sources` |
+| Sistema | `/system` |
+| Configuración | `/settings` |
+
+Las rutas son enlazables, soportan navegación atrás/adelante y carga directa.
+TanStack Query refresca los datos cada 60 segundos, incluso con la pestaña en
+segundo plano.

@@ -112,8 +112,8 @@ async def test_manifold_fixture_flows_through_collector_postgres_and_api() -> No
             assert result.pages == 3
             assert result.markets_fetched == 4
             assert result.markets_created == 4
-            assert result.snapshots_fetched == 4
-            assert result.snapshots_skipped == 4
+            assert result.snapshots_fetched == 0
+            assert result.snapshots_skipped == 0
             assert result.snapshots_created == 0
             assert result.observations_created == 4
 

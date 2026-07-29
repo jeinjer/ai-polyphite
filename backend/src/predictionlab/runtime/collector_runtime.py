@@ -8,7 +8,7 @@ from typing import cast
 
 from predictionlab.application.markets import ServiceDependencies
 from predictionlab.application.markets.unit_of_work import MarketUnitOfWork
-from predictionlab.collectors import MarketDataCollector
+from predictionlab.collectors import CollectorConfig, MarketDataCollector
 from predictionlab.core.settings import Settings
 from predictionlab.infrastructure.database.collector_state import (
     PostgresProviderCollectionLock,
@@ -60,6 +60,12 @@ def create_collector_runtime(settings: Settings) -> CollectorRuntime:
             checkpoint_store=checkpoint_store,
             collection_lock=collection_lock,
             run_store=run_store,
+            config=CollectorConfig(
+                page_size=settings.collector_page_size,
+                max_pages_per_run=settings.collector_max_pages_per_run,
+                collect_latest_snapshots=True,
+                collect_latest_observations=True,
+            ),
         )
         for provider in providers
     }

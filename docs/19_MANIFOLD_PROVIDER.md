@@ -11,9 +11,10 @@ Consume únicamente la API pública oficial de Manifold Markets y devuelve DTOs
 normalizados del Provider SDK. No contiene autenticación, persistencia,
 SQLAlchemy, collector, scheduler ni lógica de trading.
 
-Sólo soporta mercados binarios. El runtime habilita Manifold únicamente cuando
-`AI_POLYPHITE_ENABLED_PROVIDERS` contiene `manifold`; el default continúa
-incluyendo sólo `MockProvider`.
+Sólo soporta mercados binarios. El runtime habilita Manifold cuando
+`AI_POLYPHITE_ENABLED_PROVIDERS` contiene `manifold`. Compose lo usa por defecto
+para la campaña autónoma; el default aislado de `Settings` continúa siendo
+`MockProvider`.
 
 ## Endpoints oficiales
 
@@ -22,7 +23,7 @@ URL base: `https://api.manifold.markets`
 | Endpoint | Uso |
 |---|---|
 | `GET /v0/search-markets` | Catálogo binario, paginación y health probe |
-| `GET /v0/market/{id}` | Detalle y probabilidad binaria actual |
+| `GET /v0/market/{id}` | Detalle directo fuera del ciclo de catálogo |
 
 Las operaciones de lectura utilizadas no requieren API key. Aun así, una
 respuesta HTTP `401` o `403` se transforma en `ProviderAuthenticationError` para
@@ -71,6 +72,20 @@ Manifold no anuncia `INCREMENTAL_MARKETS`; cada ciclo completo recorre el
 catálogo actual y delega la idempotencia a Application. Varios mercados creados
 en el mismo milisegundo del borde constituyen un riesgo de precisión externo.
 
+La operación autónoma usa `AI_POLYPHITE_MANIFOLD_SYNC_MODE=recent`:
+
+```text
+sort=last-updated
+filter=all
+contractType=BINARY
+limit=1000
+```
+
+Ese modo consume una única página acotada por ciclo y no emite cursor. Así
+mantiene mercados activos y resoluciones recientes sin recorrer todo el
+histórico cada hora. El modo `catalog` conserva la paginación completa
+para importaciones explícitas.
+
 ## Mapeo de estados
 
 | Datos de Manifold | Estado normalizado |
@@ -90,6 +105,8 @@ cierre programado; `resolved_at` sólo recibe `resolutionTime` cuando
 - Los timestamps Unix en milisegundos se convierten a UTC timezone-aware.
 - `source_created_at` proviene de `createdTime`.
 - `source_updated_at` proviene de `lastUpdatedTime` cuando existe.
+- `observed_at` es la hora UTC local en que AI-Polyphite vio una combinación
+  nueva de probabilidad, volumen, liquidez o resolución.
 - El adaptador no asigna `ingested_at`; Application registra la hora local de
   persistencia.
 - `provider_market_id` conserva sin cambios el `id` de Manifold.
@@ -113,9 +130,18 @@ probabilidad, volumen o liquidez:
 - no se anuncia historial de snapshots;
 - no se infieren complementos ni defaults.
 
-El Collector persiste esos datos como `MarketObservation`. El método legado
-`fetch_latest_snapshot` conserva los precios ausentes y el collector omite ese
-snapshot incompleto. Así se construye historia sin fabricar precios operables.
+El Collector persiste esos datos como `MarketObservation`. El payload ya
+devuelto por `search-markets` se reutiliza para la observación, por lo que no se
+hace una consulta de detalle por mercado. Manifold no anuncia
+`LATEST_SNAPSHOT`: así se construye historia sin fabricar precios operables.
+El adaptador conserva una firma del contenido durante la vida del worker y
+reutiliza `observed_at` mientras los valores sean idénticos; así un polling
+horario no crea observaciones ni predicciones duplicadas. `lastUpdatedTime`
+permanece separado porque Manifold puede no actualizarlo cuando cambian métricas
+de mercado.
+Si Manifold cambia métricas conservando el mismo `lastUpdatedTime`, la
+observación inmutable ya persistida prevalece: el conflicto se registra y se
+omite sin detener el resto del catálogo.
 
 ## Confiabilidad
 
@@ -166,4 +192,5 @@ datos personales ni copiar contenido real. La cobertura incluye:
 - contract tests reutilizables de `MarketDataProvider`;
 - Manifold fixture → Collector → PostgreSQL → `GET /markets`;
 - persistencia de observaciones y outcomes YES/CANCEL;
-- verificación de que una observación incompleta no crea snapshots inventados.
+- reutilización del catálogo sin requests de detalle redundantes;
+- modo reciente acotado y verificación de que no se crean snapshots inventados.

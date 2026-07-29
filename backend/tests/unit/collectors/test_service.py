@@ -33,6 +33,7 @@ from predictionlab.providers.base import (
     FetchMarketsRequest,
     MarketBatch,
     ProviderMarket,
+    ProviderMarketObservation,
     ProviderMarketSnapshot,
     ProviderMarketStatus,
     ProviderUnavailableError,
@@ -203,6 +204,31 @@ class FlakyMockProvider(MockProvider):
         return await super().fetch_markets(request)
 
 
+class ConflictingObservationMockProvider(MockProvider):
+    def __init__(self) -> None:
+        super().__init__()
+        self._seen: set[str] = set()
+
+    async def fetch_latest_observation(
+        self,
+        provider_market_id: str,
+    ) -> ProviderMarketObservation | None:
+        observation = await super().fetch_latest_observation(provider_market_id)
+        if observation is None:
+            return None
+        if provider_market_id in self._seen and observation.probability is not None:
+            delta = (
+                Decimal("-0.01")
+                if observation.probability == Decimal("1")
+                else Decimal("0.01")
+            )
+            return observation.model_copy(
+                update={"probability": observation.probability + delta}
+            )
+        self._seen.add(provider_market_id)
+        return observation
+
+
 def collector(
     provider: MockProvider,
     *,
@@ -282,6 +308,18 @@ async def test_collector_ingests_pages_and_reprocesses_incrementally(
     assert checkpoints.current.watermark == datetime(2026, 6, 2, tzinfo=UTC)
     assert checkpoints.saved[0].cursor == "mock:2"
     assert "collector_run_completed" in {record.message for record in caplog.records}
+
+
+@pytest.mark.asyncio
+async def test_collector_skips_provider_conflict_without_stopping_catalog() -> None:
+    service, _, _ = collector(ConflictingObservationMockProvider())
+
+    await service.collect()
+    second = await service.collect()
+
+    assert second.status is CollectorRunStatus.SUCCEEDED
+    assert second.observations_fetched == 1
+    assert second.observations_skipped == 1
 
 
 @pytest.mark.asyncio

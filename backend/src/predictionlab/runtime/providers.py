@@ -21,7 +21,10 @@ def create_configured_provider_registry(settings: Settings) -> ProviderRegistry:
         if code == "mock":
             registry.register("mock", MockProvider)
         elif code == "manifold":
-            registry.register("manifold", ManifoldProvider)
+            registry.register(
+                "manifold",
+                lambda: ManifoldProvider(sync_mode=settings.manifold_sync_mode),
+            )
         else:
             raise UnknownProviderError(
                 f"Configured provider '{code}' is unknown. Supported providers: mock, manifold."

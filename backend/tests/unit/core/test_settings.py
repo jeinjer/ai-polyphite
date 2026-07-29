@@ -208,12 +208,16 @@ def test_paper_validation_runtime_configuration_is_typed() -> None:
         paper_validation_run_immediately=False,
         paper_validation_portfolio_name="Frozen MVP",
         paper_validation_random_seed=42,
+        paper_validation_provider_codes="manifold",
+        paper_validation_only_new_observations=True,
     )
 
     assert settings.paper_validation_interval_seconds == 900
     assert settings.paper_validation_run_immediately is False
     assert settings.paper_validation_portfolio_name == "Frozen MVP"
     assert settings.paper_validation_random_seed == 42
+    assert settings.paper_validation_provider_codes == ("manifold",)
+    assert settings.paper_validation_only_new_observations is True
 
     with pytest.raises(ValidationError):
         Settings(_env_file=None, paper_validation_interval_seconds=30)

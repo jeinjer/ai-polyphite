@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
@@ -133,23 +133,13 @@ async def test_market_detail_preserves_provenance_and_utc_timestamps() -> None:
 
 
 @pytest.mark.asyncio
-async def test_latest_snapshot_keeps_probability_but_does_not_invent_prices() -> None:
+async def test_latest_snapshot_is_not_advertised_as_executable_data() -> None:
     provider, client = _provider()
     try:
-        snapshot = await provider.fetch_latest_snapshot("binary-open")
+        with pytest.raises(ProviderCapabilityError):
+            await provider.fetch_latest_snapshot("binary-open")
     finally:
         await client.aclose()
-
-    assert snapshot is not None
-    assert snapshot.provider_market_id == "binary-open"
-    assert snapshot.probability == Decimal("0.625")
-    assert snapshot.volume == Decimal("120.5")
-    assert snapshot.liquidity == Decimal("45")
-    assert snapshot.yes_price is None
-    assert snapshot.no_price is None
-    assert snapshot.spread is None
-    assert snapshot.observed_at.tzinfo is UTC
-
 
 @pytest.mark.asyncio
 async def test_latest_observation_preserves_nullable_provider_metrics() -> None:
@@ -164,7 +154,77 @@ async def test_latest_observation_preserves_nullable_provider_metrics() -> None:
     assert observation.volume == Decimal("120.5")
     assert observation.liquidity == Decimal("45")
     assert observation.source_updated_at is not None
-    assert observation.observed_at.tzinfo is UTC
+    assert observation.observed_at == NOW
+    assert observation.raw_payload_hash is not None
+
+
+@pytest.mark.asyncio
+async def test_unchanged_observation_reuses_local_poll_timestamp() -> None:
+    current = [NOW]
+    client = httpx.AsyncClient(transport=httpx.MockTransport(_fixture_response))
+    provider = ManifoldProvider(
+        http_client=client,
+        clock=lambda: current[0],
+        sleep=_no_sleep,
+        sync_mode="recent",
+    )
+    try:
+        await provider.fetch_markets(FetchMarketsRequest(limit=3))
+        first = await provider.fetch_latest_observation("binary-open")
+        current[0] = NOW + timedelta(hours=1)
+        await provider.fetch_markets(FetchMarketsRequest(limit=3))
+        second = await provider.fetch_latest_observation("binary-open")
+    finally:
+        await client.aclose()
+
+    assert first is not None
+    assert second is not None
+    assert first.observed_at == second.observed_at == NOW
+    assert first.raw_payload_hash == second.raw_payload_hash
+
+
+@pytest.mark.asyncio
+async def test_listing_payload_is_reused_for_observation_without_detail_request() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return _fixture_response(request)
+
+    provider, client = _provider(handler)
+    try:
+        await provider.fetch_markets(FetchMarketsRequest(limit=3))
+        observation = await provider.fetch_latest_observation("binary-open")
+    finally:
+        await client.aclose()
+
+    assert observation is not None
+    assert len(requests) == 1
+    assert requests[0].url.path == "/v0/search-markets"
+
+
+@pytest.mark.asyncio
+async def test_recent_sync_is_bounded_to_latest_updated_page() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return _fixture_response(request)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    provider = ManifoldProvider(
+        http_client=client,
+        clock=lambda: NOW,
+        sleep=_no_sleep,
+        sync_mode="recent",
+    )
+    try:
+        batch = await provider.fetch_markets(FetchMarketsRequest(limit=3))
+    finally:
+        await client.aclose()
+
+    assert batch.next_cursor is None
+    assert requests[0].url.params["sort"] == "last-updated"
 
 
 @pytest.mark.asyncio

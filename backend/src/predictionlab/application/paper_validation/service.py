@@ -44,6 +44,8 @@ class PredictionBatchRunner(Protocol):
         predicted_at: datetime,
         experiment_run_id: UUID | None,
         random_seed: int,
+        provider_codes: tuple[str, ...] = (),
+        only_with_new_observations: bool = False,
         context: dict[str, JsonScalar] | None = None,
         model_configuration: dict[str, JsonScalar] | None = None,
         correlation_id: str | None = None,
@@ -95,6 +97,8 @@ class PaperValidationService:
         currency_unit: CurrencyUnit,
         initial_balance: Decimal,
         random_seed: int,
+        provider_codes: tuple[str, ...] = (),
+        only_with_new_observations: bool = False,
         clock: Clock | None = None,
     ) -> None:
         if not validation_configuration_hash:
@@ -112,6 +116,8 @@ class PaperValidationService:
         self._currency_unit = currency_unit
         self._initial_balance = initial_balance
         self._random_seed = random_seed
+        self._provider_codes = provider_codes
+        self._only_with_new_observations = only_with_new_observations
         self._clock = clock or SystemClock()
 
     async def run_cycle(
@@ -248,6 +254,8 @@ class PaperValidationService:
             predicted_at=scheduled_for,
             experiment_run_id=None,
             random_seed=self._random_seed,
+            provider_codes=self._provider_codes,
+            only_with_new_observations=self._only_with_new_observations,
             correlation_id=correlation_id,
             causation_id=cycle_causation,
         )

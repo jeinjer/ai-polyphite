@@ -104,9 +104,11 @@ class PredictionRunner:
     def __init__(self) -> None:
         self.calls = 0
         self.prediction_id = uuid4()
+        self.last_kwargs = {}
 
     async def run_batch(self, **kwargs):
         self.calls += 1
+        self.last_kwargs = kwargs
         return (
             SimpleNamespace(
                 prediction_run_id=self.prediction_id,
@@ -166,6 +168,8 @@ def service(
             currency_unit=CurrencyUnit.USD_SIMULATED,
             initial_balance=Decimal("100"),
             random_seed=17,
+            provider_codes=("manifold",),
+            only_with_new_observations=True,
             clock=FixedClock(),
         ),
         predictions,
@@ -190,6 +194,8 @@ async def test_cycle_runs_full_flow_and_skips_completed_duplicate() -> None:
     assert second.status is PaperValidationRunStatus.SKIPPED_COMPLETED
     assert first.cycle_key == second.cycle_key
     assert predictions.calls == 1
+    assert predictions.last_kwargs["provider_codes"] == ("manifold",)
+    assert predictions.last_kwargs["only_with_new_observations"] is True
     assert paper.batch_calls == 1
     assert len(store.started) == 2
     assert len(store.finished) == 2

@@ -69,3 +69,7 @@ def test_provider_dtos_reject_naive_datetimes_and_unknown_fields() -> None:
                 "provider_specific_payload": {},
             }
         )
+
+
+def test_market_listing_supports_the_official_large_page_size() -> None:
+    assert FetchMarketsRequest(limit=1_000).limit == 1_000

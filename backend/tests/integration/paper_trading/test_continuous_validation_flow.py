@@ -48,18 +48,20 @@ class FixedClock:
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_continuous_validation_is_idempotent_audited_and_reconciled() -> None:
+    provider_code = f"paper_validation_{uuid4().hex[:10]}"
     settings = Settings(
         _env_file=None,
         app_env=AppEnvironment.TESTING,
         log_level=LogLevel.CRITICAL,
         paper_validation_portfolio_name=f"integration-{uuid4().hex}",
         paper_validation_interval_seconds=3600,
+        paper_validation_provider_codes=(provider_code,),
+        paper_validation_only_new_observations=True,
     )
     engine = create_async_engine(str(settings.database_url))
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
     provider_id = uuid4()
     market_id = uuid4()
-    provider_code = f"paper_validation_{uuid4().hex[:10]}"
     portfolio_id: UUID | None = None
     try:
         await _seed_market(
@@ -72,8 +74,17 @@ async def test_continuous_validation_is_idempotent_audited_and_reconciled() -> N
         try:
             first = await runtime.worker.run_once(scheduled_for=NOW)
             second = await runtime.worker.run_once(scheduled_for=NOW)
-            next_cycle = await runtime.worker.run_once(
+            unchanged_cycle = await runtime.worker.run_once(
                 scheduled_for=NOW + timedelta(hours=1)
+            )
+            await _seed_observation(
+                session_factory,
+                provider_code=provider_code,
+                market_id=market_id,
+                observed_at=NOW + timedelta(hours=1, minutes=30),
+            )
+            next_cycle = await runtime.worker.run_once(
+                scheduled_for=NOW + timedelta(hours=2)
             )
             portfolio_id = first.portfolio_id
         finally:
@@ -90,6 +101,8 @@ async def test_continuous_validation_is_idempotent_audited_and_reconciled() -> N
         assert next_cycle.status is PaperValidationRunStatus.COMPLETED
         assert next_cycle.portfolio_id == first.portfolio_id
         assert next_cycle.cycle_key != first.cycle_key
+        assert unchanged_cycle.prediction_count == 0
+        assert next_cycle.prediction_count == 1
 
         run_store = SqlAlchemyPaperValidationRunStore(session_factory)
         reconciliation = await run_store.reconcile(
@@ -131,7 +144,7 @@ async def test_continuous_validation_is_idempotent_audited_and_reconciled() -> N
                 .where(TradeDecisionModel.portfolio_id == first.portfolio_id)
             )
 
-        assert validation_count == 3
+        assert validation_count == 4
         assert prediction_count == 2
         assert decision_count == 2
     finally:
@@ -203,6 +216,30 @@ async def _seed_market(
                 liquidity=Decimal("50"),
                 source_updated_at=NOW,
                 ingested_at=NOW,
+                provider_code=provider_code,
+                raw_payload_hash=None,
+            )
+        )
+
+
+async def _seed_observation(
+    session_factory,
+    *,
+    provider_code: str,
+    market_id: UUID,
+    observed_at: datetime,
+) -> None:
+    async with session_factory.begin() as session:
+        session.add(
+            MarketObservationModel(
+                observation_id=uuid4(),
+                market_id=market_id,
+                observed_at=observed_at,
+                probability=Decimal("0.40"),
+                volume=Decimal("120"),
+                liquidity=Decimal("55"),
+                source_updated_at=observed_at,
+                ingested_at=observed_at,
                 provider_code=provider_code,
                 raw_payload_hash=None,
             )

@@ -139,7 +139,7 @@ class FetchMarketsRequest(ProviderDto):
     """Provider catalog query using opaque cursor pagination."""
 
     cursor: ExternalCursor | None = None
-    limit: int = Field(default=100, ge=1, le=500)
+    limit: int = Field(default=100, ge=1, le=1_000)
     updated_after: datetime | None = None
     statuses: frozenset[ProviderMarketStatus] = frozenset()
 

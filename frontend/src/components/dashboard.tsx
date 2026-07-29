@@ -1,6 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Activity,
   AlertTriangle,
@@ -109,14 +111,21 @@ const navigation: {
 
 export function Dashboard() {
   const { locale, setLocale, t } = useI18n();
+  const pathname = usePathname();
+  const router = useRouter();
   const {
     mode,
-    section,
     selectedMarketId,
     setMode,
-    setSection,
     selectMarket,
   } = useUiStore();
+  const pathParts = pathname.split("/").filter(Boolean);
+  const section = dashboardSection(pathParts[0]);
+  const routedMarketId =
+    section === "markets" && pathParts[1]
+      ? decodeURIComponent(pathParts[1])
+      : null;
+  const effectiveMarketId = routedMarketId ?? selectedMarketId;
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const marketsQuery = useQuery({ queryKey: ["markets"], queryFn: api.markets });
@@ -170,21 +179,15 @@ export function Dashboard() {
     [marketsQuery.data?.items],
   );
   const selectedMarket =
-    markets.find((market) => market.market_id === selectedMarketId) ??
+    markets.find((market) => market.market_id === effectiveMarketId) ??
     markets[0] ??
     null;
 
   useEffect(() => {
-    if (selectedMarketId === null && markets[0]) {
+    if (effectiveMarketId === null && markets[0]) {
       selectMarket(markets[0].market_id);
     }
-  }, [markets, selectMarket, selectedMarketId]);
-
-  useEffect(() => {
-    if (mode === "simple" && section === "experiments") {
-      setSection("home");
-    }
-  }, [mode, section, setSection]);
+  }, [effectiveMarketId, markets, selectMarket]);
 
   const observationsQuery = useQuery({
     queryKey: ["observations", selectedMarket?.market_id],
@@ -242,8 +245,8 @@ export function Dashboard() {
     void paperEquityQuery.refetch();
   };
 
-  const selectSection = (nextSection: DashboardSection) => {
-    setSection(nextSection);
+  const navigateToSection = (nextSection: DashboardSection) => {
+    router.push(sectionPath(nextSection));
     setMobileMenuOpen(false);
   };
 
@@ -275,9 +278,10 @@ export function Dashboard() {
               <NavigationButton
                 key={item.section}
                 active={section === item.section}
+                href={sectionPath(item.section)}
                 icon={item.icon}
                 label={t(item.label)}
-                onClick={() => selectSection(item.section)}
+                onClick={() => setMobileMenuOpen(false)}
               />
               ))}
           </nav>
@@ -387,9 +391,9 @@ export function Dashboard() {
                 historyLoading={historyQuery.isLoading}
                 onSelectMarket={(marketId) => {
                   selectMarket(marketId);
-                  setSection("markets");
+                  router.push(`/markets/${encodeURIComponent(marketId)}`);
                 }}
-                onNavigate={setSection}
+                onNavigate={navigateToSection}
               />
             )}
           </div>
@@ -1857,18 +1861,20 @@ function Panel({
 
 function NavigationButton({
   active,
+  href,
   icon: Icon,
   label,
   onClick,
 }: Readonly<{
   active: boolean;
+  href: string;
   icon: LucideIcon;
   label: string;
   onClick: () => void;
 }>) {
   return (
-    <button
-      type="button"
+    <Link
+      href={href}
       onClick={onClick}
       aria-current={active ? "page" : undefined}
       className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition ${
@@ -1879,8 +1885,22 @@ function NavigationButton({
     >
       <Icon aria-hidden="true" className="size-4" />
       {label}
-    </button>
+    </Link>
   );
+}
+
+function dashboardSection(value: string | undefined): DashboardSection {
+  if (
+    value &&
+    navigation.some((item) => item.section === value)
+  ) {
+    return value as DashboardSection;
+  }
+  return "home";
+}
+
+function sectionPath(section: DashboardSection): string {
+  return section === "home" ? "/" : `/${section}`;
 }
 
 function StatusBadge({ status }: Readonly<{ status: MarketStatus }>) {

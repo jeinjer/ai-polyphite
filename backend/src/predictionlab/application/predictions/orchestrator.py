@@ -175,12 +175,18 @@ class PredictionOrchestrator:
         predicted_at: datetime,
         experiment_run_id: UUID | None,
         random_seed: int,
+        provider_codes: tuple[str, ...] = (),
+        only_with_new_observations: bool = False,
         context: dict[str, JsonScalar] | None = None,
         model_configuration: dict[str, JsonScalar] | None = None,
         correlation_id: str | None = None,
         causation_id: str | None = None,
     ) -> tuple[PredictionRun, ...]:
-        market_ids = await self._markets.list_open_ids_as_of(predicted_at)
+        market_ids = await self._markets.list_open_ids_as_of(
+            predicted_at,
+            provider_codes=provider_codes,
+            only_with_new_observations=only_with_new_observations,
+        )
         return tuple(
             [
                 await self.run(

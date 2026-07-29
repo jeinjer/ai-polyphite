@@ -17,18 +17,14 @@ export type DashboardSection =
 
 type UiState = {
   mode: "simple" | "advanced";
-  section: DashboardSection;
   selectedMarketId: string | null;
   setMode: (mode: "simple" | "advanced") => void;
-  setSection: (section: DashboardSection) => void;
   selectMarket: (marketId: string) => void;
 };
 
 export const useUiStore = create<UiState>((set) => ({
   mode: "simple",
-  section: "home",
   selectedMarketId: null,
   setMode: (mode) => set({ mode }),
-  setSection: (section) => set({ section }),
   selectMarket: (selectedMarketId) => set({ selectedMarketId }),
 }));

@@ -104,6 +104,31 @@ class Settings(BaseSettings):
             "AI_POLYPHITE_COLLECTOR_RUN_IMMEDIATELY",
         ),
     )
+    collector_page_size: int = Field(
+        default=500,
+        ge=1,
+        le=1_000,
+        validation_alias=AliasChoices(
+            "collector_page_size",
+            "AI_POLYPHITE_COLLECTOR_PAGE_SIZE",
+        ),
+    )
+    collector_max_pages_per_run: int = Field(
+        default=100,
+        ge=1,
+        le=10_000,
+        validation_alias=AliasChoices(
+            "collector_max_pages_per_run",
+            "AI_POLYPHITE_COLLECTOR_MAX_PAGES_PER_RUN",
+        ),
+    )
+    manifold_sync_mode: Literal["catalog", "recent"] = Field(
+        default="catalog",
+        validation_alias=AliasChoices(
+            "manifold_sync_mode",
+            "AI_POLYPHITE_MANIFOLD_SYNC_MODE",
+        ),
+    )
     replay_dataset_directory: Path = Field(
         default=Path("backend/datasets/replay"),
         validation_alias=AliasChoices(
@@ -294,6 +319,20 @@ class Settings(BaseSettings):
             "AI_POLYPHITE_PAPER_VALIDATION_RANDOM_SEED",
         ),
     )
+    paper_validation_provider_codes: Annotated[tuple[str, ...], NoDecode] = Field(
+        default=("manifold",),
+        validation_alias=AliasChoices(
+            "paper_validation_provider_codes",
+            "AI_POLYPHITE_PAPER_VALIDATION_PROVIDER_CODES",
+        ),
+    )
+    paper_validation_only_new_observations: bool = Field(
+        default=True,
+        validation_alias=AliasChoices(
+            "paper_validation_only_new_observations",
+            "AI_POLYPHITE_PAPER_VALIDATION_ONLY_NEW_OBSERVATIONS",
+        ),
+    )
 
     @field_validator("cors_allowed_origins", mode="before")
     @classmethod
@@ -313,14 +352,18 @@ class Settings(BaseSettings):
 
         return tuple(origin.strip() for origin in stripped.split(",") if origin.strip())
 
-    @field_validator("enabled_providers", mode="before")
+    @field_validator(
+        "enabled_providers",
+        "paper_validation_provider_codes",
+        mode="before",
+    )
     @classmethod
     def parse_enabled_providers(cls, value: Any) -> Any:
         if isinstance(value, str):
             value = tuple(part.strip().lower() for part in value.split(","))
         return value
 
-    @field_validator("enabled_providers")
+    @field_validator("enabled_providers", "paper_validation_provider_codes")
     @classmethod
     def validate_enabled_providers(
         cls,
@@ -417,6 +460,9 @@ class Settings(BaseSettings):
             "collector_interval_seconds": self.collector_interval_seconds,
             "provider_intervals_seconds": self.provider_intervals_seconds,
             "collector_run_immediately": self.collector_run_immediately,
+            "collector_page_size": self.collector_page_size,
+            "collector_max_pages_per_run": self.collector_max_pages_per_run,
+            "manifold_sync_mode": self.manifold_sync_mode,
             "enable_manual_prediction_runs": self.enable_manual_prediction_runs,
             "enable_manual_paper_trading": self.enable_manual_paper_trading,
             "replay_prediction_interval_hours": self.replay_prediction_interval_hours,
@@ -432,6 +478,12 @@ class Settings(BaseSettings):
             ),
             "paper_validation_portfolio_name": self.paper_validation_portfolio_name,
             "paper_validation_random_seed": self.paper_validation_random_seed,
+            "paper_validation_provider_codes": list(
+                self.paper_validation_provider_codes
+            ),
+            "paper_validation_only_new_observations": (
+                self.paper_validation_only_new_observations
+            ),
         }
 
 

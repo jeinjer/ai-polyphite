@@ -143,19 +143,24 @@ completada hasta que su código, tests y documentación hayan sido validados.
 
 ## Dashboard and operations
 
+- [x] Añadir rutas URL a todas las secciones y al detalle de mercado.
+- [x] Refrescar automáticamente los datos para operación como espectador.
+- [x] Iniciar collector y validación paper con Manifold real desde Compose.
+- [x] Evitar predicciones live duplicadas cuando no hay observaciones nuevas.
+- [x] Crear backups PostgreSQL diarios verificados con retención.
 - [ ] Crear API de trazabilidad.
 - [ ] Implementar actualizaciones WebSocket.
 - [x] Crear overview inicial del sistema.
 - [ ] Crear detalle reconstruible de predicción.
 - [x] Crear vistas de portfolio, posiciones y agent runs.
 - [ ] Añadir métricas de CPU, RAM, GPU y latencia.
-- [ ] Crear backup y restore test.
+- [ ] Probar restore completo del backup en una base aislada.
 - [x] Preparar ejecución continua de 30 días.
 
 ## Next — MVP stabilization
 
 - [x] Congelar políticas y configuración del MVP mediante hash durable.
-- [ ] Ejecutar validación paper continua sobre datos más extensos.
+- [x] Iniciar validación paper continua sobre datos públicos reales.
 - [x] Añadir reconciliación operativa automatizada de ledger y balances.
 - [ ] Medir concentración por periodo, categoría y mercado.
 - [ ] Definir criterios de promoción o descarte de una estrategia.

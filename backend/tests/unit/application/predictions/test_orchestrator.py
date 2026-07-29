@@ -65,7 +65,14 @@ class MemoryMarketRepository:
             ),
         )
 
-    async def list_open_ids_as_of(self, predicted_at: datetime) -> tuple[UUID, ...]:
+    async def list_open_ids_as_of(
+        self,
+        predicted_at: datetime,
+        *,
+        provider_codes: tuple[str, ...] = (),
+        only_with_new_observations: bool = False,
+    ) -> tuple[UUID, ...]:
+        del predicted_at, provider_codes, only_with_new_observations
         return (MARKET_ID,)
 
 

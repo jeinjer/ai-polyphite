@@ -69,6 +69,10 @@ def create_paper_validation_runtime(
             "initial_balance": settings.paper_initial_balance,
             "portfolio_name": settings.paper_validation_portfolio_name,
             "interval_seconds": settings.paper_validation_interval_seconds,
+            "provider_codes": settings.paper_validation_provider_codes,
+            "only_new_observations": (
+                settings.paper_validation_only_new_observations
+            ),
         },
     )
     service = PaperValidationService(
@@ -81,6 +85,10 @@ def create_paper_validation_runtime(
         currency_unit=CurrencyUnit(settings.paper_currency_unit),
         initial_balance=settings.paper_initial_balance,
         random_seed=settings.paper_validation_random_seed,
+        provider_codes=settings.paper_validation_provider_codes,
+        only_with_new_observations=(
+            settings.paper_validation_only_new_observations
+        ),
         clock=resolved_clock,
     )
     return PaperValidationRuntime(

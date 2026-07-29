@@ -422,6 +422,10 @@ async function installApi(page: Page, fixture: ApiFixture = {}) {
   await page.route(
     /\/(markets|sources|collector-runs|experiment-runs|replay-datasets|predictions|paper-portfolios|trade-decisions|paper-trades|paper-positions|paper-settlements)(\/.*)?(\?.*)?$/,
     async (route) => {
+      if (new URL(route.request().url()).port !== "8000") {
+        await route.continue();
+        return;
+      }
       if (fixture.delayMs) {
         await new Promise((resolve) => setTimeout(resolve, fixture.delayMs));
       }
@@ -538,7 +542,10 @@ test("defaults to an understandable Spanish simple view", async ({ page }) => {
   await expect(page.getByText("Datos sólo informativos")).toBeVisible();
   await expect(page.getByText("Laboratorio histórico disponible")).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Experimentos", exact: true }),
+    page.getByRole("link", { name: "Predicciones", exact: true }),
+  ).toHaveAttribute("href", "/predictions");
+  await expect(
+    page.getByRole("link", { name: "Experimentos", exact: true }),
   ).toHaveCount(0);
 
   const visibleText = await page.locator("body").innerText();
@@ -563,9 +570,7 @@ test("shows simulated portfolio, trades, positions and performance", async ({
   });
   await page.goto("/");
 
-  await page
-    .getByRole("button", { name: "Cartera simulada", exact: true })
-    .click();
+  await page.goto("/portfolio");
   await expect(
     page.getByText(
       "Resultados simulados. No representan dinero real ni garantizan rendimientos futuros.",
@@ -573,18 +578,18 @@ test("shows simulated portfolio, trades, positions and performance", async ({
   ).toBeVisible();
   await expect(page.getByText("101.00 USD_SIMULATED").first()).toBeVisible();
 
-  await page.getByRole("button", { name: "Operaciones", exact: true }).click();
+  await page.goto("/trades");
   await expect(
     page.getByRole("heading", { name: "Operaciones simuladas" }),
   ).toBeVisible();
   await expect(page.getByText("Capital en riesgo")).toBeVisible();
 
-  await page.getByRole("button", { name: "Posiciones", exact: true }).click();
+  await page.goto("/positions");
   await expect(
     page.getByRole("heading", { name: "Posiciones simuladas" }),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: "Rendimiento", exact: true }).click();
+  await page.goto("/performance");
   await expect(
     page.getByRole("heading", { name: "Rendimiento experimental" }),
   ).toBeVisible();
@@ -628,8 +633,8 @@ test("shows reproducible experiments only in advanced mode", async ({ page }) =>
   await installApi(page);
   await page.goto("/");
 
+  await page.goto("/experiments");
   await page.getByRole("button", { name: "Vista avanzada" }).click();
-  await page.getByRole("button", { name: "Experimentos", exact: true }).click();
 
   await expect(
     page.getByRole("heading", { name: "Experimentos históricos" }),
@@ -643,7 +648,8 @@ test("explains predictions without presenting fictional returns", async ({ page 
   await installApi(page);
   await page.goto("/");
 
-  await page.getByRole("button", { name: "Predicciones", exact: true }).click();
+  await page.goto("/predictions");
+  await expect(page).toHaveURL(/\/predictions$/);
 
   await expect(
     page.getByRole("heading", { name: "Predicciones reproducibles" }),
@@ -667,13 +673,14 @@ test("shows advanced agent traceability and the agent monitor", async ({ page })
   await installApi(page);
   await page.goto("/");
 
+  await page.goto("/predictions");
   await page.getByRole("button", { name: "Vista avanzada" }).click();
-  await page.getByRole("button", { name: "Predicciones", exact: true }).click();
   await expect(page.getByText("Resultados de los agentes")).toBeVisible();
   await expect(page.getByText("Hash de configuración")).toBeVisible();
   await expect(page.getByText("Pesos del consenso").first()).toBeVisible();
 
-  await page.getByRole("button", { name: "Agentes", exact: true }).click();
+  await page.goto("/agents");
+  await page.getByRole("button", { name: "Vista avanzada" }).click();
   await expect(
     page.getByRole("heading", { name: "Agentes deterministas" }),
   ).toBeVisible();
@@ -702,7 +709,7 @@ test("shows an empty market state", async ({ page }) => {
     predictions: [],
   });
   await page.goto("/");
-  await page.getByRole("button", { name: "Mercados", exact: true }).click();
+  await page.goto("/markets");
   await expect(
     page.getByText("Todavía no hay mercados disponibles."),
   ).toBeVisible();
@@ -723,11 +730,14 @@ test("supports keyboard navigation and labeled status indicators", async ({
 }) => {
   await installApi(page);
   await page.goto("/");
-  await page.getByRole("button", { name: "Mercados", exact: true }).click();
+  await page.goto("/markets");
 
   const secondRow = page.getByRole("row", { name: /Segundo mercado/ });
   await secondRow.focus();
   await secondRow.press("Enter");
+  await expect(page).toHaveURL(
+    new RegExp(`/markets/${secondMarket.market_id}$`),
+  );
 
   await expect(
     page.locator("h2").filter({ hasText: "Segundo mercado" }),

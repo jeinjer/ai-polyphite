@@ -51,10 +51,10 @@ test.describe("live Docker stack", () => {
       }),
     ).toHaveCount(0);
     if (markets.items[0]) {
-      await page.getByRole("button", { name: "Mercados", exact: true }).click();
+      await page.goto("/markets");
       await expect(page.getByText(markets.items[0].title).first()).toBeVisible();
     } else {
-      await page.getByRole("button", { name: "Mercados", exact: true }).click();
+      await page.goto("/markets");
       await expect(
         page.getByText("Todavía no hay mercados disponibles."),
       ).toBeVisible();

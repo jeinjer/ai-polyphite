@@ -32,6 +32,8 @@ predicción y paper trading.
 - un advisory lock PostgreSQL permite un único ciclo activo.
 - repetir un ciclo completado registra `skipped_completed` sin side effects.
 - la contención entre procesos registra `skipped_locked`.
+- el modo autónomo filtra por proveedor y sólo selecciona mercados cuya última
+  observación sea posterior a la última predicción live.
 
 Cada intento queda en `paper_validation_runs` como `running`, `completed`,
 `failed`, `skipped_locked` o `skipped_completed`. Sólo se persisten tipos de
@@ -60,9 +62,11 @@ Defaults del MVP:
 
 ```env
 AI_POLYPHITE_PAPER_VALIDATION_INTERVAL_SECONDS=3600
-AI_POLYPHITE_PAPER_VALIDATION_RUN_IMMEDIATELY=true
-AI_POLYPHITE_PAPER_VALIDATION_PORTFOLIO_NAME=MVP continuous validation
+AI_POLYPHITE_PAPER_VALIDATION_RUN_IMMEDIATELY=false
+AI_POLYPHITE_PAPER_VALIDATION_PORTFOLIO_NAME=Autonomous Manifold paper validation
 AI_POLYPHITE_PAPER_VALIDATION_RANDOM_SEED=17
+AI_POLYPHITE_PAPER_VALIDATION_PROVIDER_CODES=manifold
+AI_POLYPHITE_PAPER_VALIDATION_ONLY_NEW_OBSERVATIONS=true
 ```
 
 El hash incluye los umbrales predictivos, el hash completo de políticas paper,
@@ -97,10 +101,10 @@ Worker local:
 make paper-validation-worker
 ```
 
-Docker Compose lo mantiene opt-in para no generar evidencia accidental:
+Docker Compose lo inicia por defecto como parte de la campaña autónoma:
 
 ```powershell
-docker compose --profile validation up -d --build paper-validator
+docker compose up -d --build
 docker compose logs -f paper-validator
 ```
 

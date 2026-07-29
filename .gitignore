@@ -45,9 +45,11 @@ blob-report/
 # Runtime data
 data/
 artifacts/
-backups/
 logs/
 *.log
+backups/*
+!backups/
+!backups/.gitkeep
 *.pid
 
 # Docker overrides and local volumes

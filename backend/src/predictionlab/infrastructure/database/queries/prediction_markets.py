@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from predictionlab.application.predictions import MarketPredictionSnapshot
@@ -15,6 +15,8 @@ from predictionlab.infrastructure.database.models import (
     MarketModel,
     MarketObservationModel,
     MarketStateChangeModel,
+    PredictionRunModel,
+    ProviderModel,
 )
 
 
@@ -91,7 +93,13 @@ class SqlAlchemyPredictionMarketRepository:
             observations=ordered,
         )
 
-    async def list_open_ids_as_of(self, predicted_at: datetime) -> tuple[UUID, ...]:
+    async def list_open_ids_as_of(
+        self,
+        predicted_at: datetime,
+        *,
+        provider_codes: tuple[str, ...] = (),
+        only_with_new_observations: bool = False,
+    ) -> tuple[UUID, ...]:
         latest_status = (
             select(MarketStateChangeModel.status)
             .where(
@@ -106,15 +114,46 @@ class SqlAlchemyPredictionMarketRepository:
             .correlate(MarketModel)
             .scalar_subquery()
         )
+        statement = select(MarketModel.market_id).where(
+            MarketModel.ingested_at <= predicted_at,
+            latest_status == MarketStatus.OPEN.value,
+        )
+        if provider_codes:
+            statement = statement.join(
+                ProviderModel,
+                ProviderModel.provider_id == MarketModel.provider_id,
+            ).where(ProviderModel.code.in_(provider_codes))
+        if only_with_new_observations:
+            latest_observation = (
+                select(func.max(MarketObservationModel.observed_at))
+                .where(
+                    MarketObservationModel.market_id == MarketModel.market_id,
+                    MarketObservationModel.observed_at <= predicted_at,
+                )
+                .correlate(MarketModel)
+                .scalar_subquery()
+            )
+            latest_live_prediction = (
+                select(func.max(PredictionRunModel.predicted_at))
+                .where(
+                    PredictionRunModel.market_id == MarketModel.market_id,
+                    PredictionRunModel.experiment_run_id.is_(None),
+                    PredictionRunModel.predicted_at <= predicted_at,
+                )
+                .correlate(MarketModel)
+                .scalar_subquery()
+            )
+            statement = statement.where(
+                latest_observation.is_not(None),
+                or_(
+                    latest_live_prediction.is_(None),
+                    latest_observation > latest_live_prediction,
+                ),
+            )
         async with self._session_factory() as session:
             ids = (
                 await session.scalars(
-                    select(MarketModel.market_id)
-                    .where(
-                        MarketModel.ingested_at <= predicted_at,
-                        latest_status == MarketStatus.OPEN.value,
-                    )
-                    .order_by(MarketModel.market_id)
+                    statement.order_by(MarketModel.market_id)
                 )
             ).all()
         return tuple(ids)

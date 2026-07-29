@@ -25,7 +25,13 @@ class PredictionMarketRepository(Protocol):
         predicted_at: datetime,
     ) -> MarketPredictionSnapshot | None: ...
 
-    async def list_open_ids_as_of(self, predicted_at: datetime) -> tuple[UUID, ...]: ...
+    async def list_open_ids_as_of(
+        self,
+        predicted_at: datetime,
+        *,
+        provider_codes: tuple[str, ...] = (),
+        only_with_new_observations: bool = False,
+    ) -> tuple[UUID, ...]: ...
 
 
 class PredictionRepository(Protocol):

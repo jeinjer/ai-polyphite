@@ -10,12 +10,13 @@ from decimal import Decimal
 from email.utils import parsedate_to_datetime
 from math import isfinite
 from time import monotonic
-from typing import Final, cast
+from typing import Final, Literal, cast
 from urllib.parse import quote
 
 import httpx
 from pydantic import TypeAdapter, ValidationError
 
+from predictionlab.core.hashing import canonical_sha256
 from predictionlab.providers.base import (
     FetchMarketsRequest,
     FetchSnapshotsRequest,
@@ -67,6 +68,7 @@ class ManifoldProvider(MarketDataProvider):
         clock: Clock | None = None,
         sleep: AsyncSleep | None = None,
         monotonic_clock: MonotonicClock | None = None,
+        sync_mode: Literal["catalog", "recent"] = "catalog",
     ) -> None:
         super().__init__(clock=clock)
         if not isfinite(timeout_seconds) or timeout_seconds <= 0:
@@ -78,6 +80,10 @@ class ManifoldProvider(MarketDataProvider):
         )
         self._timeout = httpx.Timeout(timeout_seconds)
         self._owns_client = http_client is None
+        self._sync_mode = sync_mode
+        self._listed_payloads: dict[str, ManifoldMarketPayload] = {}
+        self._observation_signatures: dict[str, str] = {}
+        self._observation_times: dict[str, datetime] = {}
         self._http_client = http_client or httpx.AsyncClient(
             headers={"User-Agent": _USER_AGENT},
             follow_redirects=False,
@@ -96,7 +102,6 @@ class ManifoldProvider(MarketDataProvider):
         return ProviderCapabilities.of(
             ProviderCapability.MARKET_LISTING,
             ProviderCapability.MARKET_DETAIL,
-            ProviderCapability.LATEST_SNAPSHOT,
             ProviderCapability.LATEST_OBSERVATION,
         )
 
@@ -107,7 +112,7 @@ class ManifoldProvider(MarketDataProvider):
 
         cursor_time = self._decode_cursor(request.cursor)
         params: dict[str, str | int] = {
-            "sort": "newest",
+            "sort": "last-updated" if self._sync_mode == "recent" else "newest",
             "filter": "all",
             "contractType": _BINARY_OUTCOME_TYPE,
             "limit": request.limit,
@@ -117,6 +122,8 @@ class ManifoldProvider(MarketDataProvider):
 
         raw = await self._get_json(_SEARCH_PATH, params=params)
         payloads = self._validate_list(raw)
+        for payload in payloads:
+            self._listed_payloads[payload.market_id] = payload
         now = self._now()
         markets = tuple(
             market
@@ -124,10 +131,14 @@ class ManifoldProvider(MarketDataProvider):
             if (market := self._normalize_market(payload, now=now)) is not None
             and (not request.statuses or market.status in request.statuses)
         )
-        next_cursor = self._next_cursor(
-            payloads=payloads,
-            requested_limit=request.limit,
-            current_cursor=request.cursor,
+        next_cursor = (
+            None
+            if self._sync_mode == "recent"
+            else self._next_cursor(
+                payloads=payloads,
+                requested_limit=request.limit,
+                current_cursor=request.cursor,
+            )
         )
         return MarketBatch(markets=markets, next_cursor=next_cursor)
 
@@ -140,7 +151,9 @@ class ManifoldProvider(MarketDataProvider):
         )
         if raw is None:
             return None
-        return self._normalize_market(self._validate_market(raw), now=self._now())
+        payload = self._validate_market(raw)
+        self._listed_payloads[payload.market_id] = payload
+        return self._normalize_market(payload, now=self._now())
 
     async def fetch_latest_snapshot(
         self,
@@ -165,13 +178,15 @@ class ManifoldProvider(MarketDataProvider):
     ) -> ProviderMarketObservation | None:
         self.capabilities.require(ProviderCapability.LATEST_OBSERVATION)
         market_id = self._validate_market_id(provider_market_id)
-        raw = await self._get_json(
-            f"/v0/market/{quote(market_id, safe='')}",
-            allow_not_found=True,
-        )
-        if raw is None:
-            return None
-        payload = self._validate_market(raw)
+        payload = self._listed_payloads.get(market_id)
+        if payload is None:
+            raw = await self._get_json(
+                f"/v0/market/{quote(market_id, safe='')}",
+                allow_not_found=True,
+            )
+            if raw is None:
+                return None
+            payload = self._validate_market(raw)
         if payload.outcome_type != _BINARY_OUTCOME_TYPE:
             return None
         if all(
@@ -183,11 +198,24 @@ class ManifoldProvider(MarketDataProvider):
             )
         ):
             return None
-        observed_at = (
-            _timestamp(payload.last_updated_time)
-            or _timestamp(payload.resolution_time)
-            or self._now()
+        signature = canonical_sha256(
+            {
+                "provider_market_id": payload.market_id,
+                "probability": payload.probability,
+                "volume": payload.volume,
+                "liquidity": payload.total_liquidity,
+                "resolution": payload.resolution,
+                "is_resolved": payload.is_resolved,
+            }
         )
+        observed_at = self._observation_times.get(payload.market_id)
+        if (
+            observed_at is None
+            or self._observation_signatures.get(payload.market_id) != signature
+        ):
+            observed_at = self._now()
+            self._observation_signatures[payload.market_id] = signature
+            self._observation_times[payload.market_id] = observed_at
         return ProviderMarketObservation(
             provider_market_id=payload.market_id,
             observed_at=observed_at,
@@ -195,6 +223,7 @@ class ManifoldProvider(MarketDataProvider):
             volume=payload.volume,
             liquidity=payload.total_liquidity,
             source_updated_at=_timestamp(payload.last_updated_time),
+            raw_payload_hash=signature,
         )
 
     async def fetch_snapshots(

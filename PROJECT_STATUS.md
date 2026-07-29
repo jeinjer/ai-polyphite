@@ -1,12 +1,12 @@
 # AI-Polyphite — Project Status
 
-Última actualización: 2026-07-28
+Última actualización: 2026-07-29
 
 ## Estado general
 
 **Fase:** estabilización del MVP mediante validación paper continua
 
-**Estado:** implementado y validado; pendiente de aprobación del usuario
+**Estado:** campaña autónoma read-only/paper preparada para ejecución continua
 **Dinero real:** prohibido y no implementado
 
 ## Flujos disponibles
@@ -97,7 +97,16 @@ Mercados abiertos visibles por slot UTC
 - Advisory lock y retries sin duplicar predicciones, decisiones ni operaciones.
 - Auditoría durable `PaperValidationRun` para cada intento.
 - Reconciliación automática de ledger, balances, P&L, equity y exposición.
-- Perfil Compose `validation` opt-in y runbook operativo.
+- Runbook operativo para validación paper continua.
+- Rutas URL para todas las secciones y detalle enlazable de mercado.
+- Refresco automático del dashboard cada 60 segundos.
+- Manifold read-only como fuente autónoma de Compose, con catálogo reciente
+  acotado a 1.000 mercados y una consulta HTTP por ciclo.
+- Predicciones live limitadas a Manifold y a observaciones nuevas.
+- Collector y validador paper cada hora con recuperación tras reinicio.
+- Backups PostgreSQL diarios verificados y con retención de 7 días.
+- Rotación de logs Docker acotada a 50 MB por servicio.
+- Reinicio `unless-stopped` para API, frontend, collector, validador y backup.
 
 ## Decisiones vigentes
 
