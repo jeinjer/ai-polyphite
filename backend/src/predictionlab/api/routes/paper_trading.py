@@ -19,6 +19,7 @@ from predictionlab.application.paper_trading import (
     ListPaperSettlements,
     ListPaperTrades,
     ListTradeDecisions,
+    ManualPaperTradeStatus,
     PaperPage,
     PaperPerformanceReport,
     PaperPerformanceService,
@@ -33,6 +34,7 @@ from predictionlab.application.paper_trading import (
     PaperTradingOrchestrator,
     PaperTradingQueryService,
     PredictionRunNotFoundError,
+    RunManualPaperTrade,
     SettlePaperPortfolio,
     TradeDecisionDetail,
 )
@@ -45,6 +47,7 @@ from predictionlab.domain.paper_trading import (
     PaperPositionStatus,
     PositionSide,
     SampleEvidenceState,
+    TradeDecisionSource,
     TradeDecisionType,
 )
 from predictionlab.domain.predictions import OpportunityLevel
@@ -104,6 +107,8 @@ class TradeDecisionResponse(BaseModel):
     causation_id: str | None
     experiment_run_id: UUID | None
     prediction_result_hash: str
+    decision_source: TradeDecisionSource
+    override_reason: str | None
     simulation_only: bool = True
 
 
@@ -331,6 +336,30 @@ class ManualPaperRunResponse(BaseModel):
     position_ids: list[UUID]
     result_hashes: list[str]
     simulation_only: bool = True
+
+
+class ManualTradeOverrideRequest(BaseModel):
+    prediction_run_id: UUID
+    portfolio_id: UUID | None = None
+    side: PositionSide
+    requested_stake: Decimal = Field(gt=0)
+    override_reason: str = Field(min_length=1, max_length=1000)
+    idempotency_key: str = Field(min_length=1, max_length=200)
+    causation_id: str | None = Field(default=None, min_length=1, max_length=200)
+
+
+class ManualTradeOverrideResponse(BaseModel):
+    status: ManualPaperTradeStatus
+    trade_decision_id: UUID
+    paper_order_id: UUID | None
+    paper_trade_id: UUID | None
+    position_id: UUID | None
+    portfolio_id: UUID
+    side: PositionSide | None
+    rejection_reasons: list[str]
+    decision_source: TradeDecisionSource
+    simulation_only: bool = True
+    disclaimer: str = "Esta operación es exclusivamente simulada. No utiliza dinero real."
 
 
 class SettlePaperTradingRequest(BaseModel):
@@ -698,11 +727,78 @@ async def run_paper_trading_manually(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
         ) from exc
+    except PaperTradingIdempotencyConflictError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
     return ManualPaperRunResponse(
         decision_ids=[item.decision.decision_id for item in outcomes],
         trade_ids=[item.trade.trade_id for item in outcomes if item.trade is not None],
         position_ids=[item.position.position_id for item in outcomes if item.position is not None],
         result_hashes=[value for item in outcomes for value in item.artifact_hashes],
+    )
+
+
+@router.post(
+    "/paper-trading/manual-trades",
+    response_model=ManualTradeOverrideResponse,
+    summary="Create an explicit simulated trade override",
+    operation_id="create_manual_paper_trade_override",
+)
+async def create_manual_paper_trade_override(
+    payload: ManualTradeOverrideRequest,
+    request: Request,
+    orchestrator: Annotated[
+        PaperTradingOrchestrator,
+        Depends(get_paper_orchestrator),
+    ],
+) -> ManualTradeOverrideResponse:
+    _require_manual_override_access(request)
+    portfolio_id = payload.portfolio_id
+    if portfolio_id is None:
+        settings = request.app.state.settings
+        portfolio = await orchestrator.create_portfolio(
+            CreatePaperPortfolio(
+                name="Manual paper overrides",
+                currency_unit=CurrencyUnit(settings.paper_currency_unit),
+                initial_balance=settings.paper_initial_balance,
+                correlation_id=get_correlation_id(),
+                causation_id=payload.causation_id,
+            )
+        )
+        portfolio_id = portfolio.portfolio.portfolio_id
+    try:
+        result = await orchestrator.run_manual_override(
+            RunManualPaperTrade(
+                portfolio_id=portfolio_id,
+                prediction_run_id=payload.prediction_run_id,
+                side=payload.side,
+                requested_stake=payload.requested_stake,
+                override_reason=payload.override_reason,
+                idempotency_key=payload.idempotency_key,
+                correlation_id=get_correlation_id(),
+                causation_id=payload.causation_id,
+            )
+        )
+    except (PaperPortfolioNotFoundError, PredictionRunNotFoundError) as exc:
+        raise _not_found() from exc
+    except PaperTradingConfigurationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+    outcome = result.outcome
+    return ManualTradeOverrideResponse(
+        status=result.status,
+        trade_decision_id=outcome.decision.decision_id,
+        paper_order_id=(outcome.order.order_id if outcome.order is not None else None),
+        paper_trade_id=(outcome.trade.trade_id if outcome.trade is not None else None),
+        position_id=(outcome.position.position_id if outcome.position is not None else None),
+        portfolio_id=outcome.decision.portfolio_id,
+        side=outcome.decision.side,
+        rejection_reasons=list(outcome.decision.rejection_reasons),
+        decision_source=outcome.decision.decision_source,
     )
 
 
@@ -745,6 +841,15 @@ def _require_manual_access(request: Request) -> None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Manual paper trading controls are disabled.",
+        )
+
+
+def _require_manual_override_access(request: Request) -> None:
+    settings = request.app.state.settings
+    if settings.app_env is AppEnvironment.PRODUCTION or not settings.enable_manual_paper_overrides:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Manual paper trade overrides are disabled.",
         )
 
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
+from enum import StrEnum
 from uuid import UUID
 
 from predictionlab.domain.agents import (
@@ -13,8 +14,23 @@ from predictionlab.domain.agents import (
     JsonScalar,
     Recommendation,
 )
+from predictionlab.domain.commercial_evaluations import (
+    CommercialEvaluation,
+    CommercialLabel,
+    DataFreshnessStatus,
+    PotentialSide,
+)
 from predictionlab.domain.markets import MarketStatus, ResolutionOutcome
-from predictionlab.domain.predictions import OpportunityLevel, PredictionRunStatus
+from predictionlab.domain.paper_trading import (
+    PositionSide,
+    TradeDecisionSource,
+    TradeDecisionType,
+)
+from predictionlab.domain.predictions import (
+    EstimatedOutcome,
+    OpportunityLevel,
+    PredictionRunStatus,
+)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -41,22 +57,14 @@ class MarketPredictionSnapshot:
     @property
     def latest_volume(self) -> Decimal | None:
         return next(
-            (
-                item.volume
-                for item in reversed(self.observations)
-                if item.volume is not None
-            ),
+            (item.volume for item in reversed(self.observations) if item.volume is not None),
             None,
         )
 
     @property
     def latest_liquidity(self) -> Decimal | None:
         return next(
-            (
-                item.liquidity
-                for item in reversed(self.observations)
-                if item.liquidity is not None
-            ),
+            (item.liquidity for item in reversed(self.observations) if item.liquidity is not None),
             None,
         )
 
@@ -126,6 +134,84 @@ class PredictionRunDetail:
     created_at: datetime
     agent_weights: dict[str, Decimal]
     agent_predictions: tuple[AgentPredictionDetail, ...]
+    estimated_outcome: EstimatedOutcome | None = None
+    market_status: MarketStatus | None = None
+    provider_code: str | None = None
+    commercial_evaluation: CommercialEvaluation | None = None
+    related_executions: tuple[RelatedPaperExecution, ...] = ()
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class RelatedPaperExecution:
+    decision_id: UUID
+    portfolio_id: UUID
+    portfolio_name: str
+    decision: TradeDecisionType
+    decision_source: TradeDecisionSource
+    override_reason: str | None
+    side: PositionSide | None
+    decided_at: datetime
+    order_id: UUID | None
+    trade_id: UUID | None
+    position_id: UUID | None
+
+
+class PredictionSort(StrEnum):
+    PREDICTED_AT = "predicted_at"
+    MARKET_PROBABILITY = "market_probability"
+    CONSENSUS_PROBABILITY = "consensus_probability"
+    CONSENSUS_CONFIDENCE = "consensus_confidence"
+    NET_EDGE = "net_edge"
+
+
+class SortDirection(StrEnum):
+    ASC = "asc"
+    DESC = "desc"
+
+
+class EstimatedOutcomeFilter(StrEnum):
+    YES = "yes"
+    NO = "no"
+    UNAVAILABLE = "unavailable"
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class PredictionListItem:
+    prediction_run_id: UUID
+    market_id: UUID
+    market_title: str
+    provider_code: str
+    category: str | None
+    predicted_at: datetime
+    market_probability: Decimal | None
+    consensus_probability: Decimal | None
+    consensus_confidence: Decimal
+    estimated_outcome: EstimatedOutcome | None
+    commercial_label: CommercialLabel
+    potential_side: PotentialSide
+    gross_edge: Decimal | None
+    net_edge: Decimal | None
+    is_actionable: bool
+    primary_reason: str
+    portfolio_has_open_position: bool
+    data_freshness_status: DataFreshnessStatus
+    campaign_id: str | None
+    portfolio_id: UUID | None
+
+
+@dataclass(frozen=True, slots=True)
+class PredictionListPage:
+    items: tuple[PredictionListItem, ...]
+    page: int
+    page_size: int
+    total_items: int
+    applied_filters: dict[str, str]
+
+    @property
+    def total_pages(self) -> int:
+        if self.total_items == 0:
+            return 0
+        return (self.total_items + self.page_size - 1) // self.page_size
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -140,6 +226,13 @@ class ListPredictions:
     status: PredictionRunStatus | None = None
     opportunity_level: OpportunityLevel | None = None
     experiment_run_id: UUID | None = None
+    provider: str | None = None
+    commercial_label: CommercialLabel | None = None
+    estimated_outcome_filter: EstimatedOutcomeFilter | None = None
+    portfolio_id: UUID | None = None
+    campaign_id: str | None = None
+    sort: PredictionSort = PredictionSort.PREDICTED_AT
+    direction: SortDirection = SortDirection.DESC
 
     def __post_init__(self) -> None:
         if self.page < 1:
@@ -154,6 +247,10 @@ class ListPredictions:
             raise ValueError("predicted_from cannot be after predicted_to")
         if self.category is not None and not self.category.strip():
             raise ValueError("category cannot be blank")
+        if self.provider is not None and not self.provider.strip():
+            raise ValueError("provider cannot be blank")
+        if self.campaign_id is not None and not self.campaign_id.strip():
+            raise ValueError("campaign_id cannot be blank")
 
 
 @dataclass(frozen=True, slots=True)

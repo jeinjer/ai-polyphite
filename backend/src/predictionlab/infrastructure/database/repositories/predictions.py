@@ -20,6 +20,7 @@ from predictionlab.domain.agents import (
     Recommendation,
 )
 from predictionlab.domain.predictions import (
+    EstimatedOutcome,
     OpportunityLevel,
     PredictionRun,
     PredictionRunStatus,
@@ -57,23 +58,18 @@ class SqlAlchemyPredictionRepository:
                 select(PredictionRunModel).where(
                     PredictionRunModel.market_id == run.market_id,
                     PredictionRunModel.predicted_at == run.predicted_at,
-                    PredictionRunModel.agent_configuration_hash
-                    == run.agent_configuration_hash,
+                    PredictionRunModel.agent_configuration_hash == run.agent_configuration_hash,
                     (
                         PredictionRunModel.experiment_run_id.is_(None)
                         if run.experiment_run_id is None
-                        else PredictionRunModel.experiment_run_id
-                        == run.experiment_run_id
+                        else PredictionRunModel.experiment_run_id == run.experiment_run_id
                     ),
                 )
             )
             if existing is None:
                 raise RuntimeError("conflicting prediction disappeared before read")
             aggregate = await self._aggregate(existing)
-            if (
-                aggregate.input_hash != run.input_hash
-                or aggregate.result_hash != run.result_hash
-            ):
+            if aggregate.input_hash != run.input_hash or aggregate.result_hash != run.result_hash:
                 raise PredictionIdempotencyConflictError(
                     "the idempotency scope already contains different prediction data"
                 )
@@ -96,9 +92,7 @@ class SqlAlchemyPredictionRepository:
                     output_hash=item.output_hash,
                     duration_ms=item.duration_ms,
                     disagreement_score=item.disagreement_score,
-                    agent_weights={
-                        key: str(value) for key, value in item.agent_weights.items()
-                    },
+                    agent_weights={key: str(value) for key, value in item.agent_weights.items()},
                 )
                 for item in run.agent_predictions
             ]
@@ -110,10 +104,7 @@ class SqlAlchemyPredictionRepository:
         agents = (
             await self._session.scalars(
                 select(AgentPredictionModel)
-                .where(
-                    AgentPredictionModel.prediction_run_id
-                    == model.prediction_run_id
-                )
+                .where(AgentPredictionModel.prediction_run_id == model.prediction_run_id)
                 .order_by(
                     case(
                         {
@@ -141,6 +132,9 @@ def _run_values(run: PredictionRun) -> dict[str, object]:
         "consensus_probability": run.consensus_probability,
         "consensus_confidence": run.consensus_confidence,
         "recommendation": run.recommendation.value,
+        "estimated_outcome": (
+            run.estimated_outcome.value if run.estimated_outcome is not None else None
+        ),
         "edge": run.edge,
         "no_edge": run.no_edge,
         "opportunity_level": run.opportunity_level.value,
@@ -155,9 +149,7 @@ def _run_values(run: PredictionRun) -> dict[str, object]:
         "correlation_id": run.correlation_id,
         "causation_id": run.causation_id,
         "created_at": run.created_at,
-        "agent_weights": {
-            key: str(value) for key, value in run.agent_weights.items()
-        },
+        "agent_weights": {key: str(value) for key, value in run.agent_weights.items()},
     }
 
 
@@ -197,10 +189,13 @@ def _run_entity(
         correlation_id=model.correlation_id,
         causation_id=model.causation_id,
         created_at=model.created_at,
-        agent_weights={
-            key: Decimal(str(value)) for key, value in model.agent_weights.items()
-        },
+        agent_weights={key: Decimal(str(value)) for key, value in model.agent_weights.items()},
         agent_predictions=tuple(_agent_entity(item) for item in agents),
+        estimated_outcome=(
+            EstimatedOutcome(model.estimated_outcome)
+            if model.estimated_outcome is not None
+            else None
+        ),
     )
 
 
@@ -226,7 +221,5 @@ def _agent_entity(model: AgentPredictionModel) -> AgentPrediction:
         output_hash=model.output_hash,
         duration_ms=model.duration_ms,
         disagreement_score=model.disagreement_score,
-        agent_weights={
-            key: Decimal(str(value)) for key, value in model.agent_weights.items()
-        },
+        agent_weights={key: Decimal(str(value)) for key, value in model.agent_weights.items()},
     )

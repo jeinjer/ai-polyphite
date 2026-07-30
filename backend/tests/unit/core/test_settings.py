@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -210,6 +211,9 @@ def test_paper_validation_runtime_configuration_is_typed() -> None:
         paper_validation_random_seed=42,
         paper_validation_provider_codes="manifold",
         paper_validation_only_new_observations=True,
+        experimental_campaign_enabled=True,
+        experimental_min_net_edge="0.015",
+        enable_manual_paper_overrides=True,
     )
 
     assert settings.paper_validation_interval_seconds == 900
@@ -218,6 +222,9 @@ def test_paper_validation_runtime_configuration_is_typed() -> None:
     assert settings.paper_validation_random_seed == 42
     assert settings.paper_validation_provider_codes == ("manifold",)
     assert settings.paper_validation_only_new_observations is True
+    assert settings.experimental_campaign_enabled is True
+    assert settings.experimental_min_net_edge == Decimal("0.015")
+    assert settings.enable_manual_paper_overrides is True
 
     with pytest.raises(ValidationError):
         Settings(_env_file=None, paper_validation_interval_seconds=30)

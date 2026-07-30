@@ -1,6 +1,6 @@
 # Agentes deterministas y contrato de predicción
 
-Versión: 1.0
+Versión: 2.0
 
 Estado: Implementado
 
@@ -102,10 +102,12 @@ liquidez y antigüedad. No consume noticias ni APIs.
 Compara Reasoning y Market, modera edges grandes, penaliza desacuerdo y advierte
 por señales incompletas o liquidez ausente.
 
-### ConsensusAgent 1.0.0
+### ConsensusAgent 2.0.0
 
 Pondera rol y confianza. No usa un promedio simple. Normaliza los pesos
-efectivos, reduce la confianza por desacuerdo y puede abstenerse.
+efectivos, reduce la confianza por desacuerdo y publica una estimación aunque
+su confianza o edge sean comercialmente bajos. Esos umbrales producen warnings
+y se evalúan posteriormente en `CommercialEvaluation`.
 
 ## Consenso
 
@@ -116,8 +118,10 @@ Los pesos base iniciales son:
 - Skeptic: 0.40.
 
 Cada peso base se multiplica por la confianza del agente y después se
-normaliza. La configuración puede versionar estos valores. La probabilidad
-oficial sólo se publica si supera todas las reglas de abstención.
+normaliza. La configuración puede versionar estos valores. Si el input
+estructural es válido, se publican siempre la probabilidad y el resultado
+estimado. La recomendación YES/NO expresa el resultado más probable; no es una
+orden de entrada.
 
 ## Abstención
 
@@ -128,12 +132,14 @@ El consenso registra un motivo explícito cuando:
 - la observación es demasiado antigua;
 - faltan estimaciones previas;
 - el desacuerdo supera el máximo;
-- la confianza es menor al mínimo;
-- el edge absoluto es menor al umbral débil;
 - una probabilidad extrema no tiene observaciones suficientes.
 
 Una abstención no publica probabilidad oficial ni edge. Las estimaciones
 intermedias permanecen disponibles para auditar la decisión.
+
+Confianza baja y edge inferior al umbral débil no son abstenciones. Se
+conservan como warnings para que la evaluación comercial decida si conviene
+operar bajo una campaña concreta.
 
 ## Observabilidad
 

@@ -31,6 +31,7 @@ from predictionlab.domain.paper_trading import (
     PaperPortfolioStatus,
     PaperPositionStatus,
     PositionSide,
+    TradeDecisionSource,
     TradeDecisionType,
     TradingSample,
 )
@@ -62,9 +63,7 @@ class SqlAlchemyPaperTradingReadRepository:
     ) -> PaperPage[PaperPortfolioDetail]:
         statement = select(PaperPortfolioModel)
         if query.status is not None:
-            statement = statement.where(
-                PaperPortfolioModel.status == query.status.value
-            )
+            statement = statement.where(PaperPortfolioModel.status == query.status.value)
         if query.experiment_run_id is not None:
             statement = statement.where(
                 PaperPortfolioModel.experiment_run_id == query.experiment_run_id
@@ -95,9 +94,7 @@ class SqlAlchemyPaperTradingReadRepository:
     async def get_portfolio(self, portfolio_id: UUID) -> PaperPortfolioDetail | None:
         async with self._session_factory() as session:
             model = await session.scalar(
-                select(PaperPortfolioModel).where(
-                    PaperPortfolioModel.portfolio_id == portfolio_id
-                )
+                select(PaperPortfolioModel).where(PaperPortfolioModel.portfolio_id == portfolio_id)
             )
         return _portfolio(model) if model is not None else None
 
@@ -109,15 +106,12 @@ class SqlAlchemyPaperTradingReadRepository:
             select(TradeDecisionModel, PredictionRunModel, MarketModel)
             .join(
                 PredictionRunModel,
-                PredictionRunModel.prediction_run_id
-                == TradeDecisionModel.prediction_run_id,
+                PredictionRunModel.prediction_run_id == TradeDecisionModel.prediction_run_id,
             )
             .join(MarketModel, MarketModel.market_id == PredictionRunModel.market_id)
         )
         if query.portfolio_id is not None:
-            statement = statement.where(
-                TradeDecisionModel.portfolio_id == query.portfolio_id
-            )
+            statement = statement.where(TradeDecisionModel.portfolio_id == query.portfolio_id)
         if query.market_id is not None:
             statement = statement.where(MarketModel.market_id == query.market_id)
         if query.category is not None:
@@ -125,26 +119,19 @@ class SqlAlchemyPaperTradingReadRepository:
         if query.side is not None:
             statement = statement.where(TradeDecisionModel.side == query.side.value)
         if query.decision is not None:
-            statement = statement.where(
-                TradeDecisionModel.decision == query.decision.value
-            )
+            statement = statement.where(TradeDecisionModel.decision == query.decision.value)
         if query.opportunity_level is not None:
             statement = statement.where(
-                TradeDecisionModel.opportunity_level
-                == query.opportunity_level.value
+                TradeDecisionModel.opportunity_level == query.opportunity_level.value
             )
         if query.experiment_run_id is not None:
             statement = statement.where(
                 TradeDecisionModel.experiment_run_id == query.experiment_run_id
             )
         if query.decided_from is not None:
-            statement = statement.where(
-                TradeDecisionModel.decided_at >= query.decided_from
-            )
+            statement = statement.where(TradeDecisionModel.decided_at >= query.decided_from)
         if query.decided_to is not None:
-            statement = statement.where(
-                TradeDecisionModel.decided_at <= query.decided_to
-            )
+            statement = statement.where(TradeDecisionModel.decided_at <= query.decided_to)
         async with self._session_factory() as session:
             total = await _count(session, statement)
             rows = (
@@ -182,13 +169,9 @@ class SqlAlchemyPaperTradingReadRepository:
                 TradeDecisionModel.experiment_run_id == query.experiment_run_id
             )
         if query.executed_from is not None:
-            statement = statement.where(
-                PaperTradeModel.executed_at >= query.executed_from
-            )
+            statement = statement.where(PaperTradeModel.executed_at >= query.executed_from)
         if query.executed_to is not None:
-            statement = statement.where(
-                PaperTradeModel.executed_at <= query.executed_to
-            )
+            statement = statement.where(PaperTradeModel.executed_at <= query.executed_to)
         async with self._session_factory() as session:
             total = await _count(session, statement)
             rows = (
@@ -223,23 +206,15 @@ class SqlAlchemyPaperTradingReadRepository:
     ) -> PaperPage[PaperPositionDetail]:
         statement = _position_statement()
         if query.portfolio_id is not None:
-            statement = statement.where(
-                PaperPositionModel.portfolio_id == query.portfolio_id
-            )
+            statement = statement.where(PaperPositionModel.portfolio_id == query.portfolio_id)
         if query.market_id is not None:
-            statement = statement.where(
-                PaperPositionModel.market_id == query.market_id
-            )
+            statement = statement.where(PaperPositionModel.market_id == query.market_id)
         if query.category is not None:
-            statement = statement.where(
-                PaperPositionModel.category == query.category
-            )
+            statement = statement.where(PaperPositionModel.category == query.category)
         if query.side is not None:
             statement = statement.where(PaperPositionModel.side == query.side.value)
         if query.status is not None:
-            statement = statement.where(
-                PaperPositionModel.status == query.status.value
-            )
+            statement = statement.where(PaperPositionModel.status == query.status.value)
         if query.experiment_run_id is not None:
             statement = statement.where(
                 PaperPortfolioModel.experiment_run_id == query.experiment_run_id
@@ -267,9 +242,7 @@ class SqlAlchemyPaperTradingReadRepository:
         async with self._session_factory() as session:
             row = (
                 await session.execute(
-                    _position_statement().where(
-                        PaperPositionModel.position_id == position_id
-                    )
+                    _position_statement().where(PaperPositionModel.position_id == position_id)
                 )
             ).one_or_none()
         return _position_detail(*row) if row is not None else None
@@ -280,29 +253,19 @@ class SqlAlchemyPaperTradingReadRepository:
     ) -> PaperPage[PaperSettlementDetail]:
         statement = _settlement_statement()
         if query.portfolio_id is not None:
-            statement = statement.where(
-                PaperPositionModel.portfolio_id == query.portfolio_id
-            )
+            statement = statement.where(PaperPositionModel.portfolio_id == query.portfolio_id)
         if query.market_id is not None:
-            statement = statement.where(
-                PaperSettlementModel.market_id == query.market_id
-            )
+            statement = statement.where(PaperSettlementModel.market_id == query.market_id)
         if query.outcome is not None:
-            statement = statement.where(
-                PaperSettlementModel.outcome == query.outcome.value
-            )
+            statement = statement.where(PaperSettlementModel.outcome == query.outcome.value)
         if query.experiment_run_id is not None:
             statement = statement.where(
                 PaperPortfolioModel.experiment_run_id == query.experiment_run_id
             )
         if query.resolved_from is not None:
-            statement = statement.where(
-                PaperSettlementModel.resolved_at >= query.resolved_from
-            )
+            statement = statement.where(PaperSettlementModel.resolved_at >= query.resolved_from)
         if query.resolved_to is not None:
-            statement = statement.where(
-                PaperSettlementModel.resolved_at <= query.resolved_to
-            )
+            statement = statement.where(PaperSettlementModel.resolved_at <= query.resolved_to)
         async with self._session_factory() as session:
             total = await _count(session, statement)
             rows = (
@@ -327,9 +290,7 @@ class SqlAlchemyPaperTradingReadRepository:
             rows = (
                 await session.scalars(
                     select(PaperPerformanceSnapshotModel)
-                    .where(
-                        PaperPerformanceSnapshotModel.portfolio_id == portfolio_id
-                    )
+                    .where(PaperPerformanceSnapshotModel.portfolio_id == portfolio_id)
                     .order_by(
                         PaperPerformanceSnapshotModel.recorded_at,
                         PaperPerformanceSnapshotModel.snapshot_id,
@@ -344,9 +305,7 @@ class SqlAlchemyPaperTradingReadRepository:
     ) -> PaperPerformanceData | None:
         async with self._session_factory() as session:
             portfolio_model = await session.scalar(
-                select(PaperPortfolioModel).where(
-                    PaperPortfolioModel.portfolio_id == portfolio_id
-                )
+                select(PaperPortfolioModel).where(PaperPortfolioModel.portfolio_id == portfolio_id)
             )
             if portfolio_model is None:
                 return None
@@ -386,9 +345,7 @@ class SqlAlchemyPaperTradingReadRepository:
             curve_models = (
                 await session.scalars(
                     select(PaperPerformanceSnapshotModel)
-                    .where(
-                        PaperPerformanceSnapshotModel.portfolio_id == portfolio_id
-                    )
+                    .where(PaperPerformanceSnapshotModel.portfolio_id == portfolio_id)
                     .order_by(
                         PaperPerformanceSnapshotModel.recorded_at,
                         PaperPerformanceSnapshotModel.snapshot_id,
@@ -396,9 +353,7 @@ class SqlAlchemyPaperTradingReadRepository:
                 )
             ).all()
             latest_recorded_at = (
-                curve_models[-1].recorded_at
-                if curve_models
-                else portfolio_model.updated_at
+                curve_models[-1].recorded_at if curve_models else portfolio_model.updated_at
             )
             samples = tuple(
                 TradingSample(
@@ -476,12 +431,10 @@ class SqlAlchemyPaperTradingReadRepository:
             for position in open_positions:
                 key = position.category or "unknown"
                 category_exposure[key] = (
-                    category_exposure.get(key, Decimal("0"))
-                    + position.invested_amount
+                    category_exposure.get(key, Decimal("0")) + position.invested_amount
                 )
             maximum_category_concentration = (
-                max(category_exposure.values(), default=Decimal("0"))
-                / portfolio_model.equity
+                max(category_exposure.values(), default=Decimal("0")) / portfolio_model.equity
                 if portfolio_model.equity > 0
                 else Decimal("0")
             )
@@ -528,8 +481,7 @@ class SqlAlchemyPaperTradingReadRepository:
                     stale_open_count += 1
             decision_count = len(decisions)
             abstention_count = sum(
-                decision.decision == TradeDecisionType.ABSTAIN.value
-                for decision, _, _ in decisions
+                decision.decision == TradeDecisionType.ABSTAIN.value for decision, _, _ in decisions
             )
             rejection_count = sum(
                 decision.decision == TradeDecisionType.REJECTED.value
@@ -586,16 +538,13 @@ def _trade_statement() -> Select[
         )
         .join(
             PredictionRunModel,
-            PredictionRunModel.prediction_run_id
-            == TradeDecisionModel.prediction_run_id,
+            PredictionRunModel.prediction_run_id == TradeDecisionModel.prediction_run_id,
         )
         .join(MarketModel, MarketModel.market_id == PredictionRunModel.market_id)
     )
 
 
-def _position_statement() -> Select[
-    tuple[PaperPositionModel, MarketModel, PaperPortfolioModel]
-]:
+def _position_statement() -> Select[tuple[PaperPositionModel, MarketModel, PaperPortfolioModel]]:
     return (
         select(PaperPositionModel, MarketModel, PaperPortfolioModel)
         .join(MarketModel, MarketModel.market_id == PaperPositionModel.market_id)
@@ -683,6 +632,8 @@ def _decision(
         causation_id=decision.causation_id,
         experiment_run_id=decision.experiment_run_id,
         prediction_result_hash=prediction.result_hash,
+        decision_source=TradeDecisionSource(decision.decision_source),
+        override_reason=decision.override_reason,
     )
 
 

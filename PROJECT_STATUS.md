@@ -1,10 +1,10 @@
 # AI-Polyphite — Project Status
 
-Última actualización: 2026-07-29
+Última actualización: 2026-07-30
 
 ## Estado general
 
-**Fase:** estabilización del MVP mediante validación paper continua
+**Fase:** estabilización del MVP con predicciones v2 y validación paper continua
 
 **Estado:** campaña autónoma read-only/paper preparada para ejecución continua
 **Dinero real:** prohibido y no implementado
@@ -30,10 +30,12 @@ JSONL versionado
 Mercado visible as-of
   → Reasoning / Market / Skeptic / Consensus
   → PredictionRun durable
+  → CommercialEvaluation por campaña
   → API / dashboard Predicciones y Agentes
-  → evaluación posterior contra baselines
+  → evaluación posterior contra baselines y costes
 
 PredictionRun durable
+  → campañas automáticas separadas
   → políticas de entrada, sizing, riesgo y costes
   → decisión, orden, trade y posición simulados
   → settlement oficial y ledger
@@ -44,6 +46,12 @@ Mercados abiertos visibles por slot UTC
   → settlement / mark-to-market
   → reconciliación ledger ↔ portfolio
   → auditoría PaperValidationRun
+
+Intervención humana opcional
+  → lado, stake y motivo explícitos
+  → revalidación actual y RiskPolicy
+  → portfolio manual separado
+  → TradeDecision(source=manual_override)
 ```
 
 ## Implementado
@@ -69,12 +77,20 @@ Mercados abiertos visibles por slot UTC
 - Contratos `PredictionAgent` y `ModelBackend`.
 - Backends deterministas RuleBased y Mock sin I/O externo.
 - ReasoningAgent, MarketAgent, SkepticAgent y ConsensusAgent versionados.
+- `ConsensusAgent` 2.0 publica estimación aun con confianza o edge comercial
+  bajos y conserva warnings.
+- `PredictionRun.predicted` con `estimated_outcome` YES/NO para runs nuevos.
+- `CommercialEvaluation` durable con edge bruto/neto, costes, frescura,
+  motivos y etiqueta por campaña/portfolio.
 - Orquestador transaccional, observable e idempotente.
 - `PredictionRun` y cuatro `AgentPrediction` reconstruibles.
 - Edge YES/NO, niveles configurables y abstención explícita.
 - Lecturas PostgreSQL as-of con barrera contra observaciones futuras.
 - `make replay-predict` con cadencia o timestamps explícitos.
 - API de predicciones por mercado y experimento.
+- `GET /predictions` liviano, paginado, filtrable y ordenable sin N+1.
+- Detalle lazy `/predictions/{id}` con agentes, evaluación y artefactos paper.
+- `GET /agent-predictions` separado para el monitor técnico.
 - Brier, log loss, error absoluto, accuracy, cobertura y calibración.
 - MarketBaseline y ConstantBaseline.
 - Vistas Predicciones y Agentes sin ROI ficticio.
@@ -98,6 +114,10 @@ Mercados abiertos visibles por slot UTC
 - Auditoría durable `PaperValidationRun` para cada intento.
 - Reconciliación automática de ledger, balances, P&L, equity y exposición.
 - Runbook operativo para validación paper continua.
+- Campañas conservadora y `experimental-v1` automáticas, con portfolios,
+  hashes y métricas separados y un único batch predictivo por slot.
+- Override manual exclusivamente simulado, con lado/stake libres, motivo,
+  idempotencia y límites de riesgo; no reemplaza la automatización.
 - Rutas URL para todas las secciones y detalle enlazable de mercado.
 - Refresco automático del dashboard cada 60 segundos.
 - Manifold read-only como fuente autónoma de Compose, con catálogo reciente
@@ -110,7 +130,7 @@ Mercados abiertos visibles por slot UTC
 
 ## Decisiones vigentes
 
-Nueve ADR aceptados:
+Diez ADR aceptados:
 
 1. Monolito modular.
 2. Sistema de eventos durable como arquitectura futura.
@@ -121,6 +141,7 @@ Nueve ADR aceptados:
 7. Reloj simulado y barrera contra lookahead.
 8. Agentes deterministas antes de integrar LLM.
 9. Frontera estructural de simulación y evaluación.
+10. Separación entre predicción, evaluación comercial y ejecución simulada.
 
 ## No implementado
 

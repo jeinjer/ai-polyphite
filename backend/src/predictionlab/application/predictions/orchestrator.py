@@ -25,6 +25,7 @@ from predictionlab.domain.agents import (
     Recommendation,
 )
 from predictionlab.domain.predictions import (
+    EstimatedOutcome,
     PredictionPolicy,
     PredictionRun,
     PredictionRunStatus,
@@ -78,8 +79,7 @@ class PredictionOrchestrator:
         configuration_hash = canonical_sha256(
             {
                 "agents": tuple(
-                    {"name": agent.name, "version": agent.version}
-                    for agent in self._agents
+                    {"name": agent.name, "version": agent.version} for agent in self._agents
                 ),
                 "model_configuration": configuration,
                 "random_seed": command.random_seed,
@@ -216,16 +216,10 @@ class PredictionOrchestrator:
             "strong_edge": str(thresholds.strong),
             "minimum_confidence": str(self._policy.minimum_confidence),
             "maximum_disagreement": str(self._policy.maximum_disagreement),
-            "maximum_observation_age_seconds": (
-                self._policy.maximum_observation_age_seconds
-            ),
+            "maximum_observation_age_seconds": (self._policy.maximum_observation_age_seconds),
             "extreme_probability_floor": str(self._policy.extreme_probability_floor),
-            "extreme_probability_ceiling": str(
-                self._policy.extreme_probability_ceiling
-            ),
-            "minimum_extreme_observations": (
-                self._policy.minimum_extreme_observations
-            ),
+            "extreme_probability_ceiling": str(self._policy.extreme_probability_ceiling),
+            "minimum_extreme_observations": (self._policy.minimum_extreme_observations),
         }
         configuration.update(overrides)
         return configuration
@@ -249,10 +243,15 @@ class PredictionOrchestrator:
             if consensus_probability is not None and market_probability is not None
             else None
         )
-        status = (
-            PredictionRunStatus.ABSTAINED
-            if abstained
-            else PredictionRunStatus.COMPLETED
+        status = PredictionRunStatus.ABSTAINED if abstained else PredictionRunStatus.PREDICTED
+        estimated_outcome = (
+            None
+            if consensus_probability is None
+            else (
+                EstimatedOutcome.YES
+                if consensus_probability >= Decimal("0.5")
+                else EstimatedOutcome.NO
+            )
         )
         result_hash = canonical_sha256(
             {
@@ -265,6 +264,7 @@ class PredictionOrchestrator:
                 "edge": edge,
                 "disagreement_score": consensus.disagreement_score,
                 "status": status,
+                "estimated_outcome": estimated_outcome,
                 "configuration_hash": configuration_hash,
                 "input_hash": agent_input.input_hash,
                 "agent_output_hashes": tuple(item.output_hash for item in predictions),
@@ -299,6 +299,7 @@ class PredictionOrchestrator:
             created_at=self._clock.now(),
             agent_weights=consensus.agent_weights,
             agent_predictions=predictions,
+            estimated_outcome=estimated_outcome,
         )
 
     def _failed_run(

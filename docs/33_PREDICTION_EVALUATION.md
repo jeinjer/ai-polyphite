@@ -1,6 +1,6 @@
 # Evaluación probabilística inicial
 
-Versión: 1.0
+Versión: 2.0
 
 Estado: Implementado
 
@@ -54,9 +54,14 @@ inventada para puntuarlas. Una estrategia puede reducir errores absteniéndose
 demasiado; por eso las métricas siempre deben leerse junto con cobertura y
 cantidad de muestras.
 
+Desde `ConsensusAgent` 2.0, confianza baja y edge pequeño ya no cuentan como
+abstenciones predictivas. La conveniencia se mide en
+`CommercialEvaluation`, separada de Brier, log loss y calibración.
+
 ## Limitaciones
 
 - La calibración inicial es descriptiva; no reajusta agentes.
 - No existe validación de significancia estadística todavía.
-- No hay ROI ni métricas financieras.
+- Las métricas financieras simuladas existen en paper trading, pero no forman
+  parte de esta evaluación probabilística.
 - El dataset sintético valida el mecanismo, no demuestra edge real.

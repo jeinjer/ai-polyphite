@@ -26,6 +26,7 @@ from predictionlab.application.paper_trading.models import (
     TradeDecisionDetail,
     TradingPredictionContext,
 )
+from predictionlab.domain.commercial_evaluations import CommercialEvaluation
 from predictionlab.domain.paper_trading import (
     CurrencyUnit,
     PaperLedgerEntry,
@@ -69,6 +70,8 @@ class PaperTradingRepository(Protocol):
     async def prediction_context(
         self,
         prediction_run_id: UUID,
+        *,
+        as_of: datetime | None = None,
     ) -> TradingPredictionContext | None: ...
 
     async def find_outcome(
@@ -76,6 +79,13 @@ class PaperTradingRepository(Protocol):
         *,
         portfolio_id: UUID,
         prediction_run_id: UUID,
+    ) -> PaperTradingOutcome | None: ...
+
+    async def find_outcome_by_idempotency(
+        self,
+        *,
+        portfolio_id: UUID,
+        idempotency_key: str,
     ) -> PaperTradingOutcome | None: ...
 
     async def exposure(
@@ -87,6 +97,11 @@ class PaperTradingRepository(Protocol):
     ) -> PortfolioExposure: ...
 
     async def add_decision(self, decision: TradeDecision) -> None: ...
+
+    async def add_commercial_evaluation(
+        self,
+        evaluation: CommercialEvaluation,
+    ) -> None: ...
 
     async def add_order(self, order: PaperOrder) -> None: ...
 

@@ -35,6 +35,11 @@ class TradeDecisionType(StrEnum):
     REJECTED = "rejected"
 
 
+class TradeDecisionSource(StrEnum):
+    AUTOMATIC = "automatic"
+    MANUAL_OVERRIDE = "manual_override"
+
+
 class PositionSide(StrEnum):
     YES = "yes"
     NO = "no"
@@ -198,6 +203,10 @@ class TradeDecision:
     correlation_id: str
     causation_id: str | None
     experiment_run_id: UUID | None
+    decision_source: TradeDecisionSource = TradeDecisionSource.AUTOMATIC
+    override_reason: str | None = None
+    idempotency_key: str | None = None
+    side: PositionSide | None = None
 
     def __post_init__(self) -> None:
         for field_name in ("decision_id", "prediction_run_id", "portfolio_id"):
@@ -218,6 +227,21 @@ class TradeDecision:
         _text(self.correlation_id, "correlation_id")
         if self.causation_id is not None:
             _text(self.causation_id, "causation_id")
+        if self.decision_source is TradeDecisionSource.MANUAL_OVERRIDE:
+            if self.override_reason is None or self.idempotency_key is None or self.side is None:
+                raise PaperTradingInvariantError(
+                    "manual overrides require side, reason and idempotency key"
+                )
+            _text(self.override_reason, "override_reason")
+            _text(self.idempotency_key, "idempotency_key")
+        elif self.override_reason is not None or self.idempotency_key is not None:
+            raise PaperTradingInvariantError(
+                "automatic decisions cannot contain manual override metadata"
+            )
+        if self.decision is TradeDecisionType.BUY_YES and self.side is not PositionSide.YES:
+            raise PaperTradingInvariantError("buy_yes decisions require YES side")
+        if self.decision is TradeDecisionType.BUY_NO and self.side is not PositionSide.NO:
+            raise PaperTradingInvariantError("buy_no decisions require NO side")
         if self.decision in {
             TradeDecisionType.ABSTAIN,
             TradeDecisionType.REJECTED,

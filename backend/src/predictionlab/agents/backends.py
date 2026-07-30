@@ -80,14 +80,10 @@ class RuleBasedModelBackend:
             confidence += Decimal("0.03")
         warnings: list[str] = []
         if data.resolution_at is not None:
-            hours_to_close = (
-                data.resolution_at - data.predicted_at
-            ).total_seconds() / 3_600
+            hours_to_close = (data.resolution_at - data.predicted_at).total_seconds() / 3_600
             if 0 <= hours_to_close <= 24:
                 confidence -= Decimal("0.05")
-                warnings.append(
-                    "El cierre está próximo y deja poco margen para nueva evidencia."
-                )
+                warnings.append("El cierre está próximo y deja poco margen para nueva evidencia.")
                 evidence.append(
                     _evidence(
                         "close_proximity",
@@ -141,10 +137,7 @@ class RuleBasedModelBackend:
         if not probabilities:
             return _abstain("No hay observaciones probabilísticas disponibles.")
         trend = probabilities[-1] - probabilities[0] if len(probabilities) > 1 else _ZERO
-        changes = [
-            abs(current - previous)
-            for previous, current in pairwise(probabilities)
-        ]
+        changes = [abs(current - previous) for previous, current in pairwise(probabilities)]
         volatility = sum(changes, _ZERO) / Decimal(len(changes)) if changes else _ZERO
         momentum = trend * Decimal("0.75") * max(_ZERO, _ONE - volatility * Decimal("3"))
         predicted = _clamp(data.market_probability + momentum)
@@ -287,14 +280,11 @@ class RuleBasedModelBackend:
             "skeptic": _config_decimal(data, "skeptic_weight", Decimal("0.40")),
         }
         effective = {
-            item.agent_name: base_weights[item.agent_name]
-            * max(item.confidence, Decimal("0.05"))
+            item.agent_name: base_weights[item.agent_name] * max(item.confidence, Decimal("0.05"))
             for item in available
         }
         total_weight = sum(effective.values(), _ZERO)
-        normalized = {
-            name: weight / total_weight for name, weight in effective.items()
-        }
+        normalized = {name: weight / total_weight for name, weight in effective.items()}
         predicted = sum(
             (
                 item.predicted_probability * normalized[item.agent_name]
@@ -315,29 +305,12 @@ class RuleBasedModelBackend:
         )
         weak_edge = _config_decimal(data, "weak_edge", Decimal("0.03"))
         edge = predicted - data.market_probability
-        warnings = tuple(
-            dict.fromkeys(
-                warning
-                for item in available
-                for warning in item.warnings
-            )
-        )
+        warning_values = [warning for item in available for warning in item.warnings]
         if confidence < minimum_confidence:
-            return _abstain(
-                "La confianza del consenso no alcanza el umbral configurado.",
-                confidence=confidence,
-                disagreement=disagreement,
-                weights=normalized,
-                warnings=warnings,
-            )
+            warning_values.append("La confianza del consenso está por debajo del umbral comercial.")
         if abs(edge) < weak_edge:
-            return _abstain(
-                "La diferencia frente al mercado es demasiado pequeña.",
-                confidence=confidence,
-                disagreement=disagreement,
-                weights=normalized,
-                warnings=warnings,
-            )
+            warning_values.append("La diferencia frente al mercado no alcanza el umbral comercial.")
+        warnings = tuple(dict.fromkeys(warning_values))
         extreme_floor = _config_decimal(data, "extreme_probability_floor", Decimal("0.02"))
         extreme_ceiling = _config_decimal(
             data,
@@ -349,9 +322,9 @@ class RuleBasedModelBackend:
             "minimum_extreme_observations",
             3,
         )
-        if (
-            predicted <= extreme_floor or predicted >= extreme_ceiling
-        ) and len(_probabilities(data)) < minimum_extreme_observations:
+        if (predicted <= extreme_floor or predicted >= extreme_ceiling) and len(
+            _probabilities(data)
+        ) < minimum_extreme_observations:
             return _abstain(
                 "Una probabilidad extrema requiere más observaciones.",
                 confidence=confidence,
@@ -362,7 +335,9 @@ class RuleBasedModelBackend:
         return ModelAssessment(
             predicted_probability=predicted,
             confidence=confidence,
-            recommendation=Recommendation.YES if edge > 0 else Recommendation.NO,
+            recommendation=(
+                Recommendation.YES if predicted >= Decimal("0.5") else Recommendation.NO
+            ),
             rationale_summary=(
                 "Consenso ponderado por rol y confianza, con penalización por "
                 "desacuerdo entre agentes."

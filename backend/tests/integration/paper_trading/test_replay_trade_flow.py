@@ -20,6 +20,7 @@ from predictionlab.infrastructure.database.models import (
     AgentPredictionModel,
     CollectorCheckpointModel,
     CollectorRunModel,
+    CommercialEvaluationModel,
     ExperimentRunModel,
     MarketModel,
     MarketObservationModel,
@@ -163,13 +164,15 @@ async def _cleanup(
         order_ids = select(PaperOrderModel.order_id).where(
             PaperOrderModel.decision_id.in_(decision_ids)
         )
-        trade_ids = select(PaperTradeModel.trade_id).where(
-            PaperTradeModel.order_id.in_(order_ids)
-        )
+        trade_ids = select(PaperTradeModel.trade_id).where(PaperTradeModel.order_id.in_(order_ids))
         position_ids = select(PaperPositionModel.position_id).where(
             PaperPositionModel.trade_id.in_(trade_ids)
         )
         for model, condition in (
+            (
+                CommercialEvaluationModel,
+                CommercialEvaluationModel.portfolio_id.in_(portfolio_ids),
+            ),
             (
                 PaperPerformanceSnapshotModel,
                 PaperPerformanceSnapshotModel.portfolio_id.in_(portfolio_ids),
@@ -213,20 +216,14 @@ async def _cleanup(
             select(ProviderModel.provider_id).where(ProviderModel.code == provider_code)
         )
         if provider_id is not None:
-            market_ids = select(MarketModel.market_id).where(
-                MarketModel.provider_id == provider_id
-            )
+            market_ids = select(MarketModel.market_id).where(MarketModel.provider_id == provider_id)
             for model in (
                 MarketObservationModel,
                 MarketSnapshotModel,
                 MarketStateChangeModel,
             ):
-                await session.execute(
-                    delete(model).where(model.market_id.in_(market_ids))
-                )
-            await session.execute(
-                delete(MarketModel).where(MarketModel.provider_id == provider_id)
-            )
+                await session.execute(delete(model).where(model.market_id.in_(market_ids)))
+            await session.execute(delete(MarketModel).where(MarketModel.provider_id == provider_id))
             await session.execute(
                 delete(ProviderModel).where(ProviderModel.provider_id == provider_id)
             )
@@ -236,9 +233,7 @@ async def _cleanup(
             )
         )
         await session.execute(
-            delete(CollectorRunModel).where(
-                CollectorRunModel.provider_code == provider_code
-            )
+            delete(CollectorRunModel).where(CollectorRunModel.provider_code == provider_code)
         )
         await session.execute(
             delete(ExperimentRunModel).where(

@@ -152,21 +152,37 @@ async def test_prediction_pipeline_is_as_of_idempotent_persisted_and_queryable()
         assert len(detail.agent_predictions) == 4
 
         application = create_app(settings)
-        async with application.router.lifespan_context(application), httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=application),
-            base_url="http://testserver",
-        ) as client:
+        async with (
+            application.router.lifespan_context(application),
+            httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=application),
+                base_url="http://testserver",
+            ) as client,
+        ):
             listing = await client.get(
                 f"/markets/{market_id}/predictions",
                 params={"page_size": 10},
             )
             response = await client.get(f"/predictions/{first.prediction_run_id}")
+            summaries = await client.get(
+                "/predictions",
+                params={
+                    "provider": provider_code,
+                    "page_size": 25,
+                    "sort": "consensus_probability",
+                    "direction": "desc",
+                },
+            )
 
         assert listing.status_code == 200
         assert listing.json()["total"] == 1
         assert response.status_code == 200
         assert response.json()["market_probability"] == "0.5500000000"
         assert len(response.json()["agent_predictions"]) == 4
+        assert summaries.status_code == 200
+        assert summaries.json()["total_items"] == 1
+        assert summaries.json()["items"][0]["commercial_label"] == "not_evaluable"
+        assert "agent_predictions" not in summaries.json()["items"][0]
     finally:
         async with session_factory.begin() as session:
             if prediction_id is not None:
@@ -181,18 +197,12 @@ async def test_prediction_pipeline_is_as_of_idempotent_persisted_and_queryable()
                     )
                 )
             await session.execute(
-                delete(MarketObservationModel).where(
-                    MarketObservationModel.market_id == market_id
-                )
+                delete(MarketObservationModel).where(MarketObservationModel.market_id == market_id)
             )
             await session.execute(
-                delete(MarketStateChangeModel).where(
-                    MarketStateChangeModel.market_id == market_id
-                )
+                delete(MarketStateChangeModel).where(MarketStateChangeModel.market_id == market_id)
             )
-            await session.execute(
-                delete(MarketModel).where(MarketModel.market_id == market_id)
-            )
+            await session.execute(delete(MarketModel).where(MarketModel.market_id == market_id))
             await session.execute(
                 delete(ProviderModel).where(ProviderModel.provider_id == provider_id)
             )

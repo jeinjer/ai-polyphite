@@ -1,6 +1,6 @@
 # Validación paper continua
 
-Versión: 1.0
+Versión: 2.0
 Estado: Implementado
 Fecha: 2026-07-28
 
@@ -12,7 +12,8 @@ PostgreSQL:
 ```text
 mercados abiertos as-of scheduled_for
   → PredictionOrchestrator
-  → PaperTradingOrchestrator
+  → campaña conservadora automática
+  → campaña experimental automática separada
   → settlement / mark-to-market
   → reconciliación contable
   → PaperValidationRun durable
@@ -40,6 +41,11 @@ Cada intento queda en `paper_validation_runs` como `running`, `completed`,
 error seguros, IDs de trazabilidad, contadores, hashes y el resultado de
 reconciliación; no se guardan secretos ni mensajes remotos.
 
+Las dos campañas reutilizan exactamente el mismo batch de predicciones por
+slot. Cada una conserva portfolio, evaluación comercial, configuración,
+decisiones y métricas independientes. Un override manual no participa de
+ninguna de las dos y no detiene el worker.
+
 ## Reconciliación
 
 Después de operar y liquidar, el runtime reconstruye:
@@ -62,11 +68,13 @@ Defaults del MVP:
 
 ```env
 AI_POLYPHITE_PAPER_VALIDATION_INTERVAL_SECONDS=3600
-AI_POLYPHITE_PAPER_VALIDATION_RUN_IMMEDIATELY=false
+AI_POLYPHITE_PAPER_VALIDATION_RUN_IMMEDIATELY=true
 AI_POLYPHITE_PAPER_VALIDATION_PORTFOLIO_NAME=Autonomous Manifold paper validation
 AI_POLYPHITE_PAPER_VALIDATION_RANDOM_SEED=17
 AI_POLYPHITE_PAPER_VALIDATION_PROVIDER_CODES=manifold
 AI_POLYPHITE_PAPER_VALIDATION_ONLY_NEW_OBSERVATIONS=true
+AI_POLYPHITE_EXPERIMENTAL_CAMPAIGN_ENABLED=true
+AI_POLYPHITE_EXPERIMENTAL_MIN_NET_EDGE=0.015
 ```
 
 El hash incluye los umbrales predictivos, el hash completo de políticas paper,
@@ -77,6 +85,11 @@ portfolio identificado por el nuevo hash y no se mezcla evidencia.
 Para una ventana de 30 días se debe conservar el mismo `.env`, imagen y
 `AI_POLYPHITE_CODE_VERSION`. No se deben retocar parámetros según resultados
 intermedios.
+
+La campaña conservadora preserva su política congelada. `experimental-v1`
+reduce el gate predictivo y opera sólo si el edge neto estimado alcanza 0,015.
+Su portfolio se denomina `Experimental paper validation` más el prefijo del
+hash correspondiente.
 
 ## Operación
 

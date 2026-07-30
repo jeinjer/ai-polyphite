@@ -1,6 +1,6 @@
 # Arquitectura de paper trading
 
-Versión: 1.0  
+Versión: 2.0
 Estado: Implementado
 
 ## Objetivo
@@ -12,6 +12,7 @@ conservadora, sin dinero real y sin duplicar dominio de mercados o predicciones.
 
 ```text
 PredictionRun durable + contexto de mercado as-of predicted_at
+  → CommercialEvaluation por campaña
   → EntryPolicy
   → PositionSizingPolicy
   → RiskPolicy
@@ -26,6 +27,21 @@ PredictionRun durable + contexto de mercado as-of predicted_at
 El orquestador pertenece a Application. Las entidades y políticas son puras. El
 adaptador SQLAlchemy implementa repositorios y Unit of Work. Replay y FastAPI
 son composition roots; no contienen reglas de trading.
+
+La ejecución automática es el comportamiento predeterminado. Existe una rama
+manual excepcional:
+
+```text
+PredictionRun + lado/stake/motivo humano
+  → revalidación actual de mercado y portfolio
+  → RiskPolicy
+  → TradeDecision(source=manual_override)
+  → artefactos paper
+```
+
+Esta rama puede ignorar abstenciones o una evaluación `not_actionable`, pero no
+puede omitir frescura, contabilidad, idempotencia ni riesgo. Usa un portfolio
+separado y nunca reemplaza o desactiva la campaña automática.
 
 ## Módulos
 
@@ -48,6 +64,8 @@ operación se detiene: nunca usa el estado actual como fallback.
 - `portfolio + capital inicial` es atómico.
 - `decision + order + trade + position + portfolio + ledger` es atómico.
 - La clave durable de decisión es `(portfolio_id, prediction_run_id)`.
+- Los overrides agregan una clave de idempotencia por portfolio y guardan
+  motivo obligatorio.
 - La posición es única por `(portfolio_id, market_id)`.
 - El settlement es único por posición.
 - Un portfolio de replay es único por experimento y hash de estrategia.
@@ -63,5 +81,5 @@ correlation IDs y métricas HTTP normalizadas del middleware existente.
 
 ## Fuera de alcance
 
-No hay Event Bus, scheduler de paper trading, ejecución continua, NewsAgent,
-brokers, wallets, short, leverage, mercados múltiples ni dinero real.
+No hay Event Bus, NewsAgent, brokers, wallets, short, leverage, mercados
+múltiples ni dinero real.

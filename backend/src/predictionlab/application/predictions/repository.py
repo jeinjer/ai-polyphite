@@ -7,6 +7,7 @@ from uuid import UUID
 from predictionlab.application.predictions.models import (
     ListPredictions,
     MarketPredictionSnapshot,
+    PredictionListPage,
     PredictionRunDetail,
     PredictionRunPage,
     ResolvedPredictionSample,
@@ -57,6 +58,11 @@ class PredictionUnitOfWork(Protocol):
 
 class PredictionReadRepository(Protocol):
     async def list(self, query: ListPredictions) -> PredictionRunPage: ...
+
+    async def list_summary(
+        self,
+        query: ListPredictions,
+    ) -> PredictionListPage: ...
 
     async def get(self, prediction_id: UUID) -> PredictionRunDetail | None: ...
 

@@ -165,7 +165,7 @@ const predictionRun = {
   no_edge: "-0.1500000000",
   opportunity_level: "strong",
   disagreement_score: "0.0800000000",
-  status: "completed",
+  status: "predicted",
   agent_configuration_hash: "f".repeat(64),
   input_hash: "a".repeat(64),
   result_hash: "b".repeat(64),
@@ -194,6 +194,55 @@ const predictionRun = {
     },
     agentPrediction,
   ],
+  estimated_outcome: "yes",
+  market_status: "open",
+  provider_code: "mock",
+  commercial_evaluation: {
+    evaluation_id: "00000000-0000-4000-8000-000000000055",
+    portfolio_id: null,
+    campaign_id: "experimental-v1",
+    evaluated_at: now,
+    estimated_outcome: "yes",
+    potential_side: "buy_yes",
+    market_probability: "0.5200000000",
+    consensus_probability: "0.6700000000",
+    gross_edge: "0.1500000000",
+    estimated_fees: "0.0050000000",
+    estimated_slippage: "0.0050000000",
+    estimated_other_costs: "0.0000000000",
+    net_edge: "0.1400000000",
+    confidence: "0.7200000000",
+    commercial_label: "actionable",
+    is_actionable: true,
+    reasons: ["commercial_thresholds_passed"],
+    warnings: [],
+    data_freshness_status: "fresh",
+    portfolio_has_open_position: false,
+  },
+  related_executions: [],
+};
+
+const predictionListItem = {
+  prediction_run_id: predictionRun.prediction_run_id,
+  market_id: predictionRun.market_id,
+  market_title: predictionRun.market_title,
+  provider_code: "mock",
+  category: predictionRun.category,
+  predicted_at: now,
+  market_probability: predictionRun.market_probability,
+  consensus_probability: predictionRun.consensus_probability,
+  consensus_confidence: predictionRun.consensus_confidence,
+  estimated_outcome: "yes",
+  commercial_label: "actionable",
+  potential_side: "buy_yes",
+  gross_edge: "0.1500000000",
+  net_edge: "0.1400000000",
+  is_actionable: true,
+  primary_reason: "commercial_thresholds_passed",
+  portfolio_has_open_position: false,
+  data_freshness_status: "fresh",
+  campaign_id: "experimental-v1",
+  portfolio_id: null,
 };
 
 const paperPortfolio = {
@@ -420,7 +469,7 @@ type ApiFixture = {
 
 async function installApi(page: Page, fixture: ApiFixture = {}) {
   await page.route(
-    /\/(markets|sources|collector-runs|experiment-runs|replay-datasets|predictions|paper-portfolios|trade-decisions|paper-trades|paper-positions|paper-settlements)(\/.*)?(\?.*)?$/,
+    /\/(markets|sources|collector-runs|experiment-runs|replay-datasets|predictions|agent-predictions|paper-portfolios|paper-trading|trade-decisions|paper-trades|paper-positions|paper-settlements)(\/.*)?(\?.*)?$/,
     async (route) => {
       if (new URL(route.request().url()).port !== "8000") {
         await route.continue();
@@ -478,7 +527,42 @@ async function fulfillApiRoute(route: Route, fixture: ApiFixture) {
   }
   if (path === "/predictions") {
     await route.fulfill({
-      json: page(fixture.predictions ?? [predictionRun]),
+      json: {
+        items: fixture.predictions ?? [predictionListItem],
+        page: 1,
+        page_size: 25,
+        total_items: (fixture.predictions ?? [predictionListItem]).length,
+        total_pages: 1,
+        applied_filters: {},
+      },
+    });
+    return;
+  }
+  if (path === `/predictions/${predictionRun.prediction_run_id}`) {
+    await route.fulfill({ json: predictionRun });
+    return;
+  }
+  if (path === "/agent-predictions") {
+    await route.fulfill({
+      json: page([predictionRun]),
+    });
+    return;
+  }
+  if (path === "/paper-trading/manual-trades") {
+    await route.fulfill({
+      json: {
+        status: "filled",
+        trade_decision_id: tradeDecision.decision_id,
+        paper_order_id: paperTrade.order_id,
+        paper_trade_id: paperTrade.trade_id,
+        position_id: paperPosition.position_id,
+        portfolio_id: paperPortfolio.portfolio_id,
+        rejection_reasons: [],
+        decision_source: "manual_override",
+        simulation_only: true,
+        disclaimer:
+          "Esta operación es exclusivamente simulada. No utiliza dinero real.",
+      },
     });
     return;
   }
@@ -652,17 +736,14 @@ test("explains predictions without presenting fictional returns", async ({ page 
   await expect(page).toHaveURL(/\/predictions$/);
 
   await expect(
-    page.getByRole("heading", { name: "Predicciones reproducibles" }),
+    page.getByRole("heading", { name: "Predicciones", exact: true }),
   ).toBeVisible();
+  await expect(page.getByText("67.00%")).toBeVisible();
   await expect(
-    page.getByText(/AI-Polyphite estima 67.0%, mientras que la fuente mostraba 52.0%/),
+    page.getByLabel("Conviene", { exact: true }),
   ).toBeVisible();
-  await expect(
-    page.getByLabel(/Estimación generada por AI-Polyphite/).first(),
-  ).toBeVisible();
-  await expect(
-    page.getByLabel(/No equivale a probabilidad de acierto/).first(),
-  ).toBeVisible();
+  await expect(page.getByRole("link", { name: "Ver detalle" })).toBeVisible();
+  await expect(page.getByText(/operación automática sigue activa/)).toBeVisible();
 
   const visibleText = await page.locator("body").innerText();
   expect(visibleText).not.toMatch(/\bROI\b/);
@@ -674,10 +755,13 @@ test("shows advanced agent traceability and the agent monitor", async ({ page })
   await page.goto("/");
 
   await page.goto("/predictions");
+  await page.getByRole("link", { name: "Ver detalle" }).click();
+  await expect(page).toHaveURL(
+    new RegExp(`/predictions/${predictionRun.prediction_run_id}$`),
+  );
   await page.getByRole("button", { name: "Vista avanzada" }).click();
-  await expect(page.getByText("Resultados de los agentes")).toBeVisible();
-  await expect(page.getByText("Hash de configuración")).toBeVisible();
-  await expect(page.getByText("Pesos del consenso").first()).toBeVisible();
+  await expect(page.getByText("Salidas de agentes")).toBeVisible();
+  await expect(page.getByText("Trazabilidad")).toBeVisible();
 
   await page.goto("/agents");
   await page.getByRole("button", { name: "Vista avanzada" }).click();
@@ -688,6 +772,34 @@ test("shows advanced agent traceability and the agent monitor", async ({ page })
   await expect(page.getByText("Consensus Agent").first()).toBeVisible();
   await expect(
     page.getByText("Backend determinista por reglas").first(),
+  ).toBeVisible();
+});
+
+test("manual trade is an override and does not replace automation", async ({
+  page,
+}) => {
+  await installApi(page);
+  await page.goto("/predictions");
+
+  await page.getByRole("button", { name: "Operar", exact: true }).click();
+  await expect(
+    page.getByRole("heading", {
+      name: "Override manual de paper trading",
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(
+      "Esta operación es exclusivamente simulada. No utiliza dinero real.",
+    ),
+  ).toBeVisible();
+  await page
+    .getByLabel("Motivo del override")
+    .fill("Quiero comprobar una hipótesis contraria.");
+  await page
+    .getByRole("button", { name: "Confirmar operación simulada" })
+    .click();
+  await expect(
+    page.getByText("La operación simulada fue creada."),
   ).toBeVisible();
 });
 

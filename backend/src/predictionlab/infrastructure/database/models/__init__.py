@@ -4,6 +4,9 @@ from predictionlab.infrastructure.database.models.collectors import (
     CollectorCheckpointModel,
     CollectorRunModel,
 )
+from predictionlab.infrastructure.database.models.commercial_evaluations import (
+    CommercialEvaluationModel,
+)
 from predictionlab.infrastructure.database.models.experiments import ExperimentRunModel
 from predictionlab.infrastructure.database.models.markets import (
     MarketModel,
@@ -34,6 +37,7 @@ __all__ = [
     "AgentPredictionModel",
     "CollectorCheckpointModel",
     "CollectorRunModel",
+    "CommercialEvaluationModel",
     "ExperimentRunModel",
     "MarketModel",
     "MarketObservationModel",

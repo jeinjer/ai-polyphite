@@ -9,9 +9,11 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from predictionlab.application.paper_validation import PaperValidationRunStatus
+from predictionlab.application.predictions import ListPredictions
 from predictionlab.core.settings import AppEnvironment, LogLevel, Settings
 from predictionlab.infrastructure.database.models import (
     AgentPredictionModel,
+    CommercialEvaluationModel,
     MarketModel,
     MarketObservationModel,
     MarketStateChangeModel,
@@ -29,6 +31,9 @@ from predictionlab.infrastructure.database.models import (
 )
 from predictionlab.infrastructure.database.paper_validation import (
     SqlAlchemyPaperValidationRunStore,
+)
+from predictionlab.infrastructure.database.queries.predictions import (
+    SqlAlchemyPredictionReadRepository,
 )
 from predictionlab.runtime.paper_validation_runtime import (
     create_paper_validation_runtime,
@@ -57,6 +62,7 @@ async def test_continuous_validation_is_idempotent_audited_and_reconciled() -> N
         paper_validation_interval_seconds=3600,
         paper_validation_provider_codes=(provider_code,),
         paper_validation_only_new_observations=True,
+        experimental_campaign_enabled=False,
     )
     engine = create_async_engine(str(settings.database_url))
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -74,18 +80,14 @@ async def test_continuous_validation_is_idempotent_audited_and_reconciled() -> N
         try:
             first = await runtime.worker.run_once(scheduled_for=NOW)
             second = await runtime.worker.run_once(scheduled_for=NOW)
-            unchanged_cycle = await runtime.worker.run_once(
-                scheduled_for=NOW + timedelta(hours=1)
-            )
+            unchanged_cycle = await runtime.worker.run_once(scheduled_for=NOW + timedelta(hours=1))
             await _seed_observation(
                 session_factory,
                 provider_code=provider_code,
                 market_id=market_id,
                 observed_at=NOW + timedelta(hours=1, minutes=30),
             )
-            next_cycle = await runtime.worker.run_once(
-                scheduled_for=NOW + timedelta(hours=2)
-            )
+            next_cycle = await runtime.worker.run_once(scheduled_for=NOW + timedelta(hours=2))
             portfolio_id = first.portfolio_id
         finally:
             await runtime.close()
@@ -152,7 +154,114 @@ async def test_continuous_validation_is_idempotent_audited_and_reconciled() -> N
             session_factory,
             provider_id=provider_id,
             market_id=market_id,
-            portfolio_id=portfolio_id,
+            portfolio_ids=(portfolio_id,) if portfolio_id is not None else (),
+        )
+        await engine.dispose()
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_experimental_campaign_reuses_predictions_in_a_separate_portfolio() -> None:
+    provider_code = f"paper_validation_{uuid4().hex[:10]}"
+    primary_name = f"conservative-{uuid4().hex}"
+    settings = Settings(
+        _env_file=None,
+        app_env=AppEnvironment.TESTING,
+        log_level=LogLevel.CRITICAL,
+        paper_validation_portfolio_name=primary_name,
+        paper_validation_interval_seconds=3600,
+        paper_validation_provider_codes=(provider_code,),
+        paper_validation_only_new_observations=True,
+        experimental_campaign_enabled=True,
+        experimental_min_net_edge=Decimal("0.015"),
+    )
+    engine = create_async_engine(str(settings.database_url))
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    provider_id = uuid4()
+    market_id = uuid4()
+    portfolio_ids: tuple[UUID, ...] = ()
+    try:
+        await _seed_market(
+            session_factory,
+            provider_id=provider_id,
+            provider_code=provider_code,
+            market_id=market_id,
+        )
+        runtime = create_paper_validation_runtime(settings, clock=FixedClock())
+        try:
+            result = await runtime.worker.run_once(scheduled_for=NOW)
+        finally:
+            await runtime.close()
+
+        assert result.status is PaperValidationRunStatus.COMPLETED
+        async with session_factory() as session:
+            portfolio_rows = (
+                await session.execute(
+                    select(PaperPortfolioModel.portfolio_id, PaperPortfolioModel.name)
+                    .join(
+                        CommercialEvaluationModel,
+                        CommercialEvaluationModel.portfolio_id == PaperPortfolioModel.portfolio_id,
+                    )
+                    .join(
+                        PredictionRunModel,
+                        PredictionRunModel.prediction_run_id
+                        == CommercialEvaluationModel.prediction_run_id,
+                    )
+                    .where(PredictionRunModel.market_id == market_id)
+                    .distinct()
+                )
+            ).all()
+            campaigns = set(
+                (
+                    await session.scalars(
+                        select(CommercialEvaluationModel.campaign_id)
+                        .join(
+                            PredictionRunModel,
+                            PredictionRunModel.prediction_run_id
+                            == CommercialEvaluationModel.prediction_run_id,
+                        )
+                        .where(PredictionRunModel.market_id == market_id)
+                    )
+                ).all()
+            )
+            prediction_count = await session.scalar(
+                select(func.count())
+                .select_from(PredictionRunModel)
+                .where(PredictionRunModel.market_id == market_id)
+            )
+            validation_count = await session.scalar(
+                select(func.count())
+                .select_from(PaperValidationRunModel)
+                .join(
+                    PaperPortfolioModel,
+                    PaperPortfolioModel.portfolio_id == PaperValidationRunModel.portfolio_id,
+                )
+                .where(
+                    PaperPortfolioModel.portfolio_id.in_(
+                        tuple(row.portfolio_id for row in portfolio_rows)
+                    )
+                )
+            )
+
+        portfolio_ids = tuple(row.portfolio_id for row in portfolio_rows)
+        portfolio_names = {row.name for row in portfolio_rows}
+        assert len(portfolio_ids) == 2
+        assert any(name.startswith(primary_name) for name in portfolio_names)
+        assert any(name.startswith("Experimental paper validation") for name in portfolio_names)
+        assert campaigns == {"conservative-v1", "experimental-v1"}
+        assert prediction_count == 1
+        assert validation_count == 2
+        prediction_page = await SqlAlchemyPredictionReadRepository(session_factory).list_summary(
+            ListPredictions(market_id=market_id)
+        )
+        current = next(item for item in prediction_page.items if item.market_id == market_id)
+        assert current.campaign_id == "conservative-v1"
+    finally:
+        await _cleanup(
+            session_factory,
+            provider_id=provider_id,
+            market_id=market_id,
+            portfolio_ids=portfolio_ids,
         )
         await engine.dispose()
 
@@ -251,10 +360,10 @@ async def _cleanup(
     *,
     provider_id: UUID,
     market_id: UUID,
-    portfolio_id: UUID | None,
+    portfolio_ids: tuple[UUID, ...],
 ) -> None:
     async with session_factory.begin() as session:
-        if portfolio_id is not None:
+        for portfolio_id in portfolio_ids:
             decision_ids = select(TradeDecisionModel.decision_id).where(
                 TradeDecisionModel.portfolio_id == portfolio_id
             )
@@ -288,9 +397,7 @@ async def _cleanup(
                 )
             )
             await session.execute(
-                delete(PaperPositionModel).where(
-                    PaperPositionModel.position_id.in_(position_ids)
-                )
+                delete(PaperPositionModel).where(PaperPositionModel.position_id.in_(position_ids))
             )
             await session.execute(
                 delete(PaperTradeModel).where(PaperTradeModel.trade_id.in_(trade_ids))
@@ -299,14 +406,15 @@ async def _cleanup(
                 delete(PaperOrderModel).where(PaperOrderModel.order_id.in_(order_ids))
             )
             await session.execute(
-                delete(TradeDecisionModel).where(
-                    TradeDecisionModel.decision_id.in_(decision_ids)
+                delete(CommercialEvaluationModel).where(
+                    CommercialEvaluationModel.portfolio_id == portfolio_id
                 )
             )
             await session.execute(
-                delete(PaperPortfolioModel).where(
-                    PaperPortfolioModel.portfolio_id == portfolio_id
-                )
+                delete(TradeDecisionModel).where(TradeDecisionModel.decision_id.in_(decision_ids))
+            )
+            await session.execute(
+                delete(PaperPortfolioModel).where(PaperPortfolioModel.portfolio_id == portfolio_id)
             )
 
         prediction_ids = select(PredictionRunModel.prediction_run_id).where(
@@ -321,18 +429,10 @@ async def _cleanup(
             delete(PredictionRunModel).where(PredictionRunModel.market_id == market_id)
         )
         await session.execute(
-            delete(MarketObservationModel).where(
-                MarketObservationModel.market_id == market_id
-            )
+            delete(MarketObservationModel).where(MarketObservationModel.market_id == market_id)
         )
         await session.execute(
-            delete(MarketStateChangeModel).where(
-                MarketStateChangeModel.market_id == market_id
-            )
+            delete(MarketStateChangeModel).where(MarketStateChangeModel.market_id == market_id)
         )
-        await session.execute(
-            delete(MarketModel).where(MarketModel.market_id == market_id)
-        )
-        await session.execute(
-            delete(ProviderModel).where(ProviderModel.provider_id == provider_id)
-        )
+        await session.execute(delete(MarketModel).where(MarketModel.market_id == market_id))
+        await session.execute(delete(ProviderModel).where(ProviderModel.provider_id == provider_id))

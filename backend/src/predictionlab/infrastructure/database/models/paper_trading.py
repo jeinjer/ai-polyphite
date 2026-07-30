@@ -16,6 +16,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import Uuid
@@ -45,8 +46,7 @@ class PaperPortfolioModel(Base):
             name="paper_portfolios_initial_positive",
         ),
         CheckConstraint(
-            "cash_balance >= 0 AND reserved_balance >= 0 "
-            "AND equity >= 0 AND total_exposure >= 0",
+            "cash_balance >= 0 AND reserved_balance >= 0 AND equity >= 0 AND total_exposure >= 0",
             name="paper_portfolios_balances_non_negative",
         ),
         CheckConstraint(
@@ -129,13 +129,22 @@ class TradeDecisionModel(Base):
             name="trade_decisions_valid_side",
         ),
         CheckConstraint(
-            "market_probability IS NULL OR "
-            "(market_probability >= 0 AND market_probability <= 1)",
+            "decision_source IN ('automatic', 'manual_override')",
+            name="trade_decisions_valid_source",
+        ),
+        CheckConstraint(
+            "(decision_source = 'manual_override' "
+            "AND override_reason IS NOT NULL AND idempotency_key IS NOT NULL) "
+            "OR (decision_source = 'automatic' "
+            "AND override_reason IS NULL AND idempotency_key IS NULL)",
+            name="trade_decisions_override_metadata_coherent",
+        ),
+        CheckConstraint(
+            "market_probability IS NULL OR (market_probability >= 0 AND market_probability <= 1)",
             name="trade_decisions_market_probability_range",
         ),
         CheckConstraint(
-            "system_probability IS NULL OR "
-            "(system_probability >= 0 AND system_probability <= 1)",
+            "system_probability IS NULL OR (system_probability >= 0 AND system_probability <= 1)",
             name="trade_decisions_system_probability_range",
         ),
         CheckConstraint(
@@ -143,8 +152,7 @@ class TradeDecisionModel(Base):
             name="trade_decisions_confidence_range",
         ),
         CheckConstraint(
-            "proposed_stake >= 0 AND approved_stake >= 0 "
-            "AND approved_stake <= proposed_stake",
+            "proposed_stake >= 0 AND approved_stake >= 0 AND approved_stake <= proposed_stake",
             name="trade_decisions_stakes_coherent",
         ),
         CheckConstraint(
@@ -168,6 +176,13 @@ class TradeDecisionModel(Base):
             "experiment_run_id",
             "decided_at",
         ),
+        Index(
+            "uq_trade_decisions_portfolio_idempotency",
+            "portfolio_id",
+            "idempotency_key",
+            unique=True,
+            postgresql_where=text("idempotency_key IS NOT NULL"),
+        ),
     )
 
     decision_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True)
@@ -190,9 +205,7 @@ class TradeDecisionModel(Base):
     system_probability: Mapped[Decimal | None] = mapped_column(
         Numeric(PROBABILITY_PRECISION, PROBABILITY_SCALE)
     )
-    edge: Mapped[Decimal | None] = mapped_column(
-        Numeric(PROBABILITY_PRECISION, PROBABILITY_SCALE)
-    )
+    edge: Mapped[Decimal | None] = mapped_column(Numeric(PROBABILITY_PRECISION, PROBABILITY_SCALE))
     confidence: Mapped[Decimal] = mapped_column(
         Numeric(PROBABILITY_PRECISION, PROBABILITY_SCALE),
         nullable=False,
@@ -216,6 +229,14 @@ class TradeDecisionModel(Base):
         Uuid(as_uuid=True),
         ForeignKey("experiment_runs.experiment_run_id", ondelete="RESTRICT"),
     )
+    decision_source: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="automatic",
+        server_default="automatic",
+    )
+    override_reason: Mapped[str | None] = mapped_column(Text)
+    idempotency_key: Mapped[str | None] = mapped_column(String(200))
 
 
 class PaperOrderModel(Base):
@@ -528,8 +549,7 @@ class PaperLedgerEntryModel(Base):
             name="paper_ledger_entries_valid_type",
         ),
         CheckConstraint(
-            "cash_balance_after >= 0 AND reserved_balance_after >= 0 "
-            "AND equity_after >= 0",
+            "cash_balance_after >= 0 AND reserved_balance_after >= 0 AND equity_after >= 0",
             name="paper_ledger_entries_balances_non_negative",
         ),
         UniqueConstraint(

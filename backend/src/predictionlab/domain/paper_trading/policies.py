@@ -108,7 +108,10 @@ class ThresholdEntryPolicy:
                 rejection_reasons=("prediction_abstained",),
                 checks=("prediction_status:abstained",),
             )
-        if context.prediction_status is not PredictionRunStatus.COMPLETED:
+        if context.prediction_status not in {
+            PredictionRunStatus.PREDICTED,
+            PredictionRunStatus.COMPLETED,
+        }:
             reasons.append("prediction_unavailable")
         else:
             checks.append("prediction_status:passed")
@@ -137,6 +140,9 @@ class ThresholdEntryPolicy:
         if context.yes_edge is None:
             reasons.append("incomplete_data")
             side = None
+        elif context.yes_edge == 0:
+            reasons.append("no_commercial_edge")
+            side = None
         elif abs(context.yes_edge) < self.configuration.minimum_absolute_edge:
             reasons.append("insufficient_edge")
             side = None
@@ -150,6 +156,7 @@ class ThresholdEntryPolicy:
                 reasons.append("no_side_disabled")
         if (
             context.yes_edge is not None
+            and context.yes_edge != 0
             and abs(context.yes_edge) >= self.configuration.minimum_absolute_edge
         ):
             checks.append("edge:passed")

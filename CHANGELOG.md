@@ -10,6 +10,19 @@ versionada.
 
 ### Added
 
+- `CommercialEvaluation` durable para separar estimación probabilística de
+  conveniencia comercial por campaña y portfolio.
+- Campaña automática `experimental-v1` con portfolio independiente y edge neto
+  mínimo configurable.
+- Overrides manuales exclusivamente paper con lado, stake, motivo,
+  idempotencia y `decision_source` auditables.
+- Listado liviano y paginado de predicciones con filtros y ordenamiento del
+  lado del servidor.
+- Detalle lazy de predicción con agentes, hashes, evaluación comercial y
+  ejecuciones simuladas relacionadas.
+- Dashboard de predicciones con filtros, modal de confirmación y rutas
+  `/predictions/{prediction_id}`.
+- ADR-0010 para separar predicción, evaluación comercial y ejecución simulada.
 - Rutas navegables y enlazables para todas las secciones del dashboard y
   `/markets/{market_id}` para el detalle.
 - Refresco automático en segundo plano cada 60 segundos.
@@ -118,6 +131,15 @@ versionada.
 - Edge YES/NO, niveles configurables y estrategia explícita de abstención.
 - Consultas as-of que excluyen estados y observaciones futuras.
 - Comando `make replay-predict` con hashes reproducibles.
+
+### Changed
+
+- `ConsensusAgent` 2.0 conserva probabilidad y resultado estimado con confianza
+  o edge bajos; esos umbrales pasan a la evaluación comercial.
+- La automatización paper continúa siendo la ruta predeterminada. El botón
+  manual funciona como excepción separada y no desactiva el worker.
+- El runtime continuo reutiliza un único batch de predicciones entre las
+  campañas conservadora y experimental, sin mezclar portfolios o métricas.
 - API REST de predicciones, historial por mercado/experimento y evaluación.
 - Brier Score, log loss, error absoluto, accuracy, calibración, cobertura,
   MarketBaseline y ConstantBaseline.

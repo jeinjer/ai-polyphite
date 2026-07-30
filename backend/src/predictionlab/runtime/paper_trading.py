@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 from datetime import timedelta
+from decimal import Decimal
 from typing import cast
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from predictionlab.application.commercial_evaluations import (
+    CommercialEvaluationService,
+)
 from predictionlab.application.paper_trading import (
     PaperTradingOrchestrator,
     PaperTradingUnitOfWork,
@@ -26,6 +30,7 @@ from predictionlab.domain.paper_trading import (
     ThresholdEntryPolicy,
     ZeroCostModel,
 )
+from predictionlab.domain.predictions import OpportunityLevel
 from predictionlab.infrastructure.database.paper_trading_unit_of_work import (
     SqlAlchemyPaperTradingUnitOfWork,
 )
@@ -36,6 +41,9 @@ def create_paper_trading_orchestrator(
     session_factory: async_sessionmaker[AsyncSession],
     settings: Settings,
     clock: Clock | None = None,
+    campaign_id: str = "conservative-v1",
+    minimum_entry_edge: Decimal | None = None,
+    minimum_net_edge: Decimal = Decimal("0"),
 ) -> PaperTradingOrchestrator:
     sizing_configuration = PositionSizingConfiguration(
         base_equity_fraction=settings.paper_base_equity_fraction,
@@ -67,9 +75,18 @@ def create_paper_trading_orchestrator(
         unit_of_work=unit_of_work,
         entry_policy=ThresholdEntryPolicy(
             ThresholdEntryConfiguration(
-                minimum_absolute_edge=settings.paper_entry_minimum_edge,
+                minimum_absolute_edge=(
+                    settings.paper_entry_minimum_edge
+                    if minimum_entry_edge is None
+                    else minimum_entry_edge
+                ),
                 minimum_confidence=settings.paper_entry_minimum_confidence,
                 maximum_data_age=timedelta(seconds=settings.paper_maximum_data_age_seconds),
+                allowed_opportunity_levels=(
+                    frozenset(OpportunityLevel)
+                    if minimum_entry_edge == Decimal("0")
+                    else ThresholdEntryConfiguration().allowed_opportunity_levels
+                ),
                 allow_yes=settings.paper_allow_yes,
                 allow_no=settings.paper_allow_no,
                 minimum_stake=settings.paper_minimum_stake,
@@ -80,6 +97,37 @@ def create_paper_trading_orchestrator(
         risk_policy=ConservativeRiskPolicy(sizing_configuration),
         cost_model=cost_model,
         clock=clock or SystemClock(),
+        commercial_evaluation_service=CommercialEvaluationService(
+            campaign_id=campaign_id,
+            minimum_net_edge=minimum_net_edge,
+            minimum_confidence=settings.paper_entry_minimum_confidence,
+            maximum_data_age=timedelta(seconds=settings.paper_maximum_data_age_seconds),
+            percentage_fee=(
+                Decimal("0")
+                if settings.paper_cost_model == "zero"
+                else settings.paper_percentage_fee
+            ),
+            fixed_fee=(
+                Decimal("0") if settings.paper_cost_model == "zero" else settings.paper_fixed_fee
+            ),
+            slippage_probability_points=(
+                Decimal("0")
+                if settings.paper_cost_model == "zero"
+                else settings.paper_slippage_probability_points
+            ),
+            low_liquidity_penalty_points=(
+                Decimal("0")
+                if settings.paper_cost_model == "zero"
+                else settings.paper_low_liquidity_penalty_points
+            ),
+            stale_observation_penalty_points=(
+                Decimal("0")
+                if settings.paper_cost_model == "zero"
+                else settings.paper_stale_observation_penalty_points
+            ),
+            low_liquidity_threshold=settings.paper_low_liquidity_threshold,
+            cost_stale_after=timedelta(seconds=settings.paper_sizing_stale_after_seconds),
+        ),
     )
 
 

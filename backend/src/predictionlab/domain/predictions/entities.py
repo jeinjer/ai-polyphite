@@ -21,9 +21,15 @@ class PredictionInvariantError(ValueError):
 
 
 class PredictionRunStatus(StrEnum):
+    PREDICTED = "predicted"
     COMPLETED = "completed"
     ABSTAINED = "abstained"
     FAILED = "failed"
+
+
+class EstimatedOutcome(StrEnum):
+    YES = "yes"
+    NO = "no"
 
 
 class OpportunityLevel(StrEnum):
@@ -105,6 +111,7 @@ class PredictionRun:
     created_at: datetime
     agent_weights: Mapping[str, Decimal]
     agent_predictions: tuple[AgentPrediction, ...]
+    estimated_outcome: EstimatedOutcome | None = None
 
     def __post_init__(self) -> None:
         for field_name in ("prediction_run_id", "market_id"):
@@ -166,8 +173,13 @@ class PredictionRun:
             if self.abstention_reason is None or not self.abstention_reason.strip():
                 raise PredictionInvariantError("abstained run requires an explicit reason")
             return
+        if self.status not in {
+            PredictionRunStatus.PREDICTED,
+            PredictionRunStatus.COMPLETED,
+        }:
+            raise PredictionInvariantError("unsupported successful prediction status")
         if self.recommendation is Recommendation.ABSTAIN:
-            raise PredictionInvariantError("completed run cannot abstain")
+            raise PredictionInvariantError("successful run cannot abstain")
         if (
             self.market_probability is None
             or self.consensus_probability is None
@@ -180,7 +192,29 @@ class PredictionRun:
         if self.no_edge != -self.edge:
             raise PredictionInvariantError("no_edge must be the opposite YES edge")
         if self.abstention_reason is not None:
-            raise PredictionInvariantError("completed run cannot have an abstention reason")
+            raise PredictionInvariantError("successful run cannot have an abstention reason")
+        if self.status is PredictionRunStatus.PREDICTED:
+            if self.estimated_outcome is None:
+                raise PredictionInvariantError("predicted run requires an estimated outcome")
+            expected = (
+                EstimatedOutcome.YES
+                if self.consensus_probability >= Decimal("0.5")
+                else EstimatedOutcome.NO
+            )
+            if self.estimated_outcome is not expected:
+                raise PredictionInvariantError(
+                    "estimated outcome is inconsistent with consensus probability"
+                )
+        elif self.estimated_outcome is not None:
+            expected = (
+                EstimatedOutcome.YES
+                if self.consensus_probability >= Decimal("0.5")
+                else EstimatedOutcome.NO
+            )
+            if self.estimated_outcome is not expected:
+                raise PredictionInvariantError(
+                    "estimated outcome is inconsistent with consensus probability"
+                )
 
 
 def _utc(value: datetime, field_name: str) -> datetime:

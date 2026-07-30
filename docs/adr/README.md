@@ -26,3 +26,4 @@ nuevo ADR que referencia y reemplaza al anterior.
 | [0007](0007-simulated-clock-and-lookahead-barrier.md) | Accepted | Reloj simulado y barrera contra lookahead |
 | [0008](0008-deterministic-agents-before-llm.md) | Accepted | Agentes deterministas antes de integrar LLM |
 | [0009](0009-simulated-performance-boundary.md) | Accepted | Frontera estructural de simulación y evaluación |
+| [0010](0010-prediction-commercial-execution-separation.md) | Accepted | Predicción, evaluación comercial y ejecución simulada separadas |

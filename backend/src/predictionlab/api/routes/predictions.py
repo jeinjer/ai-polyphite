@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Annotated, cast
+from typing import Annotated, Literal, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -13,18 +13,23 @@ from pydantic import BaseModel, Field
 from predictionlab.application.predictions import (
     AgentPredictionDetail,
     CalibrationBucket,
+    EstimatedOutcomeFilter,
     ListPredictions,
     MetricSummary,
     PredictionEvaluationReport,
     PredictionEvaluationService,
     PredictionIdempotencyConflictError,
+    PredictionListItem,
+    PredictionListPage,
     PredictionMarketNotFoundError,
     PredictionNotFoundError,
     PredictionOrchestrator,
     PredictionQueryService,
     PredictionRunDetail,
     PredictionRunPage,
+    PredictionSort,
     RunPrediction,
+    SortDirection,
 )
 from predictionlab.core.context import get_correlation_id
 from predictionlab.core.settings import AppEnvironment
@@ -34,7 +39,22 @@ from predictionlab.domain.agents import (
     JsonScalar,
     Recommendation,
 )
-from predictionlab.domain.predictions import OpportunityLevel, PredictionRunStatus
+from predictionlab.domain.commercial_evaluations import (
+    CommercialEvaluation,
+    CommercialLabel,
+    DataFreshnessStatus,
+    PotentialSide,
+)
+from predictionlab.domain.paper_trading import (
+    PositionSide,
+    TradeDecisionSource,
+    TradeDecisionType,
+)
+from predictionlab.domain.predictions import (
+    EstimatedOutcome,
+    OpportunityLevel,
+    PredictionRunStatus,
+)
 
 router = APIRouter(tags=["predictions"])
 
@@ -90,6 +110,80 @@ class PredictionRunResponse(BaseModel):
     created_at: datetime
     agent_weights: dict[str, Decimal]
     agent_predictions: list[AgentPredictionResponse]
+    estimated_outcome: EstimatedOutcome | None = None
+    market_status: str | None = None
+    provider_code: str | None = None
+    commercial_evaluation: CommercialEvaluationResponse | None = None
+    related_executions: list[RelatedPaperExecutionResponse] = Field(default_factory=list)
+
+
+class CommercialEvaluationResponse(BaseModel):
+    evaluation_id: UUID
+    portfolio_id: UUID | None
+    campaign_id: str
+    evaluated_at: datetime
+    estimated_outcome: EstimatedOutcome | None
+    potential_side: PotentialSide
+    market_probability: Decimal | None
+    consensus_probability: Decimal | None
+    gross_edge: Decimal | None
+    estimated_fees: Decimal
+    estimated_slippage: Decimal
+    estimated_other_costs: Decimal
+    net_edge: Decimal | None
+    confidence: Decimal
+    commercial_label: CommercialLabel
+    is_actionable: bool
+    reasons: list[str]
+    warnings: list[str]
+    data_freshness_status: DataFreshnessStatus
+    portfolio_has_open_position: bool
+
+
+class PredictionListItemResponse(BaseModel):
+    prediction_run_id: UUID
+    market_id: UUID
+    market_title: str
+    provider_code: str
+    category: str | None
+    predicted_at: datetime
+    market_probability: Decimal | None
+    consensus_probability: Decimal | None
+    consensus_confidence: Decimal
+    estimated_outcome: EstimatedOutcome | None
+    commercial_label: CommercialLabel
+    potential_side: PotentialSide
+    gross_edge: Decimal | None
+    net_edge: Decimal | None
+    is_actionable: bool
+    primary_reason: str
+    portfolio_has_open_position: bool
+    data_freshness_status: DataFreshnessStatus
+    campaign_id: str | None
+    portfolio_id: UUID | None
+
+
+class PredictionListPageResponse(BaseModel):
+    items: list[PredictionListItemResponse]
+    page: int
+    page_size: Literal[25, 50]
+    total_items: int
+    total_pages: int
+    applied_filters: dict[str, str]
+
+
+class RelatedPaperExecutionResponse(BaseModel):
+    decision_id: UUID
+    portfolio_id: UUID
+    portfolio_name: str
+    decision: TradeDecisionType
+    decision_source: TradeDecisionSource
+    override_reason: str | None
+    side: PositionSide | None
+    decided_at: datetime
+    order_id: UUID | None
+    trade_id: UUID | None
+    position_id: UUID | None
 
 
 class PredictionRunPageResponse(BaseModel):
@@ -156,18 +250,31 @@ def get_prediction_evaluation_service(
 
 @router.get(
     "/predictions",
-    response_model=PredictionRunPageResponse,
-    summary="List reproducible prediction runs",
+    response_model=PredictionListPageResponse,
+    summary="List lightweight prediction and commercial summaries",
     operation_id="list_predictions",
 )
 async def list_predictions(
     service: Annotated[PredictionQueryService, Depends(get_prediction_query_service)],
     page: Annotated[int, Query(ge=1)] = 1,
-    page_size: Annotated[int, Query(ge=1, le=100)] = 20,
-    predicted_from: Annotated[datetime | None, Query(alias="from")] = None,
-    predicted_to: Annotated[datetime | None, Query(alias="to")] = None,
+    page_size: Annotated[int, Query(ge=25, le=50)] = 25,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
     market_id: UUID | None = None,
     category: Annotated[str | None, Query(min_length=1, max_length=200)] = None,
+    provider: Annotated[str | None, Query(min_length=1, max_length=64)] = None,
+    commercial_label: Annotated[
+        Literal["all", "actionable", "not_actionable", "not_evaluable"],
+        Query(),
+    ] = "all",
+    estimated_outcome: EstimatedOutcomeFilter | None = None,
+    portfolio_id: UUID | None = None,
+    campaign_id: Annotated[
+        str | None,
+        Query(min_length=1, max_length=160),
+    ] = None,
+    sort: PredictionSort = PredictionSort.PREDICTED_AT,
+    direction: SortDirection = SortDirection.DESC,
     recommendation: Recommendation | None = None,
     run_status: Annotated[
         PredictionRunStatus | None,
@@ -175,22 +282,36 @@ async def list_predictions(
     ] = None,
     opportunity_level: OpportunityLevel | None = None,
     experiment_run_id: UUID | None = None,
-) -> PredictionRunPageResponse:
-    result = await service.list(
+) -> PredictionListPageResponse:
+    if page_size not in {25, 50}:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="page_size must be 25 or 50.",
+        )
+    result = await service.list_summary(
         ListPredictions(
             page=page,
             page_size=page_size,
-            predicted_from=predicted_from,
-            predicted_to=predicted_to,
+            predicted_from=date_from,
+            predicted_to=date_to,
             market_id=market_id,
             category=category,
             recommendation=recommendation,
             status=run_status,
             opportunity_level=opportunity_level,
             experiment_run_id=experiment_run_id,
+            provider=provider,
+            commercial_label=(
+                None if commercial_label == "all" else CommercialLabel(commercial_label)
+            ),
+            estimated_outcome_filter=estimated_outcome,
+            portfolio_id=portfolio_id,
+            campaign_id=campaign_id,
+            sort=sort,
+            direction=direction,
         )
     )
-    return _page_response(result)
+    return _list_page_response(result)
 
 
 @router.get(
@@ -210,6 +331,23 @@ async def get_prediction(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Prediction not found.",
         ) from exc
+
+
+@router.get(
+    "/agent-predictions",
+    response_model=PredictionRunPageResponse,
+    summary="List recent full agent outputs for the engineering view",
+    operation_id="list_agent_predictions",
+)
+async def list_agent_predictions(
+    service: Annotated[
+        PredictionQueryService,
+        Depends(get_prediction_query_service),
+    ],
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 100,
+) -> PredictionRunPageResponse:
+    return _page_response(await service.list(ListPredictions(page=page, page_size=page_size)))
 
 
 @router.get(
@@ -271,9 +409,7 @@ async def evaluate_experiment_predictions(
         Depends(get_prediction_evaluation_service),
     ],
 ) -> PredictionEvaluationResponse:
-    return _evaluation_response(
-        await service.evaluate(experiment_run_id=experiment_id)
-    )
+    return _evaluation_response(await service.evaluate(experiment_run_id=experiment_id))
 
 
 @router.post(
@@ -295,10 +431,7 @@ async def run_prediction_manually(
     ],
 ) -> PredictionRunResponse:
     settings = request.app.state.settings
-    if (
-        settings.app_env is AppEnvironment.PRODUCTION
-        or not settings.enable_manual_prediction_runs
-    ):
+    if settings.app_env is AppEnvironment.PRODUCTION or not settings.enable_manual_prediction_runs:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Manual prediction runs are disabled.",
@@ -324,10 +457,7 @@ async def run_prediction_manually(
     except PredictionIdempotencyConflictError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=(
-                "A prediction with the same idempotency scope contains "
-                "different input data."
-            ),
+            detail=("A prediction with the same idempotency scope contains different input data."),
         ) from exc
     return _response(await query_service.get(run.prediction_run_id))
 
@@ -339,6 +469,46 @@ def _page_response(page: PredictionRunPage) -> PredictionRunPageResponse:
         page_size=page.page_size,
         total=page.total,
         pages=page.pages,
+    )
+
+
+def _list_page_response(
+    page: PredictionListPage,
+) -> PredictionListPageResponse:
+    return PredictionListPageResponse(
+        items=[_list_item_response(item) for item in page.items],
+        page=page.page,
+        page_size=cast(Literal[25, 50], page.page_size),
+        total_items=page.total_items,
+        total_pages=page.total_pages,
+        applied_filters=page.applied_filters,
+    )
+
+
+def _list_item_response(
+    item: PredictionListItem,
+) -> PredictionListItemResponse:
+    return PredictionListItemResponse(
+        prediction_run_id=item.prediction_run_id,
+        market_id=item.market_id,
+        market_title=item.market_title,
+        provider_code=item.provider_code,
+        category=item.category,
+        predicted_at=item.predicted_at,
+        market_probability=item.market_probability,
+        consensus_probability=item.consensus_probability,
+        consensus_confidence=item.consensus_confidence,
+        estimated_outcome=item.estimated_outcome,
+        commercial_label=item.commercial_label,
+        potential_side=item.potential_side,
+        gross_edge=item.gross_edge,
+        net_edge=item.net_edge,
+        is_actionable=item.is_actionable,
+        primary_reason=item.primary_reason,
+        portfolio_has_open_position=(item.portfolio_has_open_position),
+        data_freshness_status=item.data_freshness_status,
+        campaign_id=item.campaign_id,
+        portfolio_id=item.portfolio_id,
     )
 
 
@@ -370,6 +540,57 @@ def _response(run: PredictionRunDetail) -> PredictionRunResponse:
         created_at=run.created_at,
         agent_weights=run.agent_weights,
         agent_predictions=[_agent_response(item) for item in run.agent_predictions],
+        estimated_outcome=run.estimated_outcome,
+        market_status=(run.market_status.value if run.market_status is not None else None),
+        provider_code=run.provider_code,
+        commercial_evaluation=(
+            _commercial_response(run.commercial_evaluation)
+            if run.commercial_evaluation is not None
+            else None
+        ),
+        related_executions=[
+            RelatedPaperExecutionResponse(
+                decision_id=item.decision_id,
+                portfolio_id=item.portfolio_id,
+                portfolio_name=item.portfolio_name,
+                decision=item.decision,
+                decision_source=item.decision_source,
+                override_reason=item.override_reason,
+                side=item.side,
+                decided_at=item.decided_at,
+                order_id=item.order_id,
+                trade_id=item.trade_id,
+                position_id=item.position_id,
+            )
+            for item in run.related_executions
+        ],
+    )
+
+
+def _commercial_response(
+    evaluation: CommercialEvaluation,
+) -> CommercialEvaluationResponse:
+    return CommercialEvaluationResponse(
+        evaluation_id=evaluation.evaluation_id,
+        portfolio_id=evaluation.portfolio_id,
+        campaign_id=evaluation.campaign_id,
+        evaluated_at=evaluation.evaluated_at,
+        estimated_outcome=evaluation.estimated_outcome,
+        potential_side=evaluation.potential_side,
+        market_probability=evaluation.market_probability,
+        consensus_probability=evaluation.consensus_probability,
+        gross_edge=evaluation.gross_edge,
+        estimated_fees=evaluation.estimated_fees,
+        estimated_slippage=evaluation.estimated_slippage,
+        estimated_other_costs=evaluation.estimated_other_costs,
+        net_edge=evaluation.net_edge,
+        confidence=evaluation.confidence,
+        commercial_label=evaluation.commercial_label,
+        is_actionable=evaluation.is_actionable,
+        reasons=list(evaluation.reasons),
+        warnings=list(evaluation.warnings),
+        data_freshness_status=evaluation.data_freshness_status,
+        portfolio_has_open_position=(evaluation.portfolio_has_open_position),
     )
 
 

@@ -6,7 +6,6 @@ const API_ORIGIN = new URL(
 ).origin;
 const DASHBOARD_ENDPOINTS = [
   "/markets",
-  "/predictions",
   "/sources",
   "/collector-runs",
   "/experiment-runs",
@@ -59,5 +58,18 @@ test.describe("live Docker stack", () => {
         page.getByText("Todavía no hay mercados disponibles."),
       ).toBeVisible();
     }
+
+    const predictionResponse = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return (
+        url.origin === API_ORIGIN &&
+        url.pathname === "/predictions" &&
+        response.status() === 200
+      );
+    });
+    await page.goto("/predictions");
+    expect(
+      (await predictionResponse).headers()["access-control-allow-origin"],
+    ).toBe("http://127.0.0.1:3000");
   });
 });

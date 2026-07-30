@@ -1,7 +1,7 @@
 export type MarketStatus = "open" | "closed" | "resolved" | "cancelled";
 export type ResolutionOutcome = "unresolved" | "yes" | "no" | "cancelled" | "other";
 export type Recommendation = "yes" | "no" | "abstain";
-export type PredictionStatus = "completed" | "abstained" | "failed";
+export type PredictionStatus = "predicted" | "completed" | "abstained" | "failed";
 export type OpportunityLevel = "none" | "weak" | "moderate" | "strong";
 export type CurrencyUnit = "USD_SIMULATED" | "MANA_SIMULATED";
 export type PositionSide = "yes" | "no";
@@ -181,6 +181,86 @@ export type PredictionRun = {
   created_at: string;
   agent_weights: Record<string, string>;
   agent_predictions: AgentPrediction[];
+  estimated_outcome: EstimatedOutcome | null;
+  market_status: MarketStatus | null;
+  provider_code: string | null;
+  commercial_evaluation: CommercialEvaluation | null;
+  related_executions: {
+    decision_id: string;
+    portfolio_id: string;
+    portfolio_name: string;
+    decision: TradeDecisionType;
+    decision_source: "automatic" | "manual_override";
+    override_reason: string | null;
+    side: PositionSide | null;
+    decided_at: string;
+    order_id: string | null;
+    trade_id: string | null;
+    position_id: string | null;
+  }[];
+};
+
+export type EstimatedOutcome = "yes" | "no";
+export type CommercialLabel =
+  | "actionable"
+  | "not_actionable"
+  | "not_evaluable";
+export type PotentialSide = "buy_yes" | "buy_no" | "none";
+export type DataFreshnessStatus = "fresh" | "stale" | "unavailable";
+
+export type CommercialEvaluation = {
+  evaluation_id: string;
+  portfolio_id: string | null;
+  campaign_id: string;
+  evaluated_at: string;
+  estimated_outcome: EstimatedOutcome | null;
+  potential_side: PotentialSide;
+  market_probability: string | null;
+  consensus_probability: string | null;
+  gross_edge: string | null;
+  estimated_fees: string;
+  estimated_slippage: string;
+  estimated_other_costs: string;
+  net_edge: string | null;
+  confidence: string;
+  commercial_label: CommercialLabel;
+  is_actionable: boolean;
+  reasons: string[];
+  warnings: string[];
+  data_freshness_status: DataFreshnessStatus;
+  portfolio_has_open_position: boolean;
+};
+
+export type PredictionListItem = {
+  prediction_run_id: string;
+  market_id: string;
+  market_title: string;
+  provider_code: string;
+  category: string | null;
+  predicted_at: string;
+  market_probability: string | null;
+  consensus_probability: string | null;
+  consensus_confidence: string;
+  estimated_outcome: EstimatedOutcome | null;
+  commercial_label: CommercialLabel;
+  potential_side: PotentialSide;
+  gross_edge: string | null;
+  net_edge: string | null;
+  is_actionable: boolean;
+  primary_reason: string;
+  portfolio_has_open_position: boolean;
+  data_freshness_status: DataFreshnessStatus;
+  campaign_id: string | null;
+  portfolio_id: string | null;
+};
+
+export type PredictionListPage = {
+  items: PredictionListItem[];
+  page: number;
+  page_size: 25 | 50;
+  total_items: number;
+  total_pages: number;
+  applied_filters: Record<string, string>;
 };
 
 export type PaperPortfolio = {
@@ -227,7 +307,23 @@ export type TradeDecision = {
   causation_id: string | null;
   experiment_run_id: string | null;
   prediction_result_hash: string;
+  decision_source: "automatic" | "manual_override";
+  override_reason: string | null;
   simulation_only: true;
+};
+
+export type ManualPaperTradeResponse = {
+  status: "filled" | "rejected" | "duplicate";
+  trade_decision_id: string;
+  paper_order_id: string | null;
+  paper_trade_id: string | null;
+  position_id: string | null;
+  portfolio_id: string;
+  side: PositionSide | null;
+  rejection_reasons: string[];
+  decision_source: "automatic" | "manual_override";
+  simulation_only: true;
+  disclaimer: string;
 };
 
 export type PaperTrade = {

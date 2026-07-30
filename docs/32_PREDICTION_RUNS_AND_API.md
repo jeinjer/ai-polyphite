@@ -1,6 +1,6 @@
 # PredictionRun, orquestación y API
 
-Versión: 1.0
+Versión: 2.0
 
 Estado: Implementado
 
@@ -11,9 +11,10 @@ timestamp. Guarda:
 
 - vínculo opcional a `ExperimentRun`;
 - probabilidad del mercado visible y consenso;
+- resultado estimado YES/NO;
 - confianza, recomendación, edge YES y edge equivalente NO;
 - nivel de oportunidad y desacuerdo;
-- estado `completed`, `abstained` o `failed`;
+- estado `predicted`, `completed` histórico, `abstained` o `failed`;
 - hashes de configuración, entrada y resultado;
 - duración, error seguro y motivo de abstención;
 - correlation/causation IDs;
@@ -105,17 +106,22 @@ Lectura:
 
 - `GET /predictions`
 - `GET /predictions/{prediction_id}`
+- `GET /agent-predictions`
 - `GET /markets/{market_id}/predictions`
 - `GET /experiment-runs/{experiment_id}/predictions`
 - `GET /experiment-runs/{experiment_id}/prediction-evaluation`
 
 Filtros del listado:
 
-- `from`, `to`;
-- `market_id`, `category`;
-- `recommendation`, `status`, `opportunity_level`;
-- `experiment_run_id`;
-- `page`, `page_size`.
+- `from`, `to`, `provider_code` y `category`;
+- `commercial_label`, `estimated_outcome`, `portfolio_id` y `campaign_id`;
+- `recommendation`, `status`, `opportunity_level` y `experiment_run_id`;
+- `sort`, `direction`, `page` y `page_size`.
+
+El listado es liviano: no carga agentes y muestra la evaluación comercial más
+reciente. El detalle carga agentes, hashes y ejecuciones relacionadas bajo
+demanda. `/agent-predictions` conserva el payload técnico para el monitor de
+agentes.
 
 Ejecución manual:
 
@@ -127,9 +133,10 @@ Está deshabilitada por defecto. Sólo funciona fuera de producción cuando
 
 ## Dashboard
 
-“Predicciones” presenta mercado, estimación, diferencia, confianza,
-recomendación, abstención y advertencias. “Agentes” muestra roles, versiones y
-últimas salidas.
+“Predicciones” presenta una lista paginada con mercado, probabilidad estimada,
+confianza, resultado y conveniencia comercial. Cada fila enlaza a un detalle
+lazy y ofrece un override manual de paper trading que no sustituye la
+automatización. “Agentes” muestra roles, versiones y últimas salidas.
 
-La vista avanzada agrega evidencia, pesos, desacuerdo, duración y hashes. No
-muestra ROI, P&L ni rentabilidad porque todavía no existe paper trading.
+La vista avanzada agrega evidencia, pesos, desacuerdo, duración y hashes. Las
+métricas paper se mantienen separadas de la calidad predictiva.

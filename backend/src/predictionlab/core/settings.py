@@ -188,9 +188,14 @@ class Settings(BaseSettings):
             "AI_POLYPHITE_ENABLE_MANUAL_PAPER_TRADING",
         ),
     )
-    paper_currency_unit: Literal["USD_SIMULATED", "MANA_SIMULATED"] = (
-        "USD_SIMULATED"
+    enable_manual_paper_overrides: bool = Field(
+        default=True,
+        validation_alias=AliasChoices(
+            "enable_manual_paper_overrides",
+            "AI_POLYPHITE_ENABLE_MANUAL_PAPER_OVERRIDES",
+        ),
     )
+    paper_currency_unit: Literal["USD_SIMULATED", "MANA_SIMULATED"] = "USD_SIMULATED"
     paper_initial_balance: Decimal = Field(default=Decimal("100"), gt=0)
     paper_entry_minimum_edge: Decimal = Field(
         default=Decimal("0.03"),
@@ -211,9 +216,7 @@ class Settings(BaseSettings):
     paper_allow_no: bool = True
     paper_minimum_stake: Decimal = Field(default=Decimal("0.50"), gt=0)
     paper_maximum_stake: Decimal = Field(default=Decimal("10.00"), gt=0)
-    paper_sizing_policy: Literal["fixed_fraction", "confidence_adjusted"] = (
-        "confidence_adjusted"
-    )
+    paper_sizing_policy: Literal["fixed_fraction", "confidence_adjusted"] = "confidence_adjusted"
     paper_base_equity_fraction: Decimal = Field(
         default=Decimal("0.01"),
         gt=0,
@@ -333,6 +336,22 @@ class Settings(BaseSettings):
             "AI_POLYPHITE_PAPER_VALIDATION_ONLY_NEW_OBSERVATIONS",
         ),
     )
+    experimental_campaign_enabled: bool = Field(
+        default=True,
+        validation_alias=AliasChoices(
+            "experimental_campaign_enabled",
+            "AI_POLYPHITE_EXPERIMENTAL_CAMPAIGN_ENABLED",
+        ),
+    )
+    experimental_min_net_edge: Decimal = Field(
+        default=Decimal("0.015"),
+        ge=0,
+        le=1,
+        validation_alias=AliasChoices(
+            "experimental_min_net_edge",
+            "AI_POLYPHITE_EXPERIMENTAL_MIN_NET_EDGE",
+        ),
+    )
 
     @field_validator("cors_allowed_origins", mode="before")
     @classmethod
@@ -412,9 +431,7 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def validate_prediction_thresholds(self) -> Settings:
         if not (
-            self.prediction_weak_edge
-            < self.prediction_moderate_edge
-            < self.prediction_strong_edge
+            self.prediction_weak_edge < self.prediction_moderate_edge < self.prediction_strong_edge
         ):
             raise ValueError("Prediction edge thresholds must be strictly increasing.")
         if self.paper_minimum_stake > self.paper_maximum_stake:
@@ -424,9 +441,7 @@ class Settings(BaseSettings):
             < self.paper_evidence_observation_trades
             < self.paper_evidence_expansion_trades
         ):
-            raise ValueError(
-                "Paper evidence thresholds must be strictly increasing."
-            )
+            raise ValueError("Paper evidence thresholds must be strictly increasing.")
         return self
 
     @property
@@ -465,25 +480,20 @@ class Settings(BaseSettings):
             "manifold_sync_mode": self.manifold_sync_mode,
             "enable_manual_prediction_runs": self.enable_manual_prediction_runs,
             "enable_manual_paper_trading": self.enable_manual_paper_trading,
+            "enable_manual_paper_overrides": (self.enable_manual_paper_overrides),
             "replay_prediction_interval_hours": self.replay_prediction_interval_hours,
             "paper_currency_unit": self.paper_currency_unit,
             "paper_initial_balance": str(self.paper_initial_balance),
             "paper_sizing_policy": self.paper_sizing_policy,
             "paper_cost_model": self.paper_cost_model,
-            "paper_validation_interval_seconds": (
-                self.paper_validation_interval_seconds
-            ),
-            "paper_validation_run_immediately": (
-                self.paper_validation_run_immediately
-            ),
+            "paper_validation_interval_seconds": (self.paper_validation_interval_seconds),
+            "paper_validation_run_immediately": (self.paper_validation_run_immediately),
             "paper_validation_portfolio_name": self.paper_validation_portfolio_name,
             "paper_validation_random_seed": self.paper_validation_random_seed,
-            "paper_validation_provider_codes": list(
-                self.paper_validation_provider_codes
-            ),
-            "paper_validation_only_new_observations": (
-                self.paper_validation_only_new_observations
-            ),
+            "paper_validation_provider_codes": list(self.paper_validation_provider_codes),
+            "paper_validation_only_new_observations": (self.paper_validation_only_new_observations),
+            "experimental_campaign_enabled": (self.experimental_campaign_enabled),
+            "experimental_min_net_edge": str(self.experimental_min_net_edge),
         }
 
 

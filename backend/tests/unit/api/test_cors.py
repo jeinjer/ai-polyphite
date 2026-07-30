@@ -7,7 +7,10 @@ from predictionlab.api.app import create_app
 from predictionlab.application.collectors import CollectorRunPage
 from predictionlab.application.experiments import ExperimentRunPage
 from predictionlab.application.markets import MarketPage
-from predictionlab.application.predictions import PredictionRunPage
+from predictionlab.application.predictions import (
+    PredictionListPage,
+    PredictionRunPage,
+)
 from predictionlab.core.settings import AppEnvironment, LogLevel, Settings
 
 ALLOWED_ORIGINS = (
@@ -32,6 +35,15 @@ class EmptyMarketQueryService:
 class EmptyPredictionQueryService:
     async def list(self, query):
         return PredictionRunPage((), query.page, query.page_size, 0)
+
+    async def list_summary(self, query):
+        return PredictionListPage(
+            (),
+            query.page,
+            query.page_size,
+            0,
+            {},
+        )
 
 
 class EmptySourceHealthService:
@@ -117,18 +129,14 @@ async def test_preflight_options_allows_dashboard_gets(endpoint: str) -> None:
             headers={
                 "Origin": origin,
                 "Access-Control-Request-Method": "GET",
-                "Access-Control-Request-Headers": (
-                    "accept,x-correlation-id,traceparent"
-                ),
+                "Access-Control-Request-Headers": ("accept,x-correlation-id,traceparent"),
             },
         )
 
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == origin
     assert "GET" in response.headers["access-control-allow-methods"]
-    assert "x-correlation-id" in response.headers[
-        "access-control-allow-headers"
-    ].lower()
+    assert "x-correlation-id" in response.headers["access-control-allow-headers"].lower()
 
 
 @pytest.mark.asyncio

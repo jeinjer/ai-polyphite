@@ -16,6 +16,12 @@ from predictionlab.application.paper_trading import (
     PortfolioExposure,
     TradingPredictionContext,
 )
+from predictionlab.domain.commercial_evaluations import (
+    CommercialEvaluation,
+    CommercialLabel,
+    DataFreshnessStatus,
+    PotentialSide,
+)
 from predictionlab.domain.markets import MarketStatus, ResolutionOutcome
 from predictionlab.domain.paper_trading import (
     CurrencyUnit,
@@ -31,10 +37,16 @@ from predictionlab.domain.paper_trading import (
     PaperTrade,
     PositionSide,
     TradeDecision,
+    TradeDecisionSource,
     TradeDecisionType,
 )
-from predictionlab.domain.predictions import OpportunityLevel, PredictionRunStatus
+from predictionlab.domain.predictions import (
+    EstimatedOutcome,
+    OpportunityLevel,
+    PredictionRunStatus,
+)
 from predictionlab.infrastructure.database.models import (
+    CommercialEvaluationModel,
     MarketModel,
     MarketObservationModel,
     MarketStateChangeModel,
@@ -96,8 +108,7 @@ class SqlAlchemyPaperTradingRepository:
                     PaperPortfolioModel.experiment_run_id.is_(None),
                     PaperPortfolioModel.name == name,
                     PaperPortfolioModel.currency_unit == currency_unit.value,
-                    PaperPortfolioModel.strategy_configuration_hash
-                    == strategy_configuration_hash,
+                    PaperPortfolioModel.strategy_configuration_hash == strategy_configuration_hash,
                 )
                 .order_by(
                     PaperPortfolioModel.created_at,
@@ -150,6 +161,8 @@ class SqlAlchemyPaperTradingRepository:
     async def prediction_context(
         self,
         prediction_run_id: UUID,
+        *,
+        as_of: datetime | None = None,
     ) -> TradingPredictionContext | None:
         row = (
             await self._session.execute(
@@ -164,16 +177,17 @@ class SqlAlchemyPaperTradingRepository:
         if row is None:
             return None
         prediction, market = row
+        reference_at = as_of or prediction.predicted_at
         market_status = await self._market_status_as_of(
             market.market_id,
-            prediction.predicted_at,
+            reference_at,
         )
         probability_observation = (
             await self._session.scalars(
                 select(MarketObservationModel)
                 .where(
                     MarketObservationModel.market_id == market.market_id,
-                    MarketObservationModel.observed_at <= prediction.predicted_at,
+                    MarketObservationModel.observed_at <= reference_at,
                     MarketObservationModel.probability.is_not(None),
                 )
                 .order_by(
@@ -187,7 +201,7 @@ class SqlAlchemyPaperTradingRepository:
             select(MarketObservationModel.liquidity)
             .where(
                 MarketObservationModel.market_id == market.market_id,
-                MarketObservationModel.observed_at <= prediction.predicted_at,
+                MarketObservationModel.observed_at <= reference_at,
                 MarketObservationModel.liquidity.is_not(None),
             )
             .order_by(
@@ -196,6 +210,12 @@ class SqlAlchemyPaperTradingRepository:
             )
             .limit(1)
         )
+        market_probability = (
+            probability_observation.probability
+            if as_of is not None and probability_observation is not None
+            else prediction.market_probability
+        )
+        system_probability = prediction.consensus_probability
         return TradingPredictionContext(
             prediction_run_id=prediction.prediction_run_id,
             prediction_result_hash=prediction.result_hash,
@@ -205,9 +225,13 @@ class SqlAlchemyPaperTradingRepository:
             category=market.category,
             predicted_at=prediction.predicted_at,
             prediction_status=PredictionRunStatus(prediction.status),
-            market_probability=prediction.market_probability,
-            system_probability=prediction.consensus_probability,
-            edge=prediction.edge,
+            market_probability=market_probability,
+            system_probability=system_probability,
+            edge=(
+                system_probability - market_probability
+                if system_probability is not None and market_probability is not None
+                else None
+            ),
             confidence=prediction.consensus_confidence,
             opportunity_level=OpportunityLevel(prediction.opportunity_level),
             disagreement_score=prediction.disagreement_score,
@@ -216,6 +240,11 @@ class SqlAlchemyPaperTradingRepository:
                 probability_observation.observed_at if probability_observation is not None else None
             ),
             liquidity=liquidity,
+            estimated_outcome=(
+                EstimatedOutcome(prediction.estimated_outcome)
+                if prediction.estimated_outcome is not None
+                else None
+            ),
         )
 
     async def find_outcome(
@@ -232,6 +261,18 @@ class SqlAlchemyPaperTradingRepository:
         )
         if decision_model is None:
             return None
+        evaluation_model = await self._session.scalar(
+            select(CommercialEvaluationModel)
+            .where(
+                CommercialEvaluationModel.portfolio_id == portfolio_id,
+                CommercialEvaluationModel.prediction_run_id == prediction_run_id,
+            )
+            .order_by(
+                CommercialEvaluationModel.evaluated_at.desc(),
+                CommercialEvaluationModel.evaluation_id,
+            )
+            .limit(1)
+        )
         order_model = await self._session.scalar(
             select(PaperOrderModel).where(PaperOrderModel.decision_id == decision_model.decision_id)
         )
@@ -252,6 +293,28 @@ class SqlAlchemyPaperTradingRepository:
             order=_order(order_model) if order_model is not None else None,
             trade=_trade(trade_model) if trade_model is not None else None,
             position=(_position(position_model) if position_model is not None else None),
+            commercial_evaluation=(
+                _commercial_evaluation(evaluation_model) if evaluation_model is not None else None
+            ),
+        )
+
+    async def find_outcome_by_idempotency(
+        self,
+        *,
+        portfolio_id: UUID,
+        idempotency_key: str,
+    ) -> PaperTradingOutcome | None:
+        prediction_run_id = await self._session.scalar(
+            select(TradeDecisionModel.prediction_run_id).where(
+                TradeDecisionModel.portfolio_id == portfolio_id,
+                TradeDecisionModel.idempotency_key == idempotency_key,
+            )
+        )
+        if prediction_run_id is None:
+            return None
+        return await self.find_outcome(
+            portfolio_id=portfolio_id,
+            prediction_run_id=prediction_run_id,
         )
 
     async def exposure(
@@ -281,7 +344,6 @@ class SqlAlchemyPaperTradingRepository:
         )
 
     async def add_decision(self, decision: TradeDecision) -> None:
-        side = _decision_side(decision)
         self._session.add(
             TradeDecisionModel(
                 decision_id=decision.decision_id,
@@ -289,7 +351,7 @@ class SqlAlchemyPaperTradingRepository:
                 portfolio_id=decision.portfolio_id,
                 decided_at=decision.decided_at,
                 decision=decision.decision.value,
-                side=side.value if side is not None else None,
+                side=(decision.side.value if decision.side is not None else None),
                 market_probability=decision.market_probability,
                 system_probability=decision.system_probability,
                 edge=decision.edge,
@@ -304,6 +366,47 @@ class SqlAlchemyPaperTradingRepository:
                 correlation_id=decision.correlation_id,
                 causation_id=decision.causation_id,
                 experiment_run_id=decision.experiment_run_id,
+                decision_source=decision.decision_source.value,
+                override_reason=decision.override_reason,
+                idempotency_key=decision.idempotency_key,
+            )
+        )
+        await self._session.flush()
+
+    async def add_commercial_evaluation(
+        self,
+        evaluation: CommercialEvaluation,
+    ) -> None:
+        self._session.add(
+            CommercialEvaluationModel(
+                evaluation_id=evaluation.evaluation_id,
+                prediction_run_id=evaluation.prediction_run_id,
+                portfolio_id=evaluation.portfolio_id,
+                campaign_id=evaluation.campaign_id,
+                evaluated_at=evaluation.evaluated_at,
+                estimated_outcome=(
+                    evaluation.estimated_outcome.value
+                    if evaluation.estimated_outcome is not None
+                    else None
+                ),
+                potential_side=evaluation.potential_side.value,
+                market_probability=evaluation.market_probability,
+                consensus_probability=evaluation.consensus_probability,
+                gross_edge=evaluation.gross_edge,
+                estimated_fees=evaluation.estimated_fees,
+                estimated_slippage=evaluation.estimated_slippage,
+                estimated_other_costs=evaluation.estimated_other_costs,
+                net_edge=evaluation.net_edge,
+                confidence=evaluation.confidence,
+                commercial_label=evaluation.commercial_label.value,
+                is_actionable=evaluation.is_actionable,
+                reasons=list(evaluation.reasons),
+                warnings=list(evaluation.warnings),
+                configuration_hash=evaluation.configuration_hash,
+                result_hash=evaluation.result_hash,
+                created_at=evaluation.created_at,
+                portfolio_has_open_position=(evaluation.portfolio_has_open_position),
+                data_freshness_status=evaluation.data_freshness_status.value,
             )
         )
         await self._session.flush()
@@ -584,6 +687,41 @@ def _portfolio(model: PaperPortfolioModel) -> PaperPortfolio:
     )
 
 
+def _commercial_evaluation(
+    model: CommercialEvaluationModel,
+) -> CommercialEvaluation:
+    return CommercialEvaluation(
+        evaluation_id=model.evaluation_id,
+        prediction_run_id=model.prediction_run_id,
+        portfolio_id=model.portfolio_id,
+        campaign_id=model.campaign_id,
+        evaluated_at=model.evaluated_at,
+        estimated_outcome=(
+            EstimatedOutcome(model.estimated_outcome)
+            if model.estimated_outcome is not None
+            else None
+        ),
+        potential_side=PotentialSide(model.potential_side),
+        market_probability=model.market_probability,
+        consensus_probability=model.consensus_probability,
+        gross_edge=model.gross_edge,
+        estimated_fees=model.estimated_fees,
+        estimated_slippage=model.estimated_slippage,
+        estimated_other_costs=model.estimated_other_costs,
+        net_edge=model.net_edge,
+        confidence=model.confidence,
+        commercial_label=CommercialLabel(model.commercial_label),
+        is_actionable=model.is_actionable,
+        reasons=tuple(model.reasons),
+        warnings=tuple(model.warnings),
+        configuration_hash=model.configuration_hash,
+        result_hash=model.result_hash,
+        created_at=model.created_at,
+        portfolio_has_open_position=model.portfolio_has_open_position,
+        data_freshness_status=DataFreshnessStatus(model.data_freshness_status),
+    )
+
+
 def _decision(model: TradeDecisionModel) -> TradeDecision:
     return TradeDecision(
         decision_id=model.decision_id,
@@ -605,6 +743,10 @@ def _decision(model: TradeDecisionModel) -> TradeDecision:
         correlation_id=model.correlation_id,
         causation_id=model.causation_id,
         experiment_run_id=model.experiment_run_id,
+        decision_source=TradeDecisionSource(model.decision_source),
+        override_reason=model.override_reason,
+        idempotency_key=model.idempotency_key,
+        side=PositionSide(model.side) if model.side is not None else None,
     )
 
 
@@ -736,13 +878,3 @@ def _performance_snapshot_model(
         configuration_hash=snapshot.configuration_hash,
         result_hash=snapshot.result_hash,
     )
-
-
-def _decision_side(decision: TradeDecision) -> PositionSide | None:
-    if decision.decision is TradeDecisionType.BUY_YES:
-        return PositionSide.YES
-    if decision.decision is TradeDecisionType.BUY_NO:
-        return PositionSide.NO
-    if decision.proposed_stake > 0 and decision.edge is not None:
-        return PositionSide.YES if decision.edge > 0 else PositionSide.NO
-    return None

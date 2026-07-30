@@ -2,6 +2,7 @@
 
 from predictionlab.domain.predictions.entities import (
     EdgeThresholds,
+    EstimatedOutcome,
     OpportunityLevel,
     PredictionInvariantError,
     PredictionPolicy,
@@ -19,6 +20,7 @@ from predictionlab.domain.predictions.evaluation import (
 __all__ = [
     "ConstantBaseline",
     "EdgeThresholds",
+    "EstimatedOutcome",
     "MarketBaseline",
     "OpportunityLevel",
     "PredictionInvariantError",

@@ -15,6 +15,8 @@ from predictionlab.application.predictions import (
     ListPredictions,
     MetricSummary,
     PredictionEvaluationReport,
+    PredictionListItem,
+    PredictionListPage,
     PredictionRunDetail,
     PredictionRunPage,
 )
@@ -24,7 +26,16 @@ from predictionlab.domain.agents import (
     EvidenceDirection,
     Recommendation,
 )
-from predictionlab.domain.predictions import OpportunityLevel, PredictionRunStatus
+from predictionlab.domain.commercial_evaluations import (
+    CommercialLabel,
+    DataFreshnessStatus,
+    PotentialSide,
+)
+from predictionlab.domain.predictions import (
+    EstimatedOutcome,
+    OpportunityLevel,
+    PredictionRunStatus,
+)
 
 NOW = datetime(2026, 1, 2, tzinfo=UTC)
 PREDICTION_ID = UUID("00000000-0000-4000-8000-000000000701")
@@ -99,6 +110,42 @@ class StubPredictionQueryService:
             total=1,
         )
 
+    async def list_summary(
+        self,
+        query: ListPredictions,
+    ) -> PredictionListPage:
+        self.query = query
+        return PredictionListPage(
+            items=(
+                PredictionListItem(
+                    prediction_run_id=PREDICTION_ID,
+                    market_id=MARKET_ID,
+                    market_title="Mercado de prueba",
+                    provider_code="mock",
+                    category="testing",
+                    predicted_at=NOW,
+                    market_probability=Decimal("0.52"),
+                    consensus_probability=Decimal("0.64"),
+                    consensus_confidence=Decimal("0.60"),
+                    estimated_outcome=EstimatedOutcome.YES,
+                    commercial_label=CommercialLabel.ACTIONABLE,
+                    potential_side=PotentialSide.BUY_YES,
+                    gross_edge=Decimal("0.12"),
+                    net_edge=Decimal("0.11"),
+                    is_actionable=True,
+                    primary_reason="commercial_thresholds_passed",
+                    portfolio_has_open_position=False,
+                    data_freshness_status=DataFreshnessStatus.FRESH,
+                    campaign_id="experimental-v1",
+                    portfolio_id=None,
+                ),
+            ),
+            page=query.page,
+            page_size=query.page_size,
+            total_items=1,
+            applied_filters={},
+        )
+
     async def get(self, prediction_id: UUID) -> PredictionRunDetail:
         assert prediction_id == PREDICTION_ID
         return detail()
@@ -167,15 +214,12 @@ async def test_prediction_routes_expose_filters_detail_and_evaluation() -> None:
         )
         prediction = await client.get(f"/predictions/{PREDICTION_ID}")
         market = await client.get(f"/markets/{MARKET_ID}/predictions")
-        experiment = await client.get(
-            f"/experiment-runs/{EXPERIMENT_ID}/predictions"
-        )
-        evaluation = await client.get(
-            f"/experiment-runs/{EXPERIMENT_ID}/prediction-evaluation"
-        )
+        experiment = await client.get(f"/experiment-runs/{EXPERIMENT_ID}/predictions")
+        evaluation = await client.get(f"/experiment-runs/{EXPERIMENT_ID}/prediction-evaluation")
 
     assert listing.status_code == 200
-    assert listing.json()["items"][0]["edge"] == "0.12"
+    assert listing.json()["items"][0]["gross_edge"] == "0.12"
+    assert "agent_predictions" not in listing.json()["items"][0]
     assert prediction.json()["agent_predictions"][0]["agent_name"] == "consensus"
     assert market.status_code == 200
     assert experiment.status_code == 200

@@ -77,9 +77,7 @@ async def pipeline(data: PredictionAgentInput):
         SkepticAgent(backend),
         ConsensusAgent(backend),
     ):
-        outputs.append(
-            await agent.predict(replace(data, prior_predictions=tuple(outputs)))
-        )
+        outputs.append(await agent.predict(replace(data, prior_predictions=tuple(outputs))))
     return tuple(outputs)
 
 
@@ -88,9 +86,7 @@ async def test_four_agents_are_deterministic_and_consensus_is_traceable() -> Non
     first = await pipeline(input_for())
     second = await pipeline(input_for())
 
-    assert [item.output_hash for item in first] == [
-        item.output_hash for item in second
-    ]
+    assert [item.output_hash for item in first] == [item.output_hash for item in second]
     assert [item.agent_name for item in first] == [
         "reasoning",
         "market",
@@ -128,3 +124,21 @@ async def test_consensus_abstains_when_disagreement_threshold_is_exceeded() -> N
 
     assert outputs[-1].recommendation is Recommendation.ABSTAIN
     assert "desacuerdo" in outputs[-1].rationale_summary
+
+
+@pytest.mark.asyncio
+async def test_consensus_v2_keeps_probability_when_edge_is_zero() -> None:
+    data = input_for()
+    data = replace(
+        data,
+        observations=tuple(
+            replace(item, probability=Decimal("0.55")) for item in data.observations
+        ),
+    )
+
+    outputs = await pipeline(data)
+    consensus = outputs[-1]
+
+    assert consensus.predicted_probability == Decimal("0.55")
+    assert consensus.recommendation is Recommendation.YES
+    assert any("umbral comercial" in warning for warning in consensus.warnings)

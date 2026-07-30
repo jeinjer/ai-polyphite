@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Activity,
@@ -76,6 +77,20 @@ import {
 } from "@/stores/ui-store";
 
 const STALE_AFTER_MS = 15 * 60 * 1_000;
+const PredictionsWorkspace = dynamic(
+  () =>
+    import("@/components/predictions-workspace").then(
+      (module) => module.PredictionsWorkspace,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="grid min-h-60 place-items-center text-sm text-slate-500">
+        Cargando predicciones…
+      </div>
+    ),
+  },
+);
 
 type Severity = "success" | "info" | "warning" | "error" | "neutral";
 
@@ -125,6 +140,10 @@ export function Dashboard() {
     section === "markets" && pathParts[1]
       ? decodeURIComponent(pathParts[1])
       : null;
+  const routedPredictionId =
+    section === "predictions" && pathParts[1]
+      ? decodeURIComponent(pathParts[1])
+      : null;
   const effectiveMarketId = routedMarketId ?? selectedMarketId;
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -136,8 +155,9 @@ export function Dashboard() {
     queryFn: api.experimentRuns,
   });
   const predictionsQuery = useQuery({
-    queryKey: ["predictions"],
-    queryFn: api.predictions,
+    queryKey: ["agent-predictions"],
+    queryFn: api.agentPredictions,
+    enabled: section === "agents",
   });
   const datasetsQuery = useQuery({
     queryKey: ["replay-datasets"],
@@ -205,7 +225,7 @@ export function Dashboard() {
     sourcesQuery.isLoading ||
     runsQuery.isLoading ||
     experimentsQuery.isLoading ||
-    predictionsQuery.isLoading ||
+    (section === "agents" && predictionsQuery.isLoading) ||
     datasetsQuery.isLoading ||
     paperPortfoliosQuery.isLoading ||
     decisionsQuery.isLoading ||
@@ -219,7 +239,7 @@ export function Dashboard() {
     sourcesQuery.isError ||
     runsQuery.isError ||
     experimentsQuery.isError ||
-    predictionsQuery.isError ||
+    (section === "agents" && predictionsQuery.isError) ||
     datasetsQuery.isError ||
     paperPortfoliosQuery.isError ||
     decisionsQuery.isError ||
@@ -234,7 +254,7 @@ export function Dashboard() {
     void sourcesQuery.refetch();
     void runsQuery.refetch();
     void experimentsQuery.refetch();
-    void predictionsQuery.refetch();
+    if (section === "agents") void predictionsQuery.refetch();
     void datasetsQuery.refetch();
     void paperPortfoliosQuery.refetch();
     void decisionsQuery.refetch();
@@ -363,7 +383,9 @@ export function Dashboard() {
           </header>
 
           <div className="p-4 sm:p-7">
-            {loading ? (
+            {section === "predictions" ? (
+              <PredictionsWorkspace predictionId={routedPredictionId} />
+            ) : loading ? (
               <LoadingState />
             ) : hasError ? (
               <ErrorState onRetry={retry} />

@@ -16,6 +16,7 @@ from predictionlab.domain.paper_trading.entities import (
     PaperTradingInvariantError,
     PositionSide,
     TradeDecision,
+    TradeDecisionSource,
     TradeDecisionType,
 )
 from predictionlab.domain.paper_trading.evaluation import (
@@ -96,6 +97,7 @@ __all__ = [
     "ThresholdEntryConfiguration",
     "ThresholdEntryPolicy",
     "TradeDecision",
+    "TradeDecisionSource",
     "TradeDecisionType",
     "TradingBaseline",
     "TradingSample",

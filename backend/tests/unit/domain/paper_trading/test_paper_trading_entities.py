@@ -11,6 +11,10 @@ from predictionlab.domain.paper_trading import (
     PaperPortfolio,
     PaperPortfolioStatus,
     PaperTradingInvariantError,
+    PositionSide,
+    TradeDecision,
+    TradeDecisionSource,
+    TradeDecisionType,
 )
 
 NOW = datetime(2026, 1, 1, tzinfo=UTC)
@@ -74,7 +78,6 @@ def test_portfolio_rejects_leverage_and_inconsistent_equity() -> None:
             initial_mark_value=Decimal("101"),
             occurred_at=NOW,
         )
-
     with pytest.raises(PaperTradingInvariantError, match="equity must equal"):
         PaperPortfolio(
             portfolio_id=PORTFOLIO_ID,
@@ -92,4 +95,64 @@ def test_portfolio_rejects_leverage_and_inconsistent_equity() -> None:
             experiment_run_id=None,
             created_at=NOW,
             updated_at=NOW,
+        )
+
+
+def test_manual_decision_requires_explicit_override_provenance() -> None:
+    decision = TradeDecision(
+        decision_id=UUID("00000000-0000-4000-8000-000000000911"),
+        prediction_run_id=UUID("00000000-0000-4000-8000-000000000912"),
+        portfolio_id=PORTFOLIO_ID,
+        decided_at=NOW,
+        decision=TradeDecisionType.BUY_YES,
+        market_probability=Decimal("0.60"),
+        system_probability=Decimal("0.55"),
+        edge=Decimal("-0.05"),
+        confidence=Decimal("0.20"),
+        opportunity_level="none",
+        proposed_stake=Decimal("1"),
+        approved_stake=Decimal("1"),
+        rejection_reasons=(),
+        risk_checks=("manual_override:confirmed",),
+        configuration_hash="c" * 64,
+        result_hash="d" * 64,
+        correlation_id="manual-test",
+        causation_id=None,
+        experiment_run_id=None,
+        decision_source=TradeDecisionSource.MANUAL_OVERRIDE,
+        override_reason="Quiero probar la hipótesis contraria.",
+        idempotency_key="manual-test-key",
+        side=PositionSide.YES,
+    )
+
+    assert decision.decision_source is TradeDecisionSource.MANUAL_OVERRIDE
+    assert decision.override_reason is not None
+
+
+def test_manual_decision_without_reason_is_rejected() -> None:
+    with pytest.raises(PaperTradingInvariantError, match="reason"):
+        TradeDecision(
+            decision_id=UUID("00000000-0000-4000-8000-000000000921"),
+            prediction_run_id=UUID("00000000-0000-4000-8000-000000000922"),
+            portfolio_id=PORTFOLIO_ID,
+            decided_at=NOW,
+            decision=TradeDecisionType.REJECTED,
+            market_probability=Decimal("0.60"),
+            system_probability=Decimal("0.55"),
+            edge=Decimal("-0.05"),
+            confidence=Decimal("0.20"),
+            opportunity_level="none",
+            proposed_stake=Decimal("1"),
+            approved_stake=Decimal("0"),
+            rejection_reasons=("market_closed_or_resolved",),
+            risk_checks=(),
+            configuration_hash="e" * 64,
+            result_hash="f" * 64,
+            correlation_id="manual-test",
+            causation_id=None,
+            experiment_run_id=None,
+            decision_source=TradeDecisionSource.MANUAL_OVERRIDE,
+            override_reason=None,
+            idempotency_key="manual-test-key-2",
+            side=PositionSide.YES,
         )

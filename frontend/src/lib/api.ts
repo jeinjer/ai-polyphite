@@ -10,6 +10,8 @@ import type {
   PaperTrade,
   Page,
   PredictionRun,
+  PredictionListPage,
+  ManualPaperTradeResponse,
   ReplayDataset,
   SourceHealth,
   SyncRun,
@@ -18,9 +20,17 @@ import type {
 } from "./api-types";
 import { API_BASE_URL } from "./runtime-config";
 
-async function request<T>(path: string): Promise<T> {
+async function request<T>(
+  path: string,
+  init?: RequestInit,
+): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: { Accept: "application/json" },
+    ...init,
+    headers: {
+      Accept: "application/json",
+      ...(init?.body ? { "Content-Type": "application/json" } : {}),
+      ...init?.headers,
+    },
   });
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}`);
@@ -38,10 +48,25 @@ export const api = {
   experimentRuns: () =>
     request<Page<ExperimentRun>>("/experiment-runs?page=1&page_size=50"),
   replayDatasets: () => request<ReplayDataset[]>("/replay-datasets"),
-  predictions: () =>
+  agentPredictions: () =>
     request<Page<PredictionRun>>(
-      "/predictions?page=1&page_size=100",
+      "/agent-predictions?page=1&page_size=100",
     ),
+  predictions: (query: string) =>
+    request<PredictionListPage>(`/predictions?${query}`),
+  prediction: (predictionId: string) =>
+    request<PredictionRun>(`/predictions/${encodeURIComponent(predictionId)}`),
+  manualPaperTrade: (payload: {
+    prediction_run_id: string;
+    side: "yes" | "no";
+    requested_stake: string;
+    override_reason: string;
+    idempotency_key: string;
+  }) =>
+    request<ManualPaperTradeResponse>("/paper-trading/manual-trades", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
   paperPortfolios: () =>
     request<Page<PaperPortfolio>>("/paper-portfolios?page=1&page_size=100"),
   tradeDecisions: () =>

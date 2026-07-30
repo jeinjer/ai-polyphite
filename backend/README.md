@@ -35,11 +35,12 @@ infrastructure / integrations
 ## Estado
 
 Existe ingesta multi-provider, histórico reproducible y un pipeline de cuatro
-agentes deterministas. `PredictionRun` conserva consenso, abstención, edge,
-salidas versionadas y hashes; la evaluación posterior compara contra el mercado
-y un baseline constante. Paper trading reproducible agrega portfolios, trades,
-posiciones, settlements, ledger y métricas sólo en unidades simuladas. La
-ejecución real no existe.
+agentes deterministas. `PredictionRun` conserva consenso, resultado estimado,
+edge, salidas versionadas y hashes. `CommercialEvaluation` decide por campaña
+si la estimación es accionable después de costes. Paper trading reproducible
+agrega portfolios, trades, posiciones, settlements, ledger y métricas sólo en
+unidades simuladas. La automatización es predeterminada y los overrides
+manuales quedan separados y auditados. La ejecución real no existe.
 
 ## Contratos técnicos
 
@@ -48,8 +49,12 @@ ejecución real no existe.
   dependencia no está disponible.
 - `GET /markets`: listado paginado, filtrado y ordenado.
 - `GET /markets/{market_id}`: detalle con provider y último snapshot.
-- `GET /predictions`: predicciones filtrables y trazables.
-- `GET /predictions/{prediction_id}`: agregado completo con salidas de agentes.
+- `GET /predictions`: resumen paginado, filtrable y sin payload de agentes.
+- `GET /predictions/{prediction_id}`: agregado completo con agentes,
+  evaluación comercial y ejecuciones relacionadas.
+- `GET /agent-predictions`: últimas salidas completas para el monitor técnico.
+- `POST /paper-trading/manual-trades`: override dev-only exclusivamente
+  simulado; nunca reemplaza la automatización.
 - `GET /paper-portfolios`: portfolios virtuales y balances reconciliables.
 - `GET /paper-trades`: fills simulados con costes y procedencia.
 - `GET /paper-positions`: posiciones long-only y estado de liquidación.

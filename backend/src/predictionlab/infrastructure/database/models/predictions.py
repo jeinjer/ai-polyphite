@@ -48,8 +48,12 @@ class PredictionRunModel(Base):
             postgresql_where=text("experiment_run_id IS NULL"),
         ),
         CheckConstraint(
-            "status IN ('completed', 'abstained', 'failed')",
+            "status IN ('predicted', 'completed', 'abstained', 'failed')",
             name="prediction_runs_valid_status",
+        ),
+        CheckConstraint(
+            "estimated_outcome IS NULL OR estimated_outcome IN ('yes', 'no')",
+            name="prediction_runs_valid_estimated_outcome",
         ),
         CheckConstraint(
             "recommendation IN ('yes', 'no', 'abstain')",
@@ -60,8 +64,7 @@ class PredictionRunModel(Base):
             name="prediction_runs_valid_opportunity",
         ),
         CheckConstraint(
-            "market_probability IS NULL OR "
-            "(market_probability >= 0 AND market_probability <= 1)",
+            "market_probability IS NULL OR (market_probability >= 0 AND market_probability <= 1)",
             name="prediction_runs_market_probability_range",
         ),
         CheckConstraint(
@@ -82,9 +85,11 @@ class PredictionRunModel(Base):
             name="prediction_runs_duration_non_negative",
         ),
         CheckConstraint(
-            "(status = 'completed' AND recommendation IN ('yes', 'no') "
+            "(status IN ('predicted', 'completed') "
+            "AND recommendation IN ('yes', 'no') "
             "AND consensus_probability IS NOT NULL AND edge IS NOT NULL "
-            "AND safe_error_type IS NULL AND abstention_reason IS NULL) OR "
+            "AND safe_error_type IS NULL AND abstention_reason IS NULL "
+            "AND (status = 'completed' OR estimated_outcome IS NOT NULL)) OR "
             "(status = 'abstained' AND recommendation = 'abstain' "
             "AND consensus_probability IS NULL AND edge IS NULL "
             "AND safe_error_type IS NULL AND abstention_reason IS NOT NULL) OR "
@@ -133,9 +138,12 @@ class PredictionRunModel(Base):
         nullable=False,
     )
     recommendation: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
-    edge: Mapped[Decimal | None] = mapped_column(
-        Numeric(PROBABILITY_PRECISION, PROBABILITY_SCALE)
+    estimated_outcome: Mapped[str | None] = mapped_column(
+        String(32),
+        nullable=True,
+        index=True,
     )
+    edge: Mapped[Decimal | None] = mapped_column(Numeric(PROBABILITY_PRECISION, PROBABILITY_SCALE))
     no_edge: Mapped[Decimal | None] = mapped_column(
         Numeric(PROBABILITY_PRECISION, PROBABILITY_SCALE)
     )
@@ -189,8 +197,7 @@ class AgentPredictionModel(Base):
             name="agent_predictions_confidence_range",
         ),
         CheckConstraint(
-            "disagreement_score IS NULL OR "
-            "(disagreement_score >= 0 AND disagreement_score <= 1)",
+            "disagreement_score IS NULL OR (disagreement_score >= 0 AND disagreement_score <= 1)",
             name="agent_predictions_disagreement_range",
         ),
         CheckConstraint(

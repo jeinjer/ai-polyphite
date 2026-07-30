@@ -102,6 +102,22 @@ completada hasta que su código, tests y documentación hayan sido validados.
 - [x] Comparar Brier, log loss y error contra Market y Constant baselines.
 - [x] No implementar `NewsAgent` en este slice.
 
+## Completed — Predictions v2 and commercial evaluation
+
+- [x] Separar predicción, evaluación comercial y ejecución simulada.
+- [x] Versionar `ConsensusAgent` 2.0 y conservar estimaciones de edge bajo.
+- [x] Añadir `estimated_outcome` y estado `predicted` sin reescribir historia.
+- [x] Persistir `CommercialEvaluation` por campaña y portfolio.
+- [x] Ejecutar campaña experimental paralela con edge neto mínimo de 0,015.
+- [x] Mantener campaña conservadora automática como comportamiento por defecto.
+- [x] Añadir overrides manuales paper que pueden ignorar agentes sin omitir
+      riesgo, frescura, idempotencia o contabilidad.
+- [x] Separar portfolios y `decision_source` manual/automático.
+- [x] Crear listado liviano, paginado, filtrable y ordenable de predicciones.
+- [x] Crear detalle lazy con agentes, hashes y ejecuciones relacionadas.
+- [x] Añadir modal de confirmación y ruteo de predicciones en el dashboard.
+- [x] Registrar ADR de separación predictiva, comercial y de ejecución.
+
 ## Later — Provider data sources
 
 - [ ] Implementar HistoricalProvider.
@@ -151,7 +167,7 @@ completada hasta que su código, tests y documentación hayan sido validados.
 - [ ] Crear API de trazabilidad.
 - [ ] Implementar actualizaciones WebSocket.
 - [x] Crear overview inicial del sistema.
-- [ ] Crear detalle reconstruible de predicción.
+- [x] Crear detalle reconstruible de predicción.
 - [x] Crear vistas de portfolio, posiciones y agent runs.
 - [ ] Añadir métricas de CPU, RAM, GPU y latencia.
 - [ ] Probar restore completo del backup en una base aislada.

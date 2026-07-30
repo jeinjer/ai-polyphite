@@ -5,8 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
+from enum import StrEnum
 from uuid import UUID
 
+from predictionlab.domain.commercial_evaluations import CommercialEvaluation
 from predictionlab.domain.markets import MarketStatus, ResolutionOutcome
 from predictionlab.domain.paper_trading import (
     BaselinePerformance,
@@ -22,10 +24,15 @@ from predictionlab.domain.paper_trading import (
     PaperTrade,
     PositionSide,
     TradeDecision,
+    TradeDecisionSource,
     TradeDecisionType,
     TradingSample,
 )
-from predictionlab.domain.predictions import OpportunityLevel, PredictionRunStatus
+from predictionlab.domain.predictions import (
+    EstimatedOutcome,
+    OpportunityLevel,
+    PredictionRunStatus,
+)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -62,6 +69,45 @@ class RunPaperTrading:
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
+class RunManualPaperTrade:
+    portfolio_id: UUID
+    prediction_run_id: UUID
+    side: PositionSide
+    requested_stake: Decimal
+    override_reason: str
+    idempotency_key: str
+    decided_at: datetime | None = None
+    correlation_id: str | None = None
+    causation_id: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.requested_stake <= 0:
+            raise ValueError("requested_stake must be positive")
+        if not self.override_reason.strip():
+            raise ValueError("override_reason cannot be blank")
+        if len(self.override_reason.strip()) > 1000:
+            raise ValueError("override_reason cannot exceed 1000 characters")
+        if not self.idempotency_key.strip():
+            raise ValueError("idempotency_key cannot be blank")
+        if len(self.idempotency_key.strip()) > 200:
+            raise ValueError("idempotency_key cannot exceed 200 characters")
+        object.__setattr__(self, "override_reason", self.override_reason.strip())
+        object.__setattr__(self, "idempotency_key", self.idempotency_key.strip())
+        if self.decided_at is not None:
+            object.__setattr__(
+                self,
+                "decided_at",
+                _utc(self.decided_at, "decided_at"),
+            )
+
+
+class ManualPaperTradeStatus(StrEnum):
+    FILLED = "filled"
+    REJECTED = "rejected"
+    DUPLICATE = "duplicate"
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
 class SettlePaperPortfolio:
     portfolio_id: UUID
     settled_at: datetime
@@ -82,13 +128,22 @@ class PaperTradingOutcome:
     order: PaperOrder | None
     trade: PaperTrade | None
     position: PaperPosition | None
+    commercial_evaluation: CommercialEvaluation | None = None
 
     @property
     def artifact_hashes(self) -> tuple[str, ...]:
         values = [self.decision.result_hash]
         if self.trade is not None:
             values.append(self.trade.result_hash)
+        if self.commercial_evaluation is not None:
+            values.append(self.commercial_evaluation.result_hash)
         return tuple(values)
+
+
+@dataclass(frozen=True, slots=True)
+class ManualPaperTradeResult:
+    status: ManualPaperTradeStatus
+    outcome: PaperTradingOutcome
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,6 +178,7 @@ class TradingPredictionContext:
     market_status_as_of: MarketStatus
     observation_at: datetime | None
     liquidity: Decimal | None
+    estimated_outcome: EstimatedOutcome | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -278,6 +334,8 @@ class TradeDecisionDetail:
     causation_id: str | None
     experiment_run_id: UUID | None
     prediction_result_hash: str
+    decision_source: TradeDecisionSource
+    override_reason: str | None
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

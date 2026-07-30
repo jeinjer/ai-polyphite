@@ -27,7 +27,9 @@ export default async function DashboardRoute({
   if (
     !sections.has(section as DashboardSection) ||
     slug.length > 1 ||
-    (slug.length > 0 && section !== "markets")
+    (slug.length > 0 &&
+      section !== "markets" &&
+      section !== "predictions")
   ) {
     notFound();
   }

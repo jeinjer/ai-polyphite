@@ -5,15 +5,22 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from uuid import UUID, uuid4
 
+from predictionlab.application.commercial_evaluations import (
+    CommercialEvaluationService,
+    EvaluateCommercialOpportunity,
+)
 from predictionlab.application.paper_trading.models import (
     CreatePaperPortfolio,
     CreatePaperPortfolioResult,
+    ManualPaperTradeResult,
+    ManualPaperTradeStatus,
     PaperTradingOutcome,
     PortfolioExposure,
+    RunManualPaperTrade,
     RunPaperTrading,
     SettlementBatchResult,
     SettlePaperPortfolio,
@@ -52,6 +59,7 @@ from predictionlab.domain.paper_trading import (
     RiskPolicy,
     ThresholdEntryPolicy,
     TradeDecision,
+    TradeDecisionSource,
     TradeDecisionType,
 )
 from predictionlab.domain.paper_trading.policies import EntryContext
@@ -89,6 +97,7 @@ class PaperTradingOrchestrator:
         clock: Clock | None = None,
         id_factory: Callable[[], UUID] = uuid4,
         cancelled_settlement_policy: str = "refund_net_cost",
+        commercial_evaluation_service: CommercialEvaluationService | None = None,
     ) -> None:
         sizing = sizing_policy or ConfidenceAdjustedSizing()
         self._unit_of_work = unit_of_work
@@ -98,6 +107,13 @@ class PaperTradingOrchestrator:
         self._cost_model = cost_model or ConservativeCostModel()
         self._clock = clock or SystemClock()
         self._id_factory = id_factory
+        self._commercial_evaluations = commercial_evaluation_service
+        entry_configuration = getattr(self._entry_policy, "configuration", None)
+        self._maximum_data_age = getattr(
+            entry_configuration,
+            "maximum_data_age",
+            timedelta(days=2),
+        )
         if cancelled_settlement_policy != "refund_net_cost":
             raise PaperTradingConfigurationError("unsupported cancelled settlement policy")
         self._cancelled_settlement_policy = cancelled_settlement_policy
@@ -303,6 +319,137 @@ class PaperTradingOrchestrator:
             ]
         )
 
+    async def run_manual_override(
+        self,
+        command: RunManualPaperTrade,
+    ) -> ManualPaperTradeResult:
+        """Execute an explicit simulated override without agent trade gating."""
+
+        correlation_id = command.correlation_id or str(self._id_factory())
+        decided_at = command.decided_at or self._clock.now()
+        async with self._unit_of_work() as unit_of_work:
+            repository = unit_of_work.paper_trading
+            duplicate = await repository.find_outcome_by_idempotency(
+                portfolio_id=command.portfolio_id,
+                idempotency_key=command.idempotency_key,
+            )
+            if duplicate is not None:
+                _assert_compatible_manual_override(duplicate, command)
+            else:
+                duplicate = await repository.find_outcome(
+                    portfolio_id=command.portfolio_id,
+                    prediction_run_id=command.prediction_run_id,
+                )
+                if duplicate is not None:
+                    _assert_compatible_manual_override(duplicate, command)
+            if duplicate is not None:
+                await unit_of_work.commit()
+                return ManualPaperTradeResult(
+                    ManualPaperTradeStatus.DUPLICATE,
+                    duplicate,
+                )
+            portfolio = await repository.get_portfolio(
+                command.portfolio_id,
+                for_update=True,
+            )
+            if portfolio is None:
+                raise PaperPortfolioNotFoundError(str(command.portfolio_id))
+            context = await repository.prediction_context(
+                command.prediction_run_id,
+                as_of=decided_at,
+            )
+            if context is None:
+                raise PredictionRunNotFoundError(str(command.prediction_run_id))
+            if portfolio.experiment_run_id != context.experiment_run_id:
+                raise PaperTradingConfigurationError(
+                    "portfolio and prediction belong to incompatible experiments"
+                )
+            exposure = await repository.exposure(
+                portfolio_id=portfolio.portfolio_id,
+                market_id=context.market_id,
+                category=context.category,
+            )
+            reasons: list[str] = []
+            checks: list[str] = ["manual_override:confirmed"]
+            if portfolio.status is not PaperPortfolioStatus.ACTIVE:
+                reasons.append("portfolio_inactive")
+            else:
+                checks.append("portfolio_status:passed")
+            if portfolio.strategy_configuration_hash != self.configuration_hash:
+                reasons.append("portfolio_configuration_mismatch")
+            else:
+                checks.append("portfolio_configuration:passed")
+            if context.market_status_as_of.value != "open":
+                reasons.append("market_closed_or_resolved")
+            else:
+                checks.append("market_status:passed")
+            if context.market_probability is None or context.observation_at is None:
+                reasons.append("missing_current_observation")
+            else:
+                checks.append("current_observation:passed")
+                if decided_at - context.observation_at > self._maximum_data_age:
+                    reasons.append("stale_observation")
+                else:
+                    checks.append("data_freshness:passed")
+            if exposure.market > 0:
+                reasons.append("incompatible_existing_position")
+            else:
+                checks.append("position_uniqueness:passed")
+            assessment = EntryAssessment(
+                decision=(
+                    TradeDecisionType.BUY_YES
+                    if command.side is PositionSide.YES
+                    else TradeDecisionType.BUY_NO
+                ),
+                side=command.side,
+                rejection_reasons=tuple(reasons),
+                checks=tuple(checks),
+            )
+            outcome = await self._apply_assessment(
+                repository=repository,
+                portfolio=portfolio,
+                context=context,
+                assessment=assessment,
+                exposure=exposure,
+                decided_at=decided_at,
+                correlation_id=correlation_id,
+                causation_id=command.causation_id,
+                requested_stake=command.requested_stake,
+                decision_source=TradeDecisionSource.MANUAL_OVERRIDE,
+                override_reason=command.override_reason,
+                idempotency_key=command.idempotency_key,
+                skip_commercial_gate=True,
+            )
+            await unit_of_work.commit()
+        logger.info(
+            "manual_paper_override_finished",
+            extra={
+                "prediction_run_id": str(command.prediction_run_id),
+                "portfolio_id": str(command.portfolio_id),
+                "trade_decision_id": str(outcome.decision.decision_id),
+                "paper_trade_id": (
+                    str(outcome.trade.trade_id) if outcome.trade is not None else None
+                ),
+                "status": (
+                    ManualPaperTradeStatus.FILLED.value
+                    if outcome.trade is not None
+                    else ManualPaperTradeStatus.REJECTED.value
+                ),
+                "correlation_id": correlation_id,
+                "causation_id": command.causation_id,
+                "decision_source": TradeDecisionSource.MANUAL_OVERRIDE.value,
+                "simulation_only": True,
+            },
+        )
+        return ManualPaperTradeResult(
+            (
+                ManualPaperTradeStatus.FILLED
+                if outcome.trade is not None
+                else ManualPaperTradeStatus.REJECTED
+            ),
+            outcome,
+        )
+
     async def settle(
         self,
         command: SettlePaperPortfolio,
@@ -404,6 +551,11 @@ class PaperTradingOrchestrator:
         decided_at: datetime,
         correlation_id: str,
         causation_id: str | None,
+        requested_stake: Decimal | None = None,
+        decision_source: TradeDecisionSource = TradeDecisionSource.AUTOMATIC,
+        override_reason: str | None = None,
+        idempotency_key: str | None = None,
+        skip_commercial_gate: bool = False,
     ) -> PaperTradingOutcome:
         proposed = Decimal("0")
         approved = Decimal("0")
@@ -411,17 +563,21 @@ class PaperTradingOrchestrator:
         checks = list(assessment.checks)
         side = assessment.side
         if assessment.approved and side is not None:
-            proposed = self._sizing_policy.size(
-                PositionSizingContext(
-                    equity=portfolio.equity,
-                    confidence=context.confidence,
-                    disagreement=context.disagreement_score,
-                    liquidity=context.liquidity,
-                    data_age=(
-                        decided_at - context.observation_at
-                        if context.observation_at is not None
-                        else None
-                    ),
+            proposed = (
+                requested_stake
+                if requested_stake is not None
+                else self._sizing_policy.size(
+                    PositionSizingContext(
+                        equity=portfolio.equity,
+                        confidence=context.confidence,
+                        disagreement=context.disagreement_score,
+                        liquidity=context.liquidity,
+                        data_age=(
+                            decided_at - context.observation_at
+                            if context.observation_at is not None
+                            else None
+                        ),
+                    )
                 )
             )
             risk = self._risk_policy.assess(
@@ -437,12 +593,46 @@ class PaperTradingOrchestrator:
             approved = risk.approved_stake
             reasons.extend(risk.rejection_reasons)
             checks.extend(risk.checks)
+        evaluation = None
+        if self._commercial_evaluations is not None and not skip_commercial_gate:
+            evaluation = self._commercial_evaluations.evaluate(
+                EvaluateCommercialOpportunity(
+                    prediction_run_id=context.prediction_run_id,
+                    portfolio_id=portfolio.portfolio_id,
+                    evaluated_at=decided_at,
+                    prediction_status=context.prediction_status,
+                    estimated_outcome=context.estimated_outcome,
+                    market_probability=context.market_probability,
+                    consensus_probability=context.system_probability,
+                    confidence=context.confidence,
+                    market_is_open=(context.market_status_as_of.value == "open"),
+                    data_age=(
+                        decided_at - context.observation_at
+                        if context.observation_at is not None
+                        else None
+                    ),
+                    liquidity=context.liquidity,
+                    proposed_stake=proposed,
+                    portfolio_is_active=(portfolio.status is PaperPortfolioStatus.ACTIVE),
+                    portfolio_has_open_position=exposure.market > 0,
+                    entry_reasons=tuple(assessment.rejection_reasons),
+                    risk_reasons=tuple(
+                        reason for reason in reasons if reason not in assessment.rejection_reasons
+                    ),
+                )
+            )
+            await repository.add_commercial_evaluation(evaluation)
+            if assessment.approved and side is not None and not evaluation.is_actionable:
+                reasons.extend(evaluation.reasons)
+                reasons.append("commercial_evaluation_not_actionable")
+                approved = Decimal("0")
         decision_type = assessment.decision
         if reasons and decision_type not in {
             TradeDecisionType.ABSTAIN,
             TradeDecisionType.REJECTED,
         }:
             decision_type = TradeDecisionType.REJECTED
+            approved = Decimal("0")
         decision = self._decision(
             portfolio=portfolio,
             context=context,
@@ -454,6 +644,10 @@ class PaperTradingOrchestrator:
             checks=tuple(dict.fromkeys(checks)),
             correlation_id=correlation_id,
             causation_id=causation_id,
+            side=side,
+            decision_source=decision_source,
+            override_reason=override_reason,
+            idempotency_key=idempotency_key,
         )
         await repository.add_decision(decision)
         if decision_type in {
@@ -476,7 +670,13 @@ class PaperTradingOrchestrator:
                     configuration_hash=self.configuration_hash,
                 )
                 await repository.add_order(order)
-            return PaperTradingOutcome(decision, order, None, None)
+            return PaperTradingOutcome(
+                decision,
+                order,
+                None,
+                None,
+                evaluation,
+            )
         assert side is not None
         assert context.market_probability is not None
         execution = self._cost_model.execute(
@@ -589,7 +789,13 @@ class PaperTradingOrchestrator:
                 ),
             )
         )
-        return PaperTradingOutcome(decision, order, trade, position)
+        return PaperTradingOutcome(
+            decision,
+            order,
+            trade,
+            position,
+            evaluation,
+        )
 
     def _decision(
         self,
@@ -604,6 +810,10 @@ class PaperTradingOrchestrator:
         checks: tuple[str, ...],
         correlation_id: str,
         causation_id: str | None,
+        side: PositionSide | None,
+        decision_source: TradeDecisionSource,
+        override_reason: str | None,
+        idempotency_key: str | None,
     ) -> TradeDecision:
         result_hash = canonical_sha256(
             {
@@ -611,6 +821,7 @@ class PaperTradingOrchestrator:
                 "portfolio_configuration_hash": portfolio.strategy_configuration_hash,
                 "decided_at": decided_at,
                 "decision": decision_type,
+                "side": side,
                 "market_probability": context.market_probability,
                 "system_probability": context.system_probability,
                 "edge": context.edge,
@@ -620,6 +831,9 @@ class PaperTradingOrchestrator:
                 "approved_stake": approved,
                 "rejection_reasons": reasons,
                 "risk_checks": checks,
+                "decision_source": decision_source,
+                "override_reason": override_reason,
+                "idempotency_key": idempotency_key,
             }
         )
         return TradeDecision(
@@ -642,6 +856,10 @@ class PaperTradingOrchestrator:
             correlation_id=correlation_id,
             causation_id=causation_id,
             experiment_run_id=context.experiment_run_id,
+            side=side,
+            decision_source=decision_source,
+            override_reason=override_reason,
+            idempotency_key=idempotency_key,
         )
 
     def _settlement(
@@ -857,4 +1075,23 @@ def _assert_compatible_portfolio(
     ):
         raise PaperTradingIdempotencyConflictError(
             "experiment portfolio already exists with different configuration"
+        )
+
+
+def _assert_compatible_manual_override(
+    outcome: PaperTradingOutcome,
+    command: RunManualPaperTrade,
+) -> None:
+    decision = outcome.decision
+    if (
+        decision.decision_source is not TradeDecisionSource.MANUAL_OVERRIDE
+        or decision.prediction_run_id != command.prediction_run_id
+        or decision.portfolio_id != command.portfolio_id
+        or decision.side is not command.side
+        or decision.proposed_stake != command.requested_stake
+        or decision.override_reason != command.override_reason.strip()
+        or decision.idempotency_key != command.idempotency_key.strip()
+    ):
+        raise PaperTradingIdempotencyConflictError(
+            "manual override idempotency scope contains different input"
         )

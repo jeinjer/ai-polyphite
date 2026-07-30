@@ -4,6 +4,7 @@ from uuid import UUID
 
 from predictionlab.application.predictions.models import (
     ListPredictions,
+    PredictionListPage,
     PredictionRunDetail,
     PredictionRunPage,
 )
@@ -20,6 +21,12 @@ class PredictionQueryService:
 
     async def list(self, query: ListPredictions) -> PredictionRunPage:
         return await self._repository.list(query)
+
+    async def list_summary(
+        self,
+        query: ListPredictions,
+    ) -> PredictionListPage:
+        return await self._repository.list_summary(query)
 
     async def get(self, prediction_id: UUID) -> PredictionRunDetail:
         result = await self._repository.get(prediction_id)

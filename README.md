@@ -150,7 +150,8 @@ pero no como registro histórico único.
 
    ```text
    Manifold público → collector (60 min) → predicciones nuevas
-   → decisiones/operaciones paper → liquidación/reconciliación
+   → evaluación comercial → campañas paper automáticas
+   → liquidación/reconciliación
    ```
 
    Sólo se predice un mercado cuando existe una observación pública posterior a
@@ -176,7 +177,8 @@ pero no como registro histórico único.
    Todas las secciones del dashboard tienen URL propia: `/markets`,
    `/predictions`, `/agents`, `/portfolio`, `/trades`, `/positions`,
    `/performance`, `/experiments`, `/sources`, `/system` y `/settings`.
-   El detalle de mercado usa `/markets/{market_id}`.
+   Los detalles usan `/markets/{market_id}` y
+   `/predictions/{prediction_id}`.
 
 PostgreSQL y Redis solo publican puertos en `127.0.0.1`.
 
@@ -255,7 +257,16 @@ docker compose up -d --build
 
 Compose mantiene el servicio activo por defecto. Cada ciclo usa una
 configuración hasheada, registra su auditoría y verifica ledger y balances antes
-de declararse completo.
+de declararse completo. La campaña conservadora prevalece por defecto y una
+campaña experimental usa un portfolio separado con edge neto mínimo de 0,015.
+
+El botón `Operar` de `/predictions` crea un override exclusivamente simulado:
+permite elegir YES/NO y stake aunque la evaluación no recomiende entrar, pero
+no pausa ni reemplaza la automatización. Mantiene revalidación de mercado,
+límites de riesgo, motivo e idempotencia.
+
+La arquitectura y sus contratos están documentados en
+[`docs/40_PREDICTIONS_V2_AND_MANUAL_OVERRIDES.md`](docs/40_PREDICTIONS_V2_AND_MANUAL_OVERRIDES.md).
 
 ## Desarrollo local
 
