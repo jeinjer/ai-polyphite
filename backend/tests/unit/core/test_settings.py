@@ -67,6 +67,7 @@ def test_settings_source_precedence(
     )
     monkeypatch.setenv("SERVICE_NAME", "from-environment")
     monkeypatch.setenv("LOG_LEVEL", "DEBUG")
+    monkeypatch.delenv("APP_ENV", raising=False)
 
     settings = Settings(
         _env_file=env_file,

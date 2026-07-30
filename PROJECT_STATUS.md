@@ -127,8 +127,8 @@ Intervención humana opcional
 - Backups PostgreSQL diarios verificados y con retención de 7 días.
 - Rotación de logs Docker acotada a 50 MB por servicio.
 - Reinicio `unless-stopped` para API, frontend, collector, validador y backup.
-- CI del backend carga la configuración estricta de Mypy y su plugin de
-  Pydantic sin perder la selección tipada del archivo de entorno.
+- CI del backend valida Mypy con el plugin de Pydantic, la cadena completa de
+  migraciones sobre PostgreSQL limpio y tests aislados del entorno del runner.
 
 ## Decisiones vigentes
 

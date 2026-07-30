@@ -61,6 +61,8 @@ jobs:
         run: python -m ruff check backend
       - name: Type check
         run: python -m mypy --config-file backend/pyproject.toml backend/src
+      - name: Apply migrations
+        run: python -m alembic -c backend/alembic.ini upgrade head
       - name: Test
         run: python -m pytest backend/tests
       - name: Check migration drift

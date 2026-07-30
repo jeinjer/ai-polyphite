@@ -10,8 +10,9 @@ versionada.
 
 ### Fixed
 
-- El type check del backend en CI carga su configuración estricta y el plugin
-  de Pydantic, preservando `_env_file` para seleccionar archivos de entorno.
+- El backend CI carga su configuración estricta de Mypy, aplica las
+  migraciones sobre PostgreSQL limpio y aísla los tests de configuración de
+  variables heredadas del runner.
 
 ### Added
 
