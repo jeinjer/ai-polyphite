@@ -504,8 +504,7 @@ def get_settings() -> Settings:
         os.getenv(LEGACY_ENV_FILE_VARIABLE, DEFAULT_ENV_FILE),
     )
     env_file: str | Path | None = configured_env_file or None
-    # Use the documented/public parameter name so the type checker accepts the call.
-    return Settings(env_file=env_file)
+    return Settings(_env_file=env_file)
 
 
 def clear_settings_cache() -> None:

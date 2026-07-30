@@ -175,6 +175,8 @@ completada hasta que su código, tests y documentación hayan sido validados.
 
 ## Next — MVP stabilization
 
+- [x] Hacer que el type check del backend en CI cargue la configuración Mypy
+      y preserve la carga dinámica del archivo de entorno.
 - [x] Congelar políticas y configuración del MVP mediante hash durable.
 - [x] Iniciar validación paper continua sobre datos públicos reales.
 - [x] Añadir reconciliación operativa automatizada de ledger y balances.

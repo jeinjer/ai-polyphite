@@ -60,7 +60,7 @@ jobs:
       - name: Lint
         run: python -m ruff check backend
       - name: Type check
-        run: python -m mypy backend/src
+        run: python -m mypy --config-file backend/pyproject.toml backend/src
       - name: Test
         run: python -m pytest backend/tests
       - name: Check migration drift

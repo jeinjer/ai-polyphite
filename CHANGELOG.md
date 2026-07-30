@@ -8,6 +8,11 @@ versionada.
 
 ## [Unreleased]
 
+### Fixed
+
+- El type check del backend en CI carga su configuración estricta y el plugin
+  de Pydantic, preservando `_env_file` para seleccionar archivos de entorno.
+
 ### Added
 
 - `CommercialEvaluation` durable para separar estimación probabilística de
