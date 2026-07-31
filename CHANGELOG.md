@@ -8,6 +8,16 @@ versionada.
 
 ## [Unreleased]
 
+### Changed
+
+- El dashboard adopta una experiencia ejecutiva completamente rediseñada con
+  cuatro recorridos visibles, lenguaje no técnico, nueva paleta clara, iconos y
+  feedback visual de cursor, foco y click.
+- Predicciones muestra sólo mercado, estimación, confianza y conveniencia en el
+  listado; el detalle auditable se carga bajo demanda.
+- Actividad reúne operaciones paper automáticas y manuales sin mezclar trades
+  de replay histórico.
+
 ### Fixed
 
 - La ingesta Manifold conserva resoluciones confirmadas ante correcciones

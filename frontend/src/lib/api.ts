@@ -77,10 +77,14 @@ export const api = {
     request<Page<PaperTrade>>(
       `/paper-trades?page=1&page_size=100&portfolio_id=${encodeURIComponent(portfolioId)}`,
     ),
+  allPaperTrades: () =>
+    request<Page<PaperTrade>>("/paper-trades?page=1&page_size=100"),
   paperPositions: (portfolioId: string) =>
     request<Page<PaperPosition>>(
       `/paper-positions?page=1&page_size=100&portfolio_id=${encodeURIComponent(portfolioId)}`,
     ),
+  allPaperPositions: () =>
+    request<Page<PaperPosition>>("/paper-positions?page=1&page_size=100"),
   paperSettlements: (portfolioId: string) =>
     request<Page<PaperSettlement>>(
       `/paper-settlements?page=1&page_size=100&portfolio_id=${encodeURIComponent(portfolioId)}`,

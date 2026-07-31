@@ -5,6 +5,10 @@ completada hasta que su código, tests y documentación hayan sido validados.
 
 ## Completed
 
+- [x] Rediseñar el dashboard para una audiencia ejecutiva no técnica.
+- [x] Reducir la navegación visible a Resumen, Oportunidades, Actividad y Mercados.
+- [x] Añadir feedback visual de hover, foco y click con movimiento reducido accesible.
+- [x] Simplificar predicciones y operaciones sin alterar la lógica automática.
 - [x] Leer y analizar la documentación inicial.
 - [x] Aprobar la arquitectura base.
 - [x] Crear el scaffold del repositorio.

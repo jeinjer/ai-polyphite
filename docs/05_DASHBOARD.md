@@ -2,6 +2,12 @@
 
 # Dashboard System Design
 
+> Nota de vigencia (2026-07-31): este documento conserva el catálogo original
+> de capacidades técnicas. La experiencia visible actual está definida en
+> `24_BEGINNER_UX.md`, `25_NAVIGATION_MAP.md` y
+> `41_EXECUTIVE_DASHBOARD.md`; esas decisiones prevalecen para navegación y
+> presentación.
+
 Version 1.0
 
 ---

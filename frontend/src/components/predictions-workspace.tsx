@@ -8,13 +8,18 @@ import {
 } from "@tanstack/react-query";
 import {
   ArrowLeft,
+  BrainCircuit,
+  Check,
   ChevronLeft,
   ChevronRight,
-  CircleHelp,
+  CircleDollarSign,
   Eye,
   LoaderCircle,
-  Play,
+  ShieldCheck,
+  Sparkles,
+  Target,
   X,
+  Zap,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -27,600 +32,326 @@ import type {
   ManualPaperTradeResponse,
   PositionSide,
   PredictionListItem,
+  PredictionRun,
 } from "@/lib/api-types";
-import { useUiStore } from "@/stores/ui-store";
 
-type Copy = {
-  title: string;
-  description: string;
-  market: string;
-  marketProbability: string;
-  estimatedProbability: string;
-  confidence: string;
-  estimatedOutcome: string;
-  evaluation: string;
-  actions: string;
-  actionable: string;
-  notActionable: string;
-  notEvaluable: string;
-  noPrediction: string;
-  trade: string;
-  tradeAnyway: string;
-  detail: string;
-  all: string;
-  newest: string;
-  oldest: string;
-  yes: string;
-  no: string;
-  unavailable: string;
-  highestMarket: string;
-  highestEstimate: string;
-  highestConfidence: string;
-  highestNetEdge: string;
-  previous: string;
-  next: string;
-  automaticDefault: string;
-  simulationWarning: string;
-  side: string;
-  stake: string;
-  reason: string;
-  reasonPlaceholder: string;
-  confirm: string;
-  cancel: string;
-  manualTitle: string;
-  manualExplanation: string;
-  resultFilled: string;
-  resultRejected: string;
-  resultDuplicate: string;
-  loading: string;
-  empty: string;
-  back: string;
-  costs: string;
-  grossEdge: string;
-  netEdge: string;
-  freshness: string;
-  reasons: string;
-  warnings: string;
-  agents: string;
-  traceability: string;
-};
-
-const copies: Record<"es-ES" | "en-US", Copy> = {
-  "es-ES": {
-    title: "Predicciones",
-    description:
-      "Predicción, conveniencia comercial y ejecución simulada se muestran como decisiones separadas.",
-    market: "Mercado",
-    marketProbability: "Probabilidad del mercado",
-    estimatedProbability: "Probabilidad estimada",
-    confidence: "Confianza",
-    estimatedOutcome: "Resultado estimado",
-    evaluation: "Evaluación",
-    actions: "Acciones",
-    actionable: "Conviene",
-    notActionable: "No conviene",
-    notEvaluable: "No evaluable",
-    noPrediction: "Sin predicción",
-    trade: "Operar",
-    tradeAnyway: "Operar igualmente",
-    detail: "Ver detalle",
-    all: "Todas",
-    newest: "Más reciente",
-    oldest: "Más antiguo",
-    yes: "Resultado YES",
-    no: "Resultado NO",
-    unavailable: "Sin predicción",
-    highestMarket: "Mayor probabilidad del mercado",
-    highestEstimate: "Mayor probabilidad estimada",
-    highestConfidence: "Mayor confianza",
-    highestNetEdge: "Mayor edge neto",
-    previous: "Anterior",
-    next: "Siguiente",
-    automaticDefault:
-      "La operación automática sigue activa y prevalece por defecto. Este botón crea una excepción manual separada.",
-    simulationWarning:
-      "Esta operación es exclusivamente simulada. No utiliza dinero real.",
-    side: "Lado simulado",
-    stake: "Stake simulado",
-    reason: "Motivo del override",
-    reasonPlaceholder: "Explica por qué querés ignorar la decisión automática",
-    confirm: "Confirmar operación simulada",
-    cancel: "Cancelar",
-    manualTitle: "Override manual de paper trading",
-    manualExplanation:
-      "Podés elegir YES o NO aunque los agentes se abstengan o indiquen que no conviene. Los límites contables y de riesgo siguen vigentes.",
-    resultFilled: "La operación simulada fue creada.",
-    resultRejected: "El backend rechazó la operación tras revalidar el mercado y el riesgo.",
-    resultDuplicate: "Esta solicitud ya había sido procesada.",
-    loading: "Cargando predicciones…",
-    empty: "No hay predicciones para estos filtros.",
-    back: "Volver a predicciones",
-    costs: "Costes simulados",
-    grossEdge: "Edge bruto",
-    netEdge: "Edge neto",
-    freshness: "Antigüedad de datos",
-    reasons: "Motivos",
-    warnings: "Advertencias",
-    agents: "Salidas de agentes",
-    traceability: "Trazabilidad",
-  },
-  "en-US": {
-    title: "Predictions",
-    description:
-      "Prediction, commercial suitability, and simulated execution are shown as separate decisions.",
-    market: "Market",
-    marketProbability: "Market probability",
-    estimatedProbability: "Estimated probability",
-    confidence: "Confidence",
-    estimatedOutcome: "Estimated outcome",
-    evaluation: "Evaluation",
-    actions: "Actions",
-    actionable: "Worth trading",
-    notActionable: "Not worth trading",
-    notEvaluable: "Not evaluable",
-    noPrediction: "No prediction",
-    trade: "Trade",
-    tradeAnyway: "Trade anyway",
-    detail: "View details",
-    all: "All",
-    newest: "Newest",
-    oldest: "Oldest",
-    yes: "YES outcome",
-    no: "NO outcome",
-    unavailable: "No prediction",
-    highestMarket: "Highest market probability",
-    highestEstimate: "Highest estimated probability",
-    highestConfidence: "Highest confidence",
-    highestNetEdge: "Highest net edge",
-    previous: "Previous",
-    next: "Next",
-    automaticDefault:
-      "Automatic execution remains active and is the default. This button creates a separate manual exception.",
-    simulationWarning:
-      "This operation is exclusively simulated. It does not use real money.",
-    side: "Simulated side",
-    stake: "Simulated stake",
-    reason: "Override reason",
-    reasonPlaceholder: "Explain why you want to ignore the automatic decision",
-    confirm: "Confirm simulated trade",
-    cancel: "Cancel",
-    manualTitle: "Manual paper-trading override",
-    manualExplanation:
-      "You can choose YES or NO even when agents abstain or mark it as not actionable. Accounting and risk limits still apply.",
-    resultFilled: "The simulated trade was created.",
-    resultRejected: "The backend rejected the trade after revalidating market and risk.",
-    resultDuplicate: "This request had already been processed.",
-    loading: "Loading predictions…",
-    empty: "No predictions match these filters.",
-    back: "Back to predictions",
-    costs: "Simulated costs",
-    grossEdge: "Gross edge",
-    netEdge: "Net edge",
-    freshness: "Data freshness",
-    reasons: "Reasons",
-    warnings: "Warnings",
-    agents: "Agent outputs",
-    traceability: "Traceability",
-  },
-};
+type OpportunityFilter = "all" | "actionable" | "not_actionable";
 
 export function PredictionsWorkspace({
   predictionId,
 }: Readonly<{ predictionId: string | null }>) {
-  const { locale } = useI18n();
-  const copy = copies[locale];
-  if (predictionId) {
-    return <PredictionDetail predictionId={predictionId} copy={copy} />;
-  }
-  return <PredictionList copy={copy} />;
+  if (predictionId) return <PredictionDetail predictionId={predictionId} />;
+  return <PredictionList />;
 }
 
-function PredictionList({ copy }: Readonly<{ copy: Copy }>) {
+function PredictionList() {
+  const { t } = useI18n();
   const router = useRouter();
   const searchParams = useSearchParams();
   const page = positiveInt(searchParams.get("page"), 1);
-  const pageSize = searchParams.get("page_size") === "50" ? 50 : 25;
+  const filter = opportunityFilter(searchParams.get("view"));
   const query = useMemo(() => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("page", String(page));
-    params.set("page_size", String(pageSize));
+    const params = new URLSearchParams({
+      page: String(page),
+      page_size: "25",
+      sort: "predicted_at",
+      direction: "desc",
+    });
+    if (filter !== "all") params.set("commercial_label", filter);
     return params.toString();
-  }, [page, pageSize, searchParams]);
+  }, [filter, page]);
   const predictions = useQuery({
     queryKey: ["prediction-list", query],
     queryFn: () => api.predictions(query),
     placeholderData: keepPreviousData,
-    refetchInterval: 60_000,
   });
-  const [trade, setTrade] = useState<PredictionListItem | null>(null);
+  const [manualTrade, setManualTrade] = useState<PredictionListItem | null>(null);
 
-  const setFilter = (key: string, value: string) => {
-    const next = new URLSearchParams(searchParams.toString());
-    if (!value || value === "all") next.delete(key);
-    else next.set(key, value);
-    next.set("page", "1");
-    next.set("page_size", String(pageSize));
-    router.push(`/predictions?${next.toString()}`);
+  const changeFilter = (next: OpportunityFilter) => {
+    const params = new URLSearchParams();
+    if (next !== "all") params.set("view", next);
+    router.push(`/predictions${params.size ? `?${params.toString()}` : ""}`);
   };
-  const goToPage = (nextPage: number) => {
-    const next = new URLSearchParams(searchParams.toString());
-    next.set("page", String(nextPage));
-    next.set("page_size", String(pageSize));
-    router.push(`/predictions?${next.toString()}`);
+  const changePage = (next: number) => {
+    const params = new URLSearchParams();
+    if (filter !== "all") params.set("view", filter);
+    params.set("page", String(next));
+    router.push(`/predictions?${params.toString()}`);
   };
 
   return (
-    <div className="space-y-6" data-testid="prediction-list">
-      <header>
-        <h2 className="text-xl font-semibold">{copy.title}</h2>
-        <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-500">
-          {copy.description}
+    <div className="space-y-7 animate-page-in">
+      <header className="max-w-3xl">
+        <p className="text-xs font-black uppercase tracking-[0.18em] text-[#5b43f1]">
+          {t("opp.eyebrow")}
         </p>
-        <p className="mt-2 text-xs text-cyan-200/70">
-          {copy.automaticDefault}
+        <h1 className="mt-2 text-3xl font-black tracking-[-0.04em] sm:text-4xl">
+          {t("opp.title")}
+        </h1>
+        <p className="mt-3 text-base leading-7 text-[#777b87]">
+          {t("opp.description")}
         </p>
       </header>
 
-      <div className="grid gap-3 rounded-2xl border border-white/8 bg-white/[0.025] p-4 sm:grid-cols-2 xl:grid-cols-5">
-        <Filter
-          label={copy.evaluation}
-          value={searchParams.get("commercial_label") ?? "all"}
-          onChange={(value) => setFilter("commercial_label", value)}
-          options={[
-            ["all", copy.all],
-            ["actionable", copy.actionable],
-            ["not_actionable", copy.notActionable],
-            ["not_evaluable", copy.notEvaluable],
-          ]}
-        />
-        <Filter
-          label={copy.estimatedOutcome}
-          value={searchParams.get("estimated_outcome") ?? "all"}
-          onChange={(value) => setFilter("estimated_outcome", value)}
-          options={[
-            ["all", copy.all],
-            ["yes", copy.yes],
-            ["no", copy.no],
-            ["unavailable", copy.unavailable],
-          ]}
-        />
-        <Filter
-          label="Orden"
-          value={`${searchParams.get("sort") ?? "predicted_at"}:${searchParams.get("direction") ?? "desc"}`}
-          onChange={(value) => {
-            const [sort, direction] = value.split(":");
-            const next = new URLSearchParams(searchParams.toString());
-            next.set("sort", sort);
-            next.set("direction", direction);
-            next.set("page", "1");
-            router.push(`/predictions?${next.toString()}`);
-          }}
-          options={[
-            ["predicted_at:desc", copy.newest],
-            ["predicted_at:asc", copy.oldest],
-            ["market_probability:desc", copy.highestMarket],
-            ["consensus_probability:desc", copy.highestEstimate],
-            ["consensus_confidence:desc", copy.highestConfidence],
-            ["net_edge:desc", copy.highestNetEdge],
-          ]}
-        />
-        <Filter
-          label="Por página"
-          value={String(pageSize)}
-          onChange={(value) => setFilter("page_size", value)}
-          options={[
-            ["25", "25"],
-            ["50", "50"],
-          ]}
-        />
-      </div>
+      <section className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-[#182033]/8 bg-white p-3 shadow-sm">
+        <div className="flex flex-wrap gap-2">
+          {(["all", "actionable", "not_actionable"] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              className={`interactive-button cursor-pointer rounded-2xl px-4 py-2.5 text-sm font-black ${
+                filter === value
+                  ? "bg-[#182033] text-white shadow-lg"
+                  : "text-[#777b87] hover:bg-[#f5f2ea]"
+              }`}
+              onClick={() => changeFilter(value)}
+            >
+              {t(
+                value === "all"
+                  ? "opp.filter.all"
+                  : value === "actionable"
+                    ? "opp.filter.opportunities"
+                    : "opp.filter.discarded",
+              )}
+            </button>
+          ))}
+        </div>
+        <span className="px-3 text-xs font-bold text-[#9a9ca5]">
+          {t("opp.autoNote")}
+        </span>
+      </section>
 
       {predictions.isLoading ? (
-        <Loading copy={copy} />
+        <PredictionLoading />
       ) : predictions.isError ? (
-        <ErrorPanel onRetry={() => void predictions.refetch()} />
+        <PredictionError onRetry={() => void predictions.refetch()} />
       ) : !predictions.data?.items.length ? (
-        <div className="rounded-2xl border border-white/8 p-10 text-center text-sm text-slate-500">
-          {copy.empty}
-        </div>
+        <PredictionEmpty />
       ) : (
-        <div
-          className={`overflow-x-auto rounded-2xl border border-white/8 bg-white/[0.025] transition-opacity ${
-            predictions.isFetching ? "opacity-60" : "opacity-100"
-          }`}
-        >
-          <table className="min-w-[1080px] w-full text-left text-sm">
-            <thead className="border-b border-white/8 text-xs uppercase tracking-wider text-slate-600">
-              <tr>
-                <th className="px-5 py-4">{copy.market}</th>
-                <th className="px-3 py-4">{copy.marketProbability}</th>
-                <th className="px-3 py-4">{copy.estimatedProbability}</th>
-                <th className="px-3 py-4">{copy.confidence}</th>
-                <th className="px-3 py-4">{copy.estimatedOutcome}</th>
-                <th className="px-3 py-4">{copy.evaluation}</th>
-                <th className="px-5 py-4">{copy.actions}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/7">
-              {predictions.data.items.map((item) => (
-                <tr key={item.prediction_run_id}>
-                  <td className="max-w-md px-5 py-4">
-                    <p className="font-medium text-slate-200">
-                      {item.market_title}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-600">
-                      {new Date(item.predicted_at).toLocaleString()} ·{" "}
-                      {item.provider_code}
-                    </p>
-                  </td>
-                  <td className="px-3 py-4">
-                    {probability(item.market_probability)}
-                  </td>
-                  <td className="px-3 py-4">
-                    {probability(item.consensus_probability)}
-                  </td>
-                  <td className="px-3 py-4">
-                    {probability(item.consensus_confidence)}
-                  </td>
-                  <td className="px-3 py-4 font-medium">
-                    {item.estimated_outcome?.toUpperCase() ??
-                      copy.noPrediction}
-                  </td>
-                  <td className="px-3 py-4">
-                    <CommercialBadge label={item.commercial_label} copy={copy} />
-                    <p
-                      className="mt-2 max-w-48 text-xs text-slate-600"
-                      title={humanReason(item.primary_reason)}
-                    >
-                      {item.net_edge === null
-                        ? humanReason(item.primary_reason)
-                        : `${copy.netEdge}: ${signedPoints(item.net_edge)}`}
-                    </p>
-                  </td>
-                  <td className="px-5 py-4">
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setTrade(item)}
-                        title={copy.automaticDefault}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-300/12 px-3 py-2 text-xs font-medium text-cyan-200 transition hover:bg-cyan-300/20"
-                      >
-                        <Play aria-hidden="true" className="size-3.5" />
-                        {item.is_actionable
-                          ? copy.trade
-                          : copy.tradeAnyway}
-                      </button>
-                      <Link
-                        href={`/predictions/${item.prediction_run_id}`}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-2 text-xs text-slate-300 hover:border-white/20"
-                      >
-                        <Eye aria-hidden="true" className="size-3.5" />
-                        {copy.detail}
-                      </Link>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="space-y-4">
+          {predictions.data.items.map((prediction) => (
+            <OpportunityCard
+              key={prediction.prediction_run_id}
+              prediction={prediction}
+              onManualTrade={() => setManualTrade(prediction)}
+            />
+          ))}
         </div>
       )}
 
-      {predictions.data && predictions.data.total_pages > 0 && (
-        <nav
-          className="flex items-center justify-between text-sm text-slate-500"
-          aria-label="Pagination"
-        >
+      {predictions.data && predictions.data.total_pages > 1 && (
+        <nav className="flex items-center justify-center gap-3" aria-label={t("opp.pagination")}>
           <button
             type="button"
+            className="interactive-button inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-[#182033]/10 bg-white px-4 py-3 text-sm font-black disabled:cursor-not-allowed disabled:opacity-40"
             disabled={page <= 1}
-            onClick={() => goToPage(page - 1)}
-            className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-3 py-2 disabled:opacity-30"
+            onClick={() => changePage(page - 1)}
           >
-            <ChevronLeft className="size-4" /> {copy.previous}
+            <ChevronLeft className="size-4" /> {t("opp.previous")}
           </button>
-          <span>
-            {page} / {predictions.data.total_pages}
+          <span className="text-sm font-black text-[#777b87]">
+            {t("opp.page", { current: page, total: predictions.data.total_pages })}
           </span>
           <button
             type="button"
+            className="interactive-button inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-[#182033]/10 bg-white px-4 py-3 text-sm font-black disabled:cursor-not-allowed disabled:opacity-40"
             disabled={page >= predictions.data.total_pages}
-            onClick={() => goToPage(page + 1)}
-            className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-3 py-2 disabled:opacity-30"
+            onClick={() => changePage(page + 1)}
           >
-            {copy.next} <ChevronRight className="size-4" />
+            {t("opp.next")} <ChevronRight className="size-4" />
           </button>
         </nav>
       )}
 
-      {trade && (
-        <ManualTradeModal
-          prediction={trade}
-          copy={copy}
-          onClose={() => setTrade(null)}
-        />
+      {manualTrade && (
+        <ManualTradeModal prediction={manualTrade} onClose={() => setManualTrade(null)} />
       )}
     </div>
   );
 }
 
-function PredictionDetail({
-  predictionId,
-  copy,
-}: Readonly<{ predictionId: string; copy: Copy }>) {
-  const mode = useUiStore((state) => state.mode);
+function OpportunityCard({
+  prediction,
+  onManualTrade,
+}: Readonly<{ prediction: PredictionListItem; onManualTrade: () => void }>) {
+  const { locale, t } = useI18n();
+  const actionable = prediction.is_actionable;
+  return (
+    <article className="executive-card overflow-hidden rounded-[1.75rem] border border-[#182033]/8 bg-white shadow-sm">
+      <div className="grid gap-5 p-5 sm:p-7 lg:grid-cols-[1fr_auto] lg:items-center">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <OpportunityBadge label={prediction.commercial_label} />
+            <span className="text-xs font-bold text-[#9a9ca5]">
+              {new Date(prediction.predicted_at).toLocaleString(locale, {
+                day: "numeric",
+                month: "short",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </span>
+          </div>
+          <h2 className="mt-4 max-w-3xl text-lg font-black leading-7 tracking-[-0.02em] sm:text-xl">
+            {prediction.market_title}
+          </h2>
+          <div className="mt-5 grid max-w-2xl grid-cols-3 gap-3">
+            <DecisionMetric
+              label={t("opp.marketThinks")}
+              value={probability(prediction.market_probability)}
+            />
+            <DecisionMetric
+              label={t("opp.systemThinks")}
+              value={probability(prediction.consensus_probability)}
+              highlighted
+            />
+            <DecisionMetric
+              label={t("opp.confidence")}
+              value={probability(prediction.consensus_confidence)}
+            />
+          </div>
+          <p className="mt-4 flex items-center gap-2 text-sm font-bold text-[#626777]">
+            <BrainCircuit className="size-4 text-[#5b43f1]" />
+            {prediction.estimated_outcome
+              ? t("opp.systemConclusion", {
+                  outcome: t(
+                    prediction.estimated_outcome === "yes"
+                      ? "opp.outcome.yes"
+                      : "opp.outcome.no",
+                  ),
+                })
+              : t("opp.noConclusion")}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-2 lg:max-w-52 lg:flex-col">
+          <Link
+            href={`/predictions/${encodeURIComponent(prediction.prediction_run_id)}`}
+            className="interactive-button inline-flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-2xl bg-[#182033] px-4 py-3 text-sm font-black text-white"
+          >
+            <Eye className="size-4" /> {t("opp.understand")}
+          </Link>
+          <button
+            type="button"
+            className="interactive-button inline-flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-2xl border border-[#182033]/10 bg-white px-4 py-3 text-sm font-black text-[#626777]"
+            onClick={onManualTrade}
+          >
+            <CircleDollarSign className="size-4" /> {t("opp.manual")}
+          </button>
+          {actionable && (
+            <span className="flex items-center justify-center gap-2 px-2 py-1 text-center text-xs font-bold leading-5 text-[#16845f]">
+              <Zap className="size-3.5" /> {t("opp.automaticHandles")}
+            </span>
+          )}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function PredictionDetail({ predictionId }: Readonly<{ predictionId: string }>) {
+  const { locale, t } = useI18n();
   const prediction = useQuery({
     queryKey: ["prediction-detail", predictionId],
     queryFn: () => api.prediction(predictionId),
   });
-  const [trade, setTrade] = useState<PredictionListItem | null>(null);
-  if (prediction.isLoading) return <Loading copy={copy} />;
+  const [manualTrade, setManualTrade] = useState<PredictionListItem | null>(null);
+  if (prediction.isLoading) return <PredictionLoading />;
   if (prediction.isError || !prediction.data) {
-    return <ErrorPanel onRetry={() => void prediction.refetch()} />;
+    return <PredictionError onRetry={() => void prediction.refetch()} />;
   }
-  const item = detailToListItem(prediction.data);
-  const commercial = prediction.data.commercial_evaluation;
+  const value = prediction.data;
+  const actionable = value.commercial_evaluation?.is_actionable ?? false;
+  const reasons = value.commercial_evaluation?.reasons ?? [];
+  const listItem = detailToListItem(value);
   return (
-    <div className="space-y-6" data-testid="prediction-detail">
+    <div className="space-y-7 animate-page-in">
       <Link
         href="/predictions"
-        className="inline-flex items-center gap-2 text-sm text-cyan-300"
+        className="inline-flex cursor-pointer items-center gap-2 text-sm font-black text-[#5b43f1] transition hover:gap-3"
       >
-        <ArrowLeft className="size-4" /> {copy.back}
+        <ArrowLeft className="size-4" /> {t("opp.detail.back")}
       </Link>
-      <header className="rounded-2xl border border-white/8 bg-white/[0.025] p-6">
-        <p className="text-xs uppercase tracking-wider text-slate-600">
-          {prediction.data.provider_code}
-        </p>
-        <h2 className="mt-2 text-xl font-semibold">
-          {prediction.data.market_title}
-        </h2>
-        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <Metric
-            label={copy.marketProbability}
-            value={probability(prediction.data.market_probability)}
-          />
-          <Metric
-            label={copy.estimatedProbability}
-            value={probability(prediction.data.consensus_probability)}
-          />
-          <Metric
-            label={copy.estimatedOutcome}
-            value={
-              prediction.data.estimated_outcome?.toUpperCase() ??
-              copy.noPrediction
-            }
-          />
-          <Metric
-            label={copy.confidence}
-            value={probability(prediction.data.consensus_confidence)}
-          />
-          <Metric
-            label={copy.evaluation}
-            value={commercialLabel(item.commercial_label, copy)}
-          />
-        </div>
-        <button
-          type="button"
-          onClick={() => setTrade(item)}
-          className="mt-6 inline-flex items-center gap-2 rounded-lg bg-cyan-300/12 px-4 py-2 text-sm font-medium text-cyan-200"
-        >
-          <Play className="size-4" />
-          {item.is_actionable ? copy.trade : copy.tradeAnyway}
-        </button>
-        <p className="mt-3 text-xs text-cyan-200/70">
-          {copy.automaticDefault}
-        </p>
-      </header>
 
-      <section className="grid gap-4 lg:grid-cols-2">
-        <Card title={copy.reasons}>
-          <ul className="space-y-2 text-sm text-slate-400">
-            {(commercial?.reasons ?? [
-              prediction.data.abstention_reason ?? item.primary_reason,
-            ]).map((reason) => (
-              <li key={reason}>• {humanReason(reason)}</li>
-            ))}
-          </ul>
-        </Card>
-        <Card title={copy.costs}>
-          <dl className="grid grid-cols-2 gap-3 text-sm">
-            <Metric
-              label={copy.grossEdge}
-              value={signedPoints(commercial?.gross_edge ?? null)}
-            />
-            <Metric
-              label={copy.netEdge}
-              value={signedPoints(commercial?.net_edge ?? null)}
-            />
-            <Metric
-              label="Fees"
-              value={signedPoints(commercial?.estimated_fees ?? null)}
-            />
-            <Metric
-              label="Slippage"
-              value={signedPoints(commercial?.estimated_slippage ?? null)}
-            />
-          </dl>
-        </Card>
+      <section className="relative overflow-hidden rounded-[2rem] bg-[#182033] p-7 text-white shadow-xl sm:p-10">
+        <div className="pointer-events-none absolute -right-16 -top-20 size-72 rounded-full bg-[#5b43f1]/35 blur-3xl" />
+        <div className="relative">
+          <OpportunityBadge
+            label={value.commercial_evaluation?.commercial_label ?? "not_evaluable"}
+            dark
+          />
+          <h1 className="mt-5 max-w-4xl text-3xl font-black leading-tight tracking-[-0.04em] sm:text-4xl">
+            {value.market_title}
+          </h1>
+          <p className="mt-4 text-sm font-semibold text-white/50">
+            {new Date(value.predicted_at).toLocaleString(locale)}
+          </p>
+          <div className="mt-8 grid gap-3 sm:grid-cols-3">
+            <DetailMetric label={t("opp.marketThinks")} value={probability(value.market_probability)} />
+            <DetailMetric label={t("opp.systemThinks")} value={probability(value.consensus_probability)} featured />
+            <DetailMetric label={t("opp.confidence")} value={probability(value.consensus_confidence)} />
+          </div>
+        </div>
       </section>
 
-      {mode === "advanced" && (
-        <>
-          <Card title={copy.agents}>
-            <div className="grid gap-3 lg:grid-cols-2">
-              {prediction.data.agent_predictions.map((agent) => (
-                <article
-                  key={agent.agent_prediction_id}
-                  className="rounded-xl border border-white/8 p-4"
-                >
-                  <div className="flex justify-between gap-3">
-                    <h3 className="font-medium capitalize">
-                      {agent.agent_name}
-                    </h3>
-                    <span className="text-xs text-slate-600">
-                      v{agent.agent_version}
-                    </span>
-                  </div>
-                  <p className="mt-3 text-sm leading-6 text-slate-400">
-                    {agent.rationale_summary}
-                  </p>
-                  <p className="mt-3 text-xs text-slate-600">
-                    {probability(agent.predicted_probability)} ·{" "}
-                    {probability(agent.confidence)}
-                  </p>
-                </article>
-              ))}
+      <div className="grid gap-6 lg:grid-cols-[1fr_.75fr]">
+        <section className="rounded-[2rem] border border-[#182033]/8 bg-white p-6 shadow-sm sm:p-8">
+          <div className="flex items-start gap-4">
+            <span className={`grid size-12 shrink-0 place-items-center rounded-2xl ${actionable ? "bg-[#e9fff4] text-[#16845f]" : "bg-[#fff3d6] text-[#9b6a00]"}`}>
+              {actionable ? <Zap className="size-5" /> : <ShieldCheck className="size-5" />}
+            </span>
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.15em] text-[#8b8e98]">
+                {t("opp.detail.inPlainWords")}
+              </p>
+              <h2 className="mt-2 text-2xl font-black tracking-[-0.03em]">
+                {actionable ? t("opp.detail.actionable") : t("opp.detail.notActionable")}
+              </h2>
+              <p className="mt-3 leading-7 text-[#777b87]">
+                {actionable
+                  ? t("opp.detail.actionableText")
+                  : t("opp.detail.notActionableText")}
+              </p>
             </div>
-          </Card>
-          <Card title={copy.traceability}>
-            <dl className="grid gap-3 text-xs text-slate-500 lg:grid-cols-2">
-              <code className="break-all">
-                config: {prediction.data.agent_configuration_hash}
-              </code>
-              <code className="break-all">
-                input: {prediction.data.input_hash}
-              </code>
-              <code className="break-all">
-                result: {prediction.data.result_hash}
-              </code>
-              <code className="break-all">
-                correlation: {prediction.data.correlation_id}
-              </code>
-            </dl>
-          </Card>
-          {prediction.data.related_executions.length > 0 && (
-            <Card title="Paper trading relacionado">
-              <div className="space-y-3 text-sm text-slate-400">
-                {prediction.data.related_executions.map((execution) => (
-                  <div
-                    key={execution.decision_id}
-                    className="rounded-xl border border-white/8 p-4"
-                  >
-                    <p className="font-medium text-slate-200">
-                      {execution.portfolio_name}
-                    </p>
-                    <p className="mt-1">
-                      {execution.decision_source} · {execution.decision}
-                    </p>
-                    {execution.override_reason && (
-                      <p className="mt-2 text-xs text-slate-500">
-                        {execution.override_reason}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </Card>
+          </div>
+          {reasons.length > 0 && (
+            <ul className="mt-6 space-y-2">
+              {reasons.slice(0, 4).map((reason) => (
+                <li key={reason} className="flex items-start gap-2 rounded-2xl bg-[#f7f5f0] px-4 py-3 text-sm font-semibold text-[#626777]">
+                  <Check className="mt-0.5 size-4 shrink-0 text-[#5b43f1]" />
+                  {humanReason(reason, t)}
+                </li>
+              ))}
+            </ul>
           )}
-        </>
-      )}
-      {trade && (
-        <ManualTradeModal
-          prediction={trade}
-          copy={copy}
-          onClose={() => setTrade(null)}
-        />
+        </section>
+
+        <section className="rounded-[2rem] border border-[#182033]/8 bg-[#eeeaff] p-6 sm:p-8">
+          <span className="grid size-12 place-items-center rounded-2xl bg-white text-[#5b43f1] shadow-sm">
+            <Sparkles className="size-5" />
+          </span>
+          <h2 className="mt-5 text-xl font-black">{t("opp.detail.yourChoice")}</h2>
+          <p className="mt-3 text-sm leading-6 text-[#626777]">
+            {t("opp.detail.manualText")}
+          </p>
+          <button
+            type="button"
+            className="interactive-button mt-5 inline-flex cursor-pointer items-center gap-2 rounded-2xl bg-[#5b43f1] px-5 py-3 text-sm font-black text-white shadow-lg"
+            onClick={() => setManualTrade(listItem)}
+          >
+            <CircleDollarSign className="size-4" /> {t("opp.manual")}
+          </button>
+        </section>
+      </div>
+
+      <section className="rounded-3xl border border-[#182033]/8 bg-white/60 p-5 text-sm font-semibold leading-6 text-[#777b87]">
+        <div className="flex items-start gap-3">
+          <ShieldCheck className="mt-0.5 size-5 shrink-0 text-[#5b43f1]" />
+          <p>{t("opp.detail.auditSaved")}</p>
+        </div>
+      </section>
+
+      {manualTrade && (
+        <ManualTradeModal prediction={manualTrade} onClose={() => setManualTrade(null)} />
       )}
     </div>
   );
@@ -628,24 +359,15 @@ function PredictionDetail({
 
 function ManualTradeModal({
   prediction,
-  copy,
   onClose,
-}: Readonly<{
-  prediction: PredictionListItem;
-  copy: Copy;
-  onClose: () => void;
-}>) {
+}: Readonly<{ prediction: PredictionListItem; onClose: () => void }>) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
-  const defaultSide: PositionSide =
-    prediction.potential_side === "buy_no"
-      ? "no"
-      : prediction.potential_side === "buy_yes"
-        ? "yes"
-        : prediction.estimated_outcome ?? "yes";
-  const [side, setSide] = useState<PositionSide>(defaultSide);
-  const [stake, setStake] = useState("0.50");
+  const [side, setSide] = useState<PositionSide>(
+    prediction.estimated_outcome === "no" ? "no" : "yes",
+  );
+  const [stake, setStake] = useState("1.00");
   const [reason, setReason] = useState("");
-  const [idempotencyKey] = useState(() => crypto.randomUUID());
   const [result, setResult] = useState<ManualPaperTradeResponse | null>(null);
   const mutation = useMutation({
     mutationFn: () =>
@@ -654,279 +376,247 @@ function ManualTradeModal({
         side,
         requested_stake: stake,
         override_reason: reason,
-        idempotency_key: idempotencyKey,
+        idempotency_key: crypto.randomUUID(),
       }),
-    onSuccess: (value) => {
-      setResult(value);
-      void queryClient.invalidateQueries({ queryKey: ["prediction-list"] });
-      void queryClient.invalidateQueries({ queryKey: ["paper-portfolios"] });
+    onSuccess: async (response) => {
+      setResult(response);
+      await queryClient.invalidateQueries({ queryKey: ["paper-trades"] });
+      await queryClient.invalidateQueries({ queryKey: ["all-paper-trades"] });
     },
   });
+  const canSubmit = reason.trim().length >= 5 && Number(stake) > 0;
   return (
     <div
-      className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4"
+      className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-[#182033]/55 p-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       aria-labelledby="manual-trade-title"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
     >
-      <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-white/10 bg-[#0b111b] p-6 shadow-2xl">
+      <div className="animate-page-in w-full max-w-xl rounded-[2rem] bg-[#fdfcf9] p-6 shadow-2xl sm:p-8">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 id="manual-trade-title" className="text-lg font-semibold">
-              {copy.manualTitle}
+            <span className="inline-flex items-center gap-2 rounded-full bg-[#fff3d6] px-3 py-1.5 text-xs font-black text-[#9b6a00]">
+              <CircleDollarSign className="size-3.5" /> {t("opp.modal.simulated")}
+            </span>
+            <h2 id="manual-trade-title" className="mt-4 text-2xl font-black tracking-[-0.03em]">
+              {t("opp.modal.title")}
             </h2>
-            <p className="mt-2 text-sm leading-6 text-slate-500">
-              {copy.manualExplanation}
-            </p>
           </div>
           <button
             type="button"
+            className="interactive-button grid size-10 cursor-pointer place-items-center rounded-full bg-[#f2efe8] text-[#626777]"
             onClick={onClose}
-            aria-label={copy.cancel}
-            className="rounded-lg p-2 text-slate-500 hover:bg-white/5"
+            aria-label={t("opp.modal.close")}
           >
-            <X className="size-4" />
+            <X className="size-5" />
           </button>
         </div>
-        <div className="mt-5 rounded-xl border border-amber-300/15 bg-amber-300/5 p-4 text-sm text-amber-100">
-          {copy.simulationWarning}
+        <p className="mt-3 line-clamp-2 text-sm font-bold leading-6 text-[#626777]">
+          {prediction.market_title}
+        </p>
+        <div className="mt-6 rounded-2xl border border-[#ff7759]/15 bg-[#fff0ec] p-4 text-sm leading-6 text-[#8a4939]">
+          {t("opp.modal.warning")}
         </div>
-        <p className="mt-5 font-medium">{prediction.market_title}</p>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <label className="text-sm text-slate-400">
-            {copy.side}
-            <select
-              value={side}
-              onChange={(event) =>
-                setSide(event.target.value as PositionSide)
-              }
-              className="mt-2 w-full rounded-lg border border-white/10 bg-[#080d15] px-3 py-2 text-slate-200"
-            >
-              <option value="yes">Comprar YES</option>
-              <option value="no">Comprar NO</option>
-            </select>
-          </label>
-          <label className="text-sm text-slate-400">
-            {copy.stake}
-            <input
-              type="number"
-              min="0.01"
-              step="0.01"
-              value={stake}
-              onChange={(event) => setStake(event.target.value)}
-              className="mt-2 w-full rounded-lg border border-white/10 bg-[#080d15] px-3 py-2 text-slate-200"
-            />
-          </label>
-        </div>
-        <label className="mt-4 block text-sm text-slate-400">
-          {copy.reason}
-          <textarea
-            required
-            value={reason}
-            onChange={(event) => setReason(event.target.value)}
-            placeholder={copy.reasonPlaceholder}
-            className="mt-2 min-h-24 w-full rounded-lg border border-white/10 bg-[#080d15] px-3 py-2 text-slate-200"
-          />
-        </label>
-        {mutation.isError && (
-          <p className="mt-4 text-sm text-rose-300">
-            El backend no pudo procesar la operación.
-          </p>
-        )}
-        {result && (
-          <p
-            className={`mt-4 rounded-lg p-3 text-sm ${
-              result.status === "filled"
-                ? "bg-emerald-300/8 text-emerald-200"
-                : "bg-amber-300/8 text-amber-200"
-            }`}
+
+        {result ? (
+          <div className="mt-6 rounded-2xl bg-[#e9fff4] p-5 text-[#146b50]">
+            <p className="font-black">
+              {t(
+                result.status === "filled"
+                  ? "opp.modal.filled"
+                  : result.status === "duplicate"
+                    ? "opp.modal.duplicate"
+                    : "opp.modal.rejected",
+              )}
+            </p>
+            <button type="button" className="interactive-button mt-5 cursor-pointer rounded-xl bg-[#182033] px-4 py-2.5 text-sm font-black text-white" onClick={onClose}>
+              {t("opp.modal.done")}
+            </button>
+          </div>
+        ) : (
+          <form
+            className="mt-6 space-y-5"
+            onSubmit={(event) => {
+              event.preventDefault();
+              mutation.mutate();
+            }}
           >
-            {result.status === "filled"
-              ? copy.resultFilled
-              : result.status === "duplicate"
-                ? copy.resultDuplicate
-                : `${copy.resultRejected} ${result.rejection_reasons
-                    .map(humanReason)
-                    .join(", ")}`}
-          </p>
-        )}
-        <div className="mt-6 flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg border border-white/10 px-4 py-2 text-sm text-slate-300"
-          >
-            {copy.cancel}
-          </button>
-          <button
-            type="button"
-            disabled={
-              mutation.isPending ||
-              reason.trim().length === 0 ||
-              Number(stake) <= 0 ||
-              result !== null
-            }
-            onClick={() => mutation.mutate()}
-            className="inline-flex items-center gap-2 rounded-lg bg-cyan-300/15 px-4 py-2 text-sm font-medium text-cyan-100 disabled:opacity-40"
-          >
-            {mutation.isPending && (
-              <LoaderCircle className="size-4 animate-spin" />
+            <fieldset>
+              <legend className="text-sm font-black">{t("opp.modal.choose")}</legend>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                {(["yes", "no"] as const).map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={`interactive-button cursor-pointer rounded-2xl border px-4 py-3 text-sm font-black ${
+                      side === value
+                        ? "border-[#5b43f1] bg-[#eeeaff] text-[#5b43f1]"
+                        : "border-[#182033]/10 bg-white text-[#777b87]"
+                    }`}
+                    onClick={() => setSide(value)}
+                  >
+                    {t(value === "yes" ? "opp.outcome.yes" : "opp.outcome.no")}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+            <label className="block text-sm font-black">
+              {t("opp.modal.amount")}
+              <input
+                className="mt-2 w-full rounded-2xl border border-[#182033]/10 bg-white px-4 py-3 outline-none focus:border-[#5b43f1]/50 focus:ring-4 focus:ring-[#5b43f1]/10"
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={stake}
+                onChange={(event) => setStake(event.target.value)}
+              />
+            </label>
+            <label className="block text-sm font-black">
+              {t("opp.modal.reason")}
+              <textarea
+                className="mt-2 min-h-24 w-full resize-none rounded-2xl border border-[#182033]/10 bg-white px-4 py-3 outline-none focus:border-[#5b43f1]/50 focus:ring-4 focus:ring-[#5b43f1]/10"
+                value={reason}
+                placeholder={t("opp.modal.reasonPlaceholder")}
+                onChange={(event) => setReason(event.target.value)}
+              />
+            </label>
+            {mutation.isError && (
+              <p className="rounded-2xl bg-[#fff0ec] p-4 text-sm font-bold text-[#b84630]">
+                {t("opp.modal.error")}
+              </p>
             )}
-            {copy.confirm}
-          </button>
-        </div>
+            <div className="flex flex-wrap justify-end gap-2">
+              <button type="button" className="interactive-button cursor-pointer rounded-2xl px-5 py-3 text-sm font-black text-[#777b87]" onClick={onClose}>
+                {t("opp.modal.cancel")}
+              </button>
+              <button
+                type="submit"
+                disabled={!canSubmit || mutation.isPending}
+                className="interactive-button inline-flex cursor-pointer items-center gap-2 rounded-2xl bg-[#ff7759] px-5 py-3 text-sm font-black text-white shadow-lg disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                {mutation.isPending && <LoaderCircle className="size-4 animate-spin" />}
+                {t("opp.modal.confirm")}
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );
 }
 
-function Filter({
-  label,
-  value,
-  options,
-  onChange,
-}: Readonly<{
-  label: string;
-  value: string;
-  options: [string, string][];
-  onChange: (value: string) => void;
-}>) {
-  return (
-    <label className="text-xs text-slate-500">
-      {label}
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="mt-2 w-full rounded-lg border border-white/10 bg-[#080d15] px-3 py-2 text-sm text-slate-200"
-      >
-        {options.map(([optionValue, optionLabel]) => (
-          <option key={optionValue} value={optionValue}>
-            {optionLabel}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-function CommercialBadge({
-  label,
-  copy,
-}: Readonly<{ label: CommercialLabel; copy: Copy }>) {
-  const styles =
-    label === "actionable"
-      ? "border-emerald-300/20 bg-emerald-300/8 text-emerald-200"
+function OpportunityBadge({ label, dark = false }: Readonly<{ label: CommercialLabel; dark?: boolean }>) {
+  const { t } = useI18n();
+  const actionable = label === "actionable";
+  const text = t(
+    actionable
+      ? "opp.badge.opportunity"
       : label === "not_actionable"
-        ? "border-amber-300/20 bg-amber-300/8 text-amber-200"
-        : "border-slate-400/20 bg-slate-400/8 text-slate-300";
+        ? "opp.badge.noAction"
+        : "opp.badge.waiting",
+  );
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-xs ${styles}`}
-      aria-label={commercialLabel(label, copy)}
-    >
-      <CircleHelp aria-hidden="true" className="size-3" />
-      {commercialLabel(label, copy)}
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-black ${dark ? (actionable ? "bg-[#72e0b1]/15 text-[#72e0b1]" : "bg-white/10 text-white/65") : actionable ? "bg-[#e9fff4] text-[#16845f]" : "bg-[#f0f0f2] text-[#777b87]"}`}>
+      {actionable ? <Zap className="size-3.5" /> : <ShieldCheck className="size-3.5" />}
+      {text}
     </span>
   );
 }
 
-function Card({
-  title,
-  children,
-}: Readonly<{ title: string; children: React.ReactNode }>) {
+function DecisionMetric({ label, value, highlighted = false }: Readonly<{ label: string; value: string; highlighted?: boolean }>) {
   return (
-    <section className="rounded-2xl border border-white/8 bg-white/[0.025] p-5">
-      <h2 className="mb-4 text-sm font-semibold">{title}</h2>
-      {children}
-    </section>
-  );
-}
-
-function Metric({
-  label,
-  value,
-}: Readonly<{ label: string; value: string }>) {
-  return (
-    <div className="rounded-xl border border-white/7 bg-black/10 p-3">
-      <dt className="text-xs text-slate-600">{label}</dt>
-      <dd className="mt-1 font-medium text-slate-200">{value}</dd>
+    <div className={`rounded-2xl p-3 sm:p-4 ${highlighted ? "bg-[#eeeaff]" : "bg-[#f7f5f0]"}`}>
+      <p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#92949d]">{label}</p>
+      <p className={`mt-1 text-xl font-black ${highlighted ? "text-[#5b43f1]" : "text-[#182033]"}`}>{value}</p>
     </div>
   );
 }
 
-function Loading({ copy }: Readonly<{ copy: Copy }>) {
+function DetailMetric({ label, value, featured = false }: Readonly<{ label: string; value: string; featured?: boolean }>) {
   return (
-    <div className="grid min-h-60 place-items-center text-sm text-slate-500">
-      <span className="inline-flex items-center gap-2">
-        <LoaderCircle className="size-4 animate-spin" /> {copy.loading}
-      </span>
+    <div className={`rounded-3xl border p-5 ${featured ? "border-[#8d7cff]/40 bg-[#5b43f1]/35" : "border-white/10 bg-white/7"}`}>
+      <p className="text-xs font-black uppercase tracking-[0.12em] text-white/50">{label}</p>
+      <p className="mt-2 text-3xl font-black">{value}</p>
     </div>
   );
 }
 
-function ErrorPanel({ onRetry }: Readonly<{ onRetry: () => void }>) {
+function PredictionLoading() {
+  const { t } = useI18n();
   return (
-    <div className="rounded-2xl border border-rose-300/15 bg-rose-300/5 p-6 text-sm text-rose-200">
-      No se pudo cargar esta información.
-      <button
-        type="button"
-        onClick={onRetry}
-        className="ml-3 underline"
-      >
-        Reintentar
-      </button>
+    <div className="grid min-h-80 place-items-center" aria-label={t("loading.label")}>
+      <div className="text-center">
+        <span className="mx-auto grid size-14 place-items-center rounded-2xl bg-[#eeeaff] text-[#5b43f1]"><Target className="size-6 animate-pulse" /></span>
+        <p className="mt-4 text-sm font-black text-[#777b87]">{t("opp.loading")}</p>
+      </div>
     </div>
   );
 }
 
-function detailToListItem(
-  prediction: Awaited<ReturnType<typeof api.prediction>>,
-): PredictionListItem {
-  const evaluation = prediction.commercial_evaluation;
+function PredictionError({ onRetry }: Readonly<{ onRetry: () => void }>) {
+  const { t } = useI18n();
+  return (
+    <div className="rounded-[2rem] border border-[#ff7759]/20 bg-white p-8 text-center">
+      <h2 className="text-xl font-black">{t("opp.error")}</h2>
+      <button type="button" className="interactive-button mt-5 cursor-pointer rounded-2xl bg-[#182033] px-5 py-3 text-sm font-black text-white" onClick={onRetry}>{t("error.retry")}</button>
+    </div>
+  );
+}
+
+function PredictionEmpty() {
+  const { t } = useI18n();
+  return (
+    <div className="grid min-h-72 place-items-center rounded-[2rem] border border-dashed border-[#182033]/15 bg-white/60 p-8 text-center">
+      <div>
+        <span className="mx-auto grid size-14 place-items-center rounded-2xl bg-[#eeeaff] text-[#5b43f1]"><Target className="size-6" /></span>
+        <h2 className="mt-5 text-xl font-black">{t("opp.empty")}</h2>
+        <p className="mt-2 text-sm text-[#777b87]">{t("opp.emptyText")}</p>
+      </div>
+    </div>
+  );
+}
+
+function detailToListItem(value: PredictionRun): PredictionListItem {
+  const evaluation = value.commercial_evaluation;
   return {
-    prediction_run_id: prediction.prediction_run_id,
-    market_id: prediction.market_id,
-    market_title: prediction.market_title,
-    provider_code: prediction.provider_code ?? "unknown",
-    category: prediction.category,
-    predicted_at: prediction.predicted_at,
-    market_probability: prediction.market_probability,
-    consensus_probability: prediction.consensus_probability,
-    consensus_confidence: prediction.consensus_confidence,
-    estimated_outcome: prediction.estimated_outcome,
+    prediction_run_id: value.prediction_run_id,
+    market_id: value.market_id,
+    market_title: value.market_title,
+    provider_code: value.provider_code ?? "unknown",
+    category: value.category,
+    predicted_at: value.predicted_at,
+    market_probability: value.market_probability,
+    consensus_probability: value.consensus_probability,
+    consensus_confidence: value.consensus_confidence,
+    estimated_outcome: value.estimated_outcome,
     commercial_label: evaluation?.commercial_label ?? "not_evaluable",
     potential_side: evaluation?.potential_side ?? "none",
     gross_edge: evaluation?.gross_edge ?? null,
     net_edge: evaluation?.net_edge ?? null,
     is_actionable: evaluation?.is_actionable ?? false,
-    primary_reason:
-      evaluation?.reasons[0] ??
-      prediction.abstention_reason ??
-      "commercial_evaluation_unavailable",
-    portfolio_has_open_position:
-      evaluation?.portfolio_has_open_position ?? false,
-    data_freshness_status:
-      evaluation?.data_freshness_status ?? "unavailable",
+    primary_reason: evaluation?.reasons[0] ?? "not_evaluable",
+    portfolio_has_open_position: evaluation?.portfolio_has_open_position ?? false,
+    data_freshness_status: evaluation?.data_freshness_status ?? "unavailable",
     campaign_id: evaluation?.campaign_id ?? null,
     portfolio_id: evaluation?.portfolio_id ?? null,
   };
 }
 
-function commercialLabel(label: CommercialLabel, copy: Copy): string {
-  if (label === "actionable") return copy.actionable;
-  if (label === "not_actionable") return copy.notActionable;
-  return copy.notEvaluable;
+function humanReason(value: string, t: ReturnType<typeof useI18n>["t"]): string {
+  const normalized = value.toLowerCase();
+  if (normalized.includes("confidence")) return t("opp.reason.confidence");
+  if (normalized.includes("edge")) return t("opp.reason.edge");
+  if (normalized.includes("fresh") || normalized.includes("stale")) return t("opp.reason.freshness");
+  if (normalized.includes("position")) return t("opp.reason.position");
+  if (normalized.includes("risk") || normalized.includes("exposure")) return t("opp.reason.risk");
+  return t("opp.reason.policy");
 }
 
 function probability(value: string | null): string {
-  if (value === null) return "—";
-  return `${(Number(value) * 100).toFixed(2)}%`;
-}
-
-function signedPoints(value: string | null): string {
-  if (value === null) return "—";
-  const points = Number(value) * 100;
-  return `${points > 0 ? "+" : ""}${points.toFixed(2)} pp`;
+  return value === null ? "—" : `${(Number(value) * 100).toFixed(0)}%`;
 }
 
 function positiveInt(value: string | null, fallback: number): number {
@@ -934,6 +624,6 @@ function positiveInt(value: string | null, fallback: number): number {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-function humanReason(value: string): string {
-  return value.replaceAll("_", " ");
+function opportunityFilter(value: string | null): OpportunityFilter {
+  return value === "actionable" || value === "not_actionable" ? value : "all";
 }

@@ -1,69 +1,36 @@
-# 25 — Mapa de navegación
+# 25 — Mapa de navegación ejecutivo
 
-Estado: implementado  
-Fecha: 2026-07-28
+Estado: implementado
+Fecha: 2026-07-31
 
 ```text
-Inicio
-├── KPIs
-├── cambios principales
-└── avisos
-Mercados
-├── listado
-└── detalle
-    ├── probabilidad
-    ├── serie histórica
-    └── timeline (vista avanzada)
-Historial
-├── cambios de mercados
-├── observaciones
-└── sincronizaciones
-Experimentos (vista avanzada)
-├── datasets disponibles
-└── ejecuciones reproducibles
-Cartera simulada
-├── capital, cash y exposición
-└── estado de evidencia y trazabilidad
-Operaciones
-└── entrada, riesgo, costes, resultado y predicción
-Posiciones
-└── abiertas, liquidadas y mark informativo
-Rendimiento
-├── equity curve y drawdown
-├── métricas y alertas
-└── baselines y desgloses
-Fuentes de datos
-Estado del sistema
-Configuración
-├── vista simple/avanzada
-└── es-ES/en-US
+Resumen (/)
+├── estado del laboratorio
+├── resultado y capital simulados
+├── evolución de la cartera
+└── actividad reciente
+Oportunidades (/predictions)
+├── listado paginado y filtros simples
+├── detalle lazy (/predictions/{prediction_id})
+└── simulación manual opcional
+Actividad (/trades)
+├── todas
+├── automáticas
+└── manuales
+Mercados (/markets)
+├── listado y búsqueda
+└── detalle (/markets/{market_id})
 ```
 
-En móvil la navegación usa un panel desplegable; en escritorio permanece
-visible. Seleccionar un cambio principal abre el mercado correspondiente.
-En vista simple no aparece la navegación de Experimentos; las cuatro vistas de
-paper trading sí están disponibles con detalle reducido y disclaimer fijo. La
-vista avanzada agrega hashes, IDs, checks, configuración y trazabilidad.
+Estas son las únicas cuatro entradas visibles. En escritorio se presentan en
+una barra superior; en móvil conservan el mismo orden en una navegación
+horizontal compacta. No existe un selector simple/avanzado.
 
-## Rutas
+Las rutas históricas (`/agents`, `/portfolio`, `/positions`, `/performance`,
+`/experiments`, `/history`, `/sources`, `/system` y `/settings`) se conservan
+temporalmente como enlaces compatibles, pero muestran el resumen y no aparecen
+en el menú. La capacidad técnica subyacente sigue disponible en la API.
 
-| Sección | Ruta |
-| --- | --- |
-| Inicio | `/` |
-| Mercados | `/markets` |
-| Detalle de mercado | `/markets/{market_id}` |
-| Historial | `/history` |
-| Predicciones | `/predictions` |
-| Agentes | `/agents` |
-| Cartera | `/portfolio` |
-| Operaciones | `/trades` |
-| Posiciones | `/positions` |
-| Rendimiento | `/performance` |
-| Experimentos | `/experiments` |
-| Fuentes | `/sources` |
-| Sistema | `/system` |
-| Configuración | `/settings` |
-
-Las rutas son enlazables, soportan navegación atrás/adelante y carga directa.
-TanStack Query refresca los datos cada 60 segundos, incluso con la pestaña en
-segundo plano.
+TanStack Query mantiene el refresco de fondo. El listado de oportunidades es
+liviano y paginado; la explicación, los agentes y los artefactos relacionados
+se solicitan sólo al abrir una oportunidad.

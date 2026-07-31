@@ -72,8 +72,10 @@ Intervención humana opcional
   - `GET /replay-datasets`;
   - `GET /experiment-runs`;
   - `GET /experiment-runs/{run_id}`.
-- Dashboard bilingüe, simple/avanzado, responsive y accesible.
-- Experimentos visibles en modo avanzado; aviso educativo mínimo en simple.
+- Dashboard ejecutivo bilingüe, responsive y accesible con sólo cuatro
+  recorridos visibles: Resumen, Oportunidades, Actividad y Mercados.
+- Presentación en lenguaje no técnico, detalle lazy de oportunidades y
+  separación visual entre automatización y simulaciones manuales.
 - Contratos `PredictionAgent` y `ModelBackend`.
 - Backends deterministas RuleBased y Mock sin I/O externo.
 - ReasoningAgent, MarketAgent, SkepticAgent y ConsensusAgent versionados.

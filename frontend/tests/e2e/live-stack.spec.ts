@@ -8,8 +8,7 @@ const DASHBOARD_ENDPOINTS = [
   "/markets",
   "/sources",
   "/collector-runs",
-  "/experiment-runs",
-  "/replay-datasets",
+  "/paper-portfolios",
 ] as const;
 
 test.describe("live Docker stack", () => {
