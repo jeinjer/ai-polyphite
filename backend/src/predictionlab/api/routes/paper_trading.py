@@ -145,6 +145,7 @@ class PaperTradeResponse(BaseModel):
     decision_reasons: list[str]
     prediction_result_hash: str
     experiment_run_id: UUID | None
+    decision_source: TradeDecisionSource
     simulation_only: bool = True
     probability_is_informative: bool = True
 

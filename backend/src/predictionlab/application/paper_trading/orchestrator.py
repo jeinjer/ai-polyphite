@@ -467,6 +467,13 @@ class PaperTradingOrchestrator:
                 portfolio_id=portfolio.portfolio_id,
                 as_of=command.settled_at,
             )
+            portfolio = portfolio.revalue_open_positions(
+                unrealized_pnl=sum(
+                    (context.position.unrealized_pnl for context in contexts),
+                    start=Decimal("0"),
+                ),
+                occurred_at=command.settled_at,
+            )
             settlements: list[PaperSettlement] = []
             for context in contexts:
                 position = context.position

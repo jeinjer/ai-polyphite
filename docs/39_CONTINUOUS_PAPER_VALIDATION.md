@@ -62,6 +62,12 @@ no se repara automáticamente: el ciclo termina `failed` con
 `PaperAccountingReconciliationError` y códigos estables de diferencia. Esto
 evita ocultar corrupción contable.
 
+Antes de aplicar nuevos marks, el agregado materializado de P&L no realizado se
+reconstruye desde las posiciones abiertas durables usando la precisión
+`NUMERIC(28, 8)` de persistencia. Esto corrige únicamente deriva de redondeo;
+una diferencia material de cash, reserva, ledger, exposición o P&L continúa
+fallando la reconciliación.
+
 ## Configuración congelada
 
 Defaults del MVP:
@@ -136,6 +142,12 @@ separada; no es un microservicio ni una nueva fuente de verdad.
 
 El worker continúa tras un ciclo fallido y respeta SIGINT/SIGTERM de forma
 cooperativa.
+
+Las campañas del mismo slot se ejecutan de forma aislada: el fallo de la
+conservadora no omite la experimental, ni viceversa. El primer error se vuelve
+a propagar después de intentar todas las campañas. Las esperas se reevalúan en
+segmentos máximos de 60 segundos, de modo que una suspensión y reanudación del
+host no deja al proceso bloqueado durante el resto del intervalo anterior.
 
 ## Límites
 

@@ -5,12 +5,13 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from enum import StrEnum
 from uuid import UUID
 
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _TOLERANCE = Decimal("0.00000001")
+_AMOUNT_QUANTUM = Decimal("0.00000001")
 
 
 class PaperTradingInvariantError(ValueError):
@@ -122,9 +123,9 @@ class PaperPortfolio:
             raise PaperTradingInvariantError("portfolio is not active")
         if net_cost > self.cash_balance:
             raise PaperTradingInvariantError("portfolio has insufficient cash")
-        cash = self.cash_balance - net_cost
-        reserved = self.reserved_balance + net_cost
-        unrealized = self.unrealized_pnl + initial_mark_value - net_cost
+        cash = _amount(self.cash_balance - net_cost)
+        reserved = _amount(self.reserved_balance + net_cost)
+        unrealized = _amount(self.unrealized_pnl + initial_mark_value - net_cost)
         return replace(
             self,
             cash_balance=cash,
@@ -144,11 +145,31 @@ class PaperPortfolio:
     ) -> PaperPortfolio:
         _finite(previous_unrealized_pnl, "previous_unrealized_pnl")
         _finite(current_unrealized_pnl, "current_unrealized_pnl")
-        unrealized = self.unrealized_pnl - previous_unrealized_pnl + current_unrealized_pnl
+        unrealized = _amount(
+            self.unrealized_pnl
+            - _amount(previous_unrealized_pnl)
+            + _amount(current_unrealized_pnl)
+        )
         return replace(
             self,
             unrealized_pnl=unrealized,
             equity=self.cash_balance + self.reserved_balance + unrealized,
+            updated_at=_utc(occurred_at, "occurred_at"),
+        )
+
+    def revalue_open_positions(
+        self,
+        *,
+        unrealized_pnl: Decimal,
+        occurred_at: datetime,
+    ) -> PaperPortfolio:
+        """Rebuild the materialized mark projection from durable positions."""
+        _finite(unrealized_pnl, "unrealized_pnl")
+        normalized = _amount(unrealized_pnl)
+        return replace(
+            self,
+            unrealized_pnl=normalized,
+            equity=_amount(self.cash_balance + self.reserved_balance + normalized),
             updated_at=_utc(occurred_at, "occurred_at"),
         )
 
@@ -167,14 +188,14 @@ class PaperPortfolio:
         _finite(realized_pnl, "realized_pnl")
         if invested_amount > self.reserved_balance:
             raise PaperTradingInvariantError("settlement exceeds reserved capital")
-        cash = self.cash_balance + net_payout
-        reserved = self.reserved_balance - invested_amount
-        unrealized = self.unrealized_pnl - previous_unrealized_pnl
+        cash = _amount(self.cash_balance + net_payout)
+        reserved = _amount(self.reserved_balance - invested_amount)
+        unrealized = _amount(self.unrealized_pnl - _amount(previous_unrealized_pnl))
         return replace(
             self,
             cash_balance=cash,
             reserved_balance=reserved,
-            realized_pnl=self.realized_pnl + realized_pnl,
+            realized_pnl=_amount(self.realized_pnl + _amount(realized_pnl)),
             unrealized_pnl=unrealized,
             equity=cash + reserved + unrealized,
             total_exposure=reserved,
@@ -408,7 +429,7 @@ class PaperPosition:
         return replace(
             self,
             current_mark_probability=probability,
-            unrealized_pnl=value - self.invested_amount,
+            unrealized_pnl=_amount(value - self.invested_amount),
         )
 
     def settle(
@@ -564,6 +585,11 @@ def _text(value: str, field_name: str) -> None:
 def _finite(value: Decimal, field_name: str) -> None:
     if not isinstance(value, Decimal) or not value.is_finite():
         raise PaperTradingInvariantError(f"{field_name} must be a finite Decimal")
+
+
+def _amount(value: Decimal) -> Decimal:
+    _finite(value, "amount")
+    return value.quantize(_AMOUNT_QUANTUM, rounding=ROUND_HALF_UP)
 
 
 def _non_negative(value: Decimal, field_name: str) -> None:

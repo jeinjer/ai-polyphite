@@ -10,6 +10,18 @@ versionada.
 
 ### Fixed
 
+- La ingesta Manifold conserva resoluciones confirmadas ante correcciones
+  incompatibles del proveedor, registra el conflicto y continúa el catálogo.
+- La valoración paper usa la misma precisión decimal que PostgreSQL y
+  reconstruye la proyección agregada desde posiciones durables antes de
+  reconciliar, evitando falsos fallos por redondeos sub-centesimales.
+- Un fallo de una campaña paper ya no impide ejecutar las campañas restantes
+  del mismo slot.
+- Collector y validador revisan sus esperas cada 60 segundos para reanudar el
+  trabajo rápidamente después de una suspensión del host.
+- El dashboard selecciona por defecto la cartera autónoma, filtra todas las
+  lecturas por cartera y distingue operaciones automáticas de overrides
+  manuales.
 - El backend CI carga su configuración estricta de Mypy, aplica las
   migraciones sobre PostgreSQL limpio y aísla los tests de configuración de
   variables heredadas del runner.

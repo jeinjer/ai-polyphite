@@ -27,7 +27,9 @@ from predictionlab.domain.markets import (
     MarketObservation,
     MarketSnapshot,
     MarketStateChange,
+    MarketStatus,
     Provider,
+    ResolutionOutcome,
 )
 from predictionlab.providers.base import (
     FetchMarketsRequest,
@@ -36,6 +38,7 @@ from predictionlab.providers.base import (
     ProviderMarketObservation,
     ProviderMarketSnapshot,
     ProviderMarketStatus,
+    ProviderResolutionOutcome,
     ProviderUnavailableError,
 )
 from predictionlab.providers.mock import MockProvider
@@ -320,6 +323,63 @@ async def test_collector_skips_provider_conflict_without_stopping_catalog() -> N
     assert second.status is CollectorRunStatus.SUCCEEDED
     assert second.observations_fetched == 1
     assert second.observations_skipped == 1
+
+
+@pytest.mark.asyncio
+async def test_collector_preserves_confirmed_resolution_and_continues(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    state = MemoryState()
+    provider_owner = Provider(
+        code="mock",
+        name="Mock Provider",
+        provider_id=uuid4(),
+        created_at=NOW,
+        updated_at=NOW,
+    )
+    state.providers[provider_owner.provider_id] = provider_owner
+    stored = Market(
+        provider_id=provider_owner.provider_id,
+        provider_market_id="confirmed-resolution",
+        title="Already resolved",
+        status=MarketStatus.RESOLVED,
+        resolution_outcome=ResolutionOutcome.YES,
+        resolved_at=NOW,
+        ingested_at=NOW,
+        updated_at=NOW,
+    )
+    state.markets[stored.market_id] = stored
+    conflicting = ProviderMarket(
+        provider_market_id="confirmed-resolution",
+        title="Already resolved",
+        status=ProviderMarketStatus.CANCELLED,
+        resolution_outcome=ProviderResolutionOutcome.CANCELLED,
+        resolved_at=NOW,
+        source_updated_at=NOW,
+    )
+    valid = ProviderMarket(
+        provider_market_id="valid-market",
+        title="Valid open market",
+        status=ProviderMarketStatus.OPEN,
+        source_updated_at=NOW,
+    )
+    service, _, _ = collector(
+        MockProvider(markets=(conflicting, valid), snapshots={}),
+        state=state,
+        page_size=10,
+    )
+    caplog.set_level(logging.WARNING)
+
+    result = await service.collect()
+
+    assert result.status is CollectorRunStatus.SUCCEEDED
+    assert result.markets_unchanged == 1
+    assert result.markets_created == 1
+    assert state.markets[stored.market_id].resolution_outcome is ResolutionOutcome.YES
+    assert any(
+        record.message == "collector_market_resolution_conflict_skipped"
+        for record in caplog.records
+    )
 
 
 @pytest.mark.asyncio

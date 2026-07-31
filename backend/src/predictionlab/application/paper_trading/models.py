@@ -364,6 +364,7 @@ class PaperTradeDetail:
     decision_reasons: tuple[str, ...]
     prediction_result_hash: str
     experiment_run_id: UUID | None
+    decision_source: TradeDecisionSource
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

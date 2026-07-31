@@ -104,18 +104,25 @@ class _ParallelCampaignRunner:
         correlation_id: str | None = None,
         causation_id: str | None = None,
     ) -> PaperValidationRunResult:
-        primary = await self._primary.run_cycle(
-            scheduled_for=scheduled_for,
-            correlation_id=correlation_id,
-            causation_id=causation_id,
-        )
-        for service in self._additional:
-            await service.run_cycle(
-                scheduled_for=scheduled_for,
-                correlation_id=correlation_id,
-                causation_id=causation_id,
-            )
-        return primary
+        primary_result: PaperValidationRunResult | None = None
+        errors: list[Exception] = []
+        services = (self._primary, *self._additional)
+        for index, service in enumerate(services):
+            try:
+                result = await service.run_cycle(
+                    scheduled_for=scheduled_for,
+                    correlation_id=correlation_id,
+                    causation_id=causation_id,
+                )
+                if index == 0:
+                    primary_result = result
+            except Exception as exc:
+                errors.append(exc)
+        if errors:
+            raise errors[0]
+        if primary_result is None:
+            raise RuntimeError("primary paper campaign produced no result")
+        return primary_result
 
 
 def create_paper_validation_runtime(

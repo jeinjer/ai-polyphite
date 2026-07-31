@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
@@ -10,6 +11,8 @@ from predictionlab.domain.paper_trading import (
     CurrencyUnit,
     PaperPortfolio,
     PaperPortfolioStatus,
+    PaperPosition,
+    PaperPositionStatus,
     PaperTradingInvariantError,
     PositionSide,
     TradeDecision,
@@ -96,6 +99,58 @@ def test_portfolio_rejects_leverage_and_inconsistent_equity() -> None:
             created_at=NOW,
             updated_at=NOW,
         )
+
+
+def test_marks_and_portfolio_projection_share_persistence_precision() -> None:
+    first = PaperPosition(
+        position_id=UUID("00000000-0000-4000-8000-000000000931"),
+        portfolio_id=PORTFOLIO_ID,
+        market_id=UUID("00000000-0000-4000-8000-000000000932"),
+        category=None,
+        side=PositionSide.YES,
+        opened_at=NOW,
+        closed_at=None,
+        status=PaperPositionStatus.OPEN,
+        units=Decimal("1"),
+        average_entry_probability=Decimal("0.5"),
+        invested_amount=Decimal("0.5"),
+        current_mark_probability=Decimal("0.5"),
+        unrealized_pnl=Decimal("0"),
+        realized_pnl=Decimal("0"),
+        settlement_outcome=None,
+        prediction_run_id=UUID("00000000-0000-4000-8000-000000000933"),
+        trade_id=UUID("00000000-0000-4000-8000-000000000934"),
+        opportunity_level="weak",
+        entry_edge=Decimal("0.03"),
+        entry_confidence=Decimal("0.6"),
+    )
+    second = replace(
+        first,
+        position_id=UUID("00000000-0000-4000-8000-000000000935"),
+        market_id=UUID("00000000-0000-4000-8000-000000000936"),
+        prediction_run_id=UUID("00000000-0000-4000-8000-000000000937"),
+        trade_id=UUID("00000000-0000-4000-8000-000000000938"),
+    )
+    marked_positions = tuple(
+        position.mark(
+            probability=Decimal("0.5000000049"),
+            marked_at=NOW + timedelta(minutes=1),
+        )
+        for position in (first, second)
+    )
+    projected = portfolio().revalue_open_positions(
+        unrealized_pnl=sum(
+            (position.unrealized_pnl for position in marked_positions),
+            start=Decimal("0"),
+        ),
+        occurred_at=NOW + timedelta(minutes=1),
+    )
+
+    assert {position.unrealized_pnl for position in marked_positions} == {
+        Decimal("0E-8")
+    }
+    assert projected.unrealized_pnl == Decimal("0E-8")
+    assert projected.equity == Decimal("100.00000000")
 
 
 def test_manual_decision_requires_explicit_override_provenance() -> None:

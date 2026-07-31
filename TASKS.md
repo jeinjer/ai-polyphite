@@ -175,6 +175,10 @@ completada hasta que su código, tests y documentación hayan sido validados.
 
 ## Next — MVP stabilization
 
+- [x] Aislar correcciones incompatibles de resolución sin detener la ingesta.
+- [x] Eliminar falsos fallos de reconciliación por precisión decimal.
+- [x] Aislar campañas paper y reanudar workers después de suspensión.
+- [x] Separar cartera y origen automático/manual en el dashboard paper.
 - [x] Hacer reproducible el backend CI con configuración Mypy explícita,
       migraciones limpias y tests aislados de variables heredadas.
 - [x] Congelar políticas y configuración del MVP mediante hash durable.

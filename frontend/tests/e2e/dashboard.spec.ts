@@ -264,6 +264,20 @@ const paperPortfolio = {
   simulation_only: true,
 };
 
+const autonomousPaperPortfolio = {
+  ...paperPortfolio,
+  portfolio_id: "00000000-0000-4000-8000-000000000070",
+  name: "Autonomous Manifold paper validation",
+  experiment_run_id: null,
+};
+
+const manualPaperPortfolio = {
+  ...paperPortfolio,
+  portfolio_id: "00000000-0000-4000-8000-000000000071",
+  name: "Manual paper overrides",
+  experiment_run_id: null,
+};
+
 const tradeDecision = {
   decision_id: "00000000-0000-4000-8000-000000000061",
   prediction_run_id: predictionRun.prediction_run_id,
@@ -289,6 +303,8 @@ const tradeDecision = {
   causation_id: "replay-trade",
   experiment_run_id: experimentRun.experiment_run_id,
   prediction_result_hash: predictionRun.result_hash,
+  decision_source: "automatic",
+  override_reason: null,
   simulation_only: true,
 };
 
@@ -317,6 +333,7 @@ const paperTrade = {
   decision_reasons: tradeDecision.risk_checks,
   prediction_result_hash: predictionRun.result_hash,
   experiment_run_id: experimentRun.experiment_run_id,
+  decision_source: "automatic",
   simulation_only: true,
   probability_is_informative: true,
 };
@@ -667,6 +684,7 @@ test("shows simulated portfolio, trades, positions and performance", async ({
     page.getByRole("heading", { name: "Operaciones simuladas" }),
   ).toBeVisible();
   await expect(page.getByText("Capital en riesgo")).toBeVisible();
+  await expect(page.getByText("Automática")).toBeVisible();
 
   await page.goto("/positions");
   await expect(
@@ -678,6 +696,20 @@ test("shows simulated portfolio, trades, positions and performance", async ({
     page.getByRole("heading", { name: "Rendimiento experimental" }),
   ).toBeVisible();
   await expect(page.getByText("Muestra insuficiente")).toBeVisible();
+});
+
+test("defaults to the autonomous portfolio instead of manual overrides", async ({
+  page,
+}) => {
+  await installApi(page, {
+    paperPortfolios: [manualPaperPortfolio, autonomousPaperPortfolio],
+  });
+
+  await page.goto("/portfolio");
+
+  await expect(page.getByLabel("Cartera simulada")).toHaveValue(
+    autonomousPaperPortfolio.portfolio_id,
+  );
 });
 
 test("switches the complete interface to English", async ({ page }) => {

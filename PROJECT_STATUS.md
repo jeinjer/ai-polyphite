@@ -1,6 +1,6 @@
 # AI-Polyphite — Project Status
 
-Última actualización: 2026-07-30
+Última actualización: 2026-07-31
 
 ## Estado general
 
@@ -129,6 +129,15 @@ Intervención humana opcional
 - Reinicio `unless-stopped` para API, frontend, collector, validador y backup.
 - CI del backend valida Mypy con el plugin de Pydantic, la cadena completa de
   migraciones sobre PostgreSQL limpio y tests aislados del entorno del runner.
+- Conflictos externos que intentan reescribir una resolución confirmada se
+  aíslan por mercado sin bloquear el checkpoint del catálogo.
+- Contabilidad paper normalizada a 8 decimales y proyección de P&L no realizado
+  reconstruida desde posiciones durables antes de reconciliar.
+- Campañas conservadora y experimental aisladas ante fallos de la otra.
+- Esperas de workers segmentadas en 60 segundos para reaccionar al despertar
+  del host y a señales de parada.
+- Selector explícito de cartera paper; la autónoma es el default y las
+  operaciones muestran origen automático o manual.
 
 ## Decisiones vigentes
 

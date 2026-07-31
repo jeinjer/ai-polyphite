@@ -143,6 +143,12 @@ Si Manifold cambia métricas conservando el mismo `lastUpdatedTime`, la
 observación inmutable ya persistida prevalece: el conflicto se registra y se
 omite sin detener el resto del catálogo.
 
+Una resolución YES/NO ya confirmada también es append-only. Si la API pasa a
+publicar `CANCELLED` u otro resultado incompatible para el mismo ID, el
+Collector registra `collector_market_resolution_conflict_skipped`, conserva el
+hecho histórico y continúa procesando y checkpointando el catálogo. El
+adaptador no decide ni reescribe este conflicto.
+
 ## Confiabilidad
 
 - Timeout por request: 10 segundos por defecto.

@@ -69,14 +69,22 @@ export const api = {
     }),
   paperPortfolios: () =>
     request<Page<PaperPortfolio>>("/paper-portfolios?page=1&page_size=100"),
-  tradeDecisions: () =>
-    request<Page<TradeDecision>>("/trade-decisions?page=1&page_size=100"),
-  paperTrades: () =>
-    request<Page<PaperTrade>>("/paper-trades?page=1&page_size=100"),
-  paperPositions: () =>
-    request<Page<PaperPosition>>("/paper-positions?page=1&page_size=100"),
-  paperSettlements: () =>
-    request<Page<PaperSettlement>>("/paper-settlements?page=1&page_size=100"),
+  tradeDecisions: (portfolioId: string) =>
+    request<Page<TradeDecision>>(
+      `/trade-decisions?page=1&page_size=100&portfolio_id=${encodeURIComponent(portfolioId)}`,
+    ),
+  paperTrades: (portfolioId: string) =>
+    request<Page<PaperTrade>>(
+      `/paper-trades?page=1&page_size=100&portfolio_id=${encodeURIComponent(portfolioId)}`,
+    ),
+  paperPositions: (portfolioId: string) =>
+    request<Page<PaperPosition>>(
+      `/paper-positions?page=1&page_size=100&portfolio_id=${encodeURIComponent(portfolioId)}`,
+    ),
+  paperSettlements: (portfolioId: string) =>
+    request<Page<PaperSettlement>>(
+      `/paper-settlements?page=1&page_size=100&portfolio_id=${encodeURIComponent(portfolioId)}`,
+    ),
   paperPerformance: (portfolioId: string) =>
     request<PaperPerformance>(`/paper-portfolios/${portfolioId}/performance`),
   paperEquityCurve: (portfolioId: string) =>

@@ -166,3 +166,9 @@ Las decisiones deben segmentarse por:
 No se deben combinar resultados manuales y automáticos en una única métrica de
 estrategia. Los logs incluyen IDs, correlation/causation IDs y
 `simulation_only=true`, nunca secretos.
+
+Las vistas `/portfolio`, `/trades`, `/positions` y `/performance` comparten un
+selector de cartera. El dashboard prioriza `Autonomous Manifold paper
+validation`, filtra cada query por su `portfolio_id` y muestra en cada trade
+`Automática` o `Manual`. Cambiar el selector es la única forma de mezclar el
+contexto visible; las métricas siguen consultándose por cartera.

@@ -9,6 +9,7 @@ from predictionlab.application.paper_validation import (
     PaperValidationRunResult,
     PaperValidationRunStatus,
 )
+from predictionlab.runtime import paper_validation_worker as worker_module
 from predictionlab.runtime.paper_validation_worker import (
     PaperValidationWorker,
     _scheduled_slot,
@@ -23,6 +24,14 @@ class FixedClock:
 
     def __call__(self) -> datetime:
         return self.now()
+
+
+class AdvancingClock:
+    def __init__(self) -> None:
+        self.current = NOW
+
+    def now(self) -> datetime:
+        return self.current
 
 
 class RecordingRunner:
@@ -96,3 +105,27 @@ async def test_periodic_worker_stops_cooperatively() -> None:
 
     assert len(runner.calls) == 1
     assert runner.calls[0][2] == "paper-validation-interval"
+
+
+@pytest.mark.asyncio
+async def test_worker_waits_in_short_slices_for_resume_detection(monkeypatch) -> None:
+    runner = RecordingRunner()
+    clock = AdvancingClock()
+    worker = PaperValidationWorker(
+        runner=runner,
+        interval_seconds=3600,
+        run_immediately=False,
+        clock=clock,
+    )
+    timeouts: list[float] = []
+
+    async def expire(awaitable, *, timeout: float):
+        awaitable.close()
+        timeouts.append(timeout)
+        clock.current = datetime(2026, 7, 28, 13, 35, tzinfo=UTC)
+        raise TimeoutError
+
+    monkeypatch.setattr(worker_module.asyncio, "wait_for", expire)
+
+    assert await worker._wait_until(NOW, next_slot=True) is False
+    assert timeouts == [60.0]

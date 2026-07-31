@@ -669,6 +669,7 @@ def _trade_detail(
         decision_reasons=tuple(decision.risk_checks),
         prediction_result_hash=prediction.result_hash,
         experiment_run_id=decision.experiment_run_id,
+        decision_source=TradeDecisionSource(decision.decision_source),
     )
 
 

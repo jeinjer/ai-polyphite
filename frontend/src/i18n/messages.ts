@@ -262,6 +262,9 @@ export const esES = {
   "advanced.noError": "Sin errores",
   "paper.disclaimer":
     "Resultados simulados. No representan dinero real ni garantizan rendimientos futuros.",
+  "paper.portfolioSelector": "Cartera simulada",
+  "paper.source.automatic": "Automática",
+  "paper.source.manual": "Manual",
   "paper.portfolioTitle": "Cartera de investigación",
   "paper.portfolioDescription":
     "Capital virtual, exposición y resultados reconstruibles.",
@@ -614,6 +617,9 @@ export const enUS: Messages = {
   "advanced.noError": "No errors",
   "paper.disclaimer":
     "Simulated results. They do not represent real money or guarantee future returns.",
+  "paper.portfolioSelector": "Simulated portfolio",
+  "paper.source.automatic": "Automatic",
+  "paper.source.manual": "Manual",
   "paper.portfolioTitle": "Research portfolio",
   "paper.portfolioDescription":
     "Reconstructible virtual capital, exposure and results.",

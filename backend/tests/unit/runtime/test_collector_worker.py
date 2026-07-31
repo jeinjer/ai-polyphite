@@ -7,6 +7,7 @@ from uuid import uuid4
 import pytest
 
 from predictionlab.collectors import CollectorRunResult, CollectorRunStatus
+from predictionlab.runtime import collector_worker as collector_worker_module
 from predictionlab.runtime.collector_worker import CollectorWorker
 
 NOW = datetime(2026, 7, 28, 12, tzinfo=UTC)
@@ -87,3 +88,25 @@ async def test_worker_rejects_run_once_for_disabled_provider() -> None:
 
     with pytest.raises(ValueError, match="not enabled"):
         await worker.run_once("manifold")
+
+
+@pytest.mark.asyncio
+async def test_worker_waits_in_short_slices_for_resume_detection(monkeypatch) -> None:
+    worker = CollectorWorker(
+        collectors={"mock": RecordingCollector()},
+        intervals_seconds={"mock": 3600},
+        run_immediately=False,
+    )
+    timestamps = iter((100.0, 100.0, 3701.0))
+    timeouts: list[float] = []
+
+    async def expire(awaitable, *, timeout: float):
+        awaitable.close()
+        timeouts.append(timeout)
+        raise TimeoutError
+
+    monkeypatch.setattr(collector_worker_module.time, "time", lambda: next(timestamps))
+    monkeypatch.setattr(collector_worker_module.asyncio, "wait_for", expire)
+
+    assert await worker._wait(3600) is False
+    assert timeouts == [60.0]

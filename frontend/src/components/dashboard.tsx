@@ -146,6 +146,9 @@ export function Dashboard() {
       : null;
   const effectiveMarketId = routedMarketId ?? selectedMarketId;
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [selectedPaperPortfolioId, setSelectedPaperPortfolioId] = useState<
+    string | null
+  >(null);
 
   const marketsQuery = useQuery({ queryKey: ["markets"], queryFn: api.markets });
   const sourcesQuery = useQuery({ queryKey: ["sources"], queryFn: api.sources });
@@ -167,23 +170,46 @@ export function Dashboard() {
     queryKey: ["paper-portfolios"],
     queryFn: api.paperPortfolios,
   });
+  const paperPortfolios = useMemo(
+    () => paperPortfoliosQuery.data?.items ?? [],
+    [paperPortfoliosQuery.data?.items],
+  );
+  const preferredPaperPortfolio =
+    paperPortfolios.find((item) =>
+      item.name.toLowerCase().includes("autonomous manifold"),
+    ) ??
+    paperPortfolios.find(
+      (item) =>
+        item.status === "active" &&
+        !item.name.toLowerCase().includes("manual") &&
+        !item.name.toLowerCase().includes("experimental"),
+    ) ??
+    paperPortfolios[0] ??
+    null;
+  const paperPortfolio =
+    paperPortfolios.find(
+      (item) => item.portfolio_id === selectedPaperPortfolioId,
+    ) ?? preferredPaperPortfolio;
   const decisionsQuery = useQuery({
-    queryKey: ["trade-decisions"],
-    queryFn: api.tradeDecisions,
+    queryKey: ["trade-decisions", paperPortfolio?.portfolio_id],
+    queryFn: () => api.tradeDecisions(paperPortfolio?.portfolio_id ?? ""),
+    enabled: paperPortfolio !== null,
   });
   const paperTradesQuery = useQuery({
-    queryKey: ["paper-trades"],
-    queryFn: api.paperTrades,
+    queryKey: ["paper-trades", paperPortfolio?.portfolio_id],
+    queryFn: () => api.paperTrades(paperPortfolio?.portfolio_id ?? ""),
+    enabled: paperPortfolio !== null,
   });
   const paperPositionsQuery = useQuery({
-    queryKey: ["paper-positions"],
-    queryFn: api.paperPositions,
+    queryKey: ["paper-positions", paperPortfolio?.portfolio_id],
+    queryFn: () => api.paperPositions(paperPortfolio?.portfolio_id ?? ""),
+    enabled: paperPortfolio !== null,
   });
   const paperSettlementsQuery = useQuery({
-    queryKey: ["paper-settlements"],
-    queryFn: api.paperSettlements,
+    queryKey: ["paper-settlements", paperPortfolio?.portfolio_id],
+    queryFn: () => api.paperSettlements(paperPortfolio?.portfolio_id ?? ""),
+    enabled: paperPortfolio !== null,
   });
-  const paperPortfolio = paperPortfoliosQuery.data?.items[0] ?? null;
   const paperPerformanceQuery = useQuery({
     queryKey: ["paper-performance", paperPortfolio?.portfolio_id],
     queryFn: () => api.paperPerformance(paperPortfolio?.portfolio_id ?? ""),
@@ -399,6 +425,7 @@ export function Dashboard() {
                 experiments={experimentsQuery.data?.items ?? []}
                 predictions={predictionsQuery.data?.items ?? []}
                 datasets={datasetsQuery.data ?? []}
+                paperPortfolios={paperPortfolios}
                 paperPortfolio={paperPortfolio}
                 tradeDecisions={decisionsQuery.data?.items ?? []}
                 paperTrades={paperTradesQuery.data?.items ?? []}
@@ -411,6 +438,7 @@ export function Dashboard() {
                 history={historyQuery.data?.items ?? []}
                 observationsLoading={observationsQuery.isLoading}
                 historyLoading={historyQuery.isLoading}
+                onSelectPaperPortfolio={setSelectedPaperPortfolioId}
                 onSelectMarket={(marketId) => {
                   selectMarket(marketId);
                   router.push(`/markets/${encodeURIComponent(marketId)}`);
@@ -437,6 +465,7 @@ function DashboardContent({
   experiments,
   predictions,
   datasets,
+  paperPortfolios,
   paperPortfolio,
   tradeDecisions,
   paperTrades,
@@ -449,6 +478,7 @@ function DashboardContent({
   history,
   observationsLoading,
   historyLoading,
+  onSelectPaperPortfolio,
   onSelectMarket,
   onNavigate,
 }: Readonly<{
@@ -460,6 +490,7 @@ function DashboardContent({
   experiments: ExperimentRun[];
   predictions: PredictionRun[];
   datasets: ReplayDataset[];
+  paperPortfolios: PaperPortfolio[];
   paperPortfolio: PaperPortfolio | null;
   tradeDecisions: TradeDecision[];
   paperTrades: PaperTrade[];
@@ -472,6 +503,7 @@ function DashboardContent({
   history: HistoryEvent[];
   observationsLoading: boolean;
   historyLoading: boolean;
+  onSelectPaperPortfolio: (portfolioId: string) => void;
   onSelectMarket: (marketId: string) => void;
   onNavigate: (section: DashboardSection) => void;
 }>) {
@@ -485,6 +517,7 @@ function DashboardContent({
       <PaperTradingView
         section={section}
         mode={mode}
+        portfolios={paperPortfolios}
         portfolio={paperPortfolio}
         decisions={tradeDecisions}
         trades={paperTrades}
@@ -492,6 +525,7 @@ function DashboardContent({
         settlements={paperSettlements}
         performance={paperPerformance}
         equityCurve={paperEquity}
+        onSelectPortfolio={onSelectPaperPortfolio}
       />
     );
   }

@@ -15,6 +15,7 @@ from predictionlab.application.paper_validation import (
 from predictionlab.core.clock import Clock, SystemClock
 
 logger = logging.getLogger(__name__)
+_MAX_WAIT_SLICE_SECONDS = 60.0
 
 
 class PaperValidationRunner(Protocol):
@@ -127,11 +128,18 @@ class PaperValidationWorker:
         target_timestamp = slot.timestamp()
         if next_slot:
             target_timestamp += self._interval_seconds
-        delay = max(0.0, target_timestamp - self._clock.now().timestamp())
-        try:
-            await asyncio.wait_for(self._stop_event.wait(), timeout=delay)
-        except TimeoutError:
-            return False
+        while not self._stop_event.is_set():
+            delay = max(0.0, target_timestamp - self._clock.now().timestamp())
+            if delay == 0:
+                return False
+            try:
+                await asyncio.wait_for(
+                    self._stop_event.wait(),
+                    timeout=min(delay, _MAX_WAIT_SLICE_SECONDS),
+                )
+            except TimeoutError:
+                continue
+            return True
         return True
 
 

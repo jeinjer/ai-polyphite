@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Mapping
 from typing import Protocol
 from uuid import uuid4
@@ -11,6 +12,7 @@ from uuid import uuid4
 from predictionlab.collectors import CollectorRunFailedError, CollectorRunResult
 
 logger = logging.getLogger(__name__)
+_MAX_WAIT_SLICE_SECONDS = 60.0
 
 
 class CollectorRunner(Protocol):
@@ -99,8 +101,17 @@ class CollectorWorker:
                 return
 
     async def _wait(self, delay: float) -> bool:
-        try:
-            await asyncio.wait_for(self._stop_event.wait(), timeout=delay)
-        except TimeoutError:
-            return False
+        deadline = time.time() + delay
+        while not self._stop_event.is_set():
+            remaining = max(0.0, deadline - time.time())
+            if remaining == 0:
+                return False
+            try:
+                await asyncio.wait_for(
+                    self._stop_event.wait(),
+                    timeout=min(remaining, _MAX_WAIT_SLICE_SECONDS),
+                )
+            except TimeoutError:
+                continue
+            return True
         return True

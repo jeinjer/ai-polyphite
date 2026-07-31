@@ -351,6 +351,7 @@ export type PaperTrade = {
   decision_reasons: string[];
   prediction_result_hash: string;
   experiment_run_id: string | null;
+  decision_source: "automatic" | "manual_override";
   simulation_only: true;
   probability_is_informative: true;
 };

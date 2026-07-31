@@ -55,6 +55,7 @@ from predictionlab.core.context import (
 )
 from predictionlab.domain.markets import (
     Market,
+    MarketResolutionConflictError,
     MarketStatus,
     ResolutionOutcome,
 )
@@ -288,12 +289,32 @@ class MarketDataCollector:
                 current.pending_watermark,
             )
             for external_market in batch.markets:
-                market = await self._synchronize_market(
-                    provider_id=provider_id,
-                    external_market=external_market,
-                    progress=progress,
-                    log_context=log_context,
-                )
+                try:
+                    market = await self._synchronize_market(
+                        provider_id=provider_id,
+                        external_market=external_market,
+                        progress=progress,
+                        log_context=log_context,
+                    )
+                except MarketResolutionConflictError:
+                    progress.markets_unchanged += 1
+                    pending_watermark = _latest_datetime(
+                        pending_watermark,
+                        external_market.source_updated_at,
+                    )
+                    logger.warning(
+                        "collector_market_resolution_conflict_skipped",
+                        extra={
+                            **log_context,
+                            "provider_market_id": external_market.provider_market_id,
+                            "incoming_status": external_market.status.value,
+                            "incoming_resolution_outcome": (
+                                external_market.resolution_outcome.value
+                            ),
+                            "safe_error_type": "MarketResolutionConflictError",
+                        },
+                    )
+                    continue
                 if self._config.collect_latest_observations:
                     await self._collect_observation(
                         market=market,

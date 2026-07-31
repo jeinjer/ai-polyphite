@@ -14,6 +14,10 @@ class MarketInvariantError(ValueError):
     """Raised when market-domain data violates a business invariant."""
 
 
+class MarketResolutionConflictError(MarketInvariantError):
+    """Raised when a provider attempts to rewrite a confirmed resolution."""
+
+
 class MarketStatus(StrEnum):
     OPEN = "open"
     CLOSED = "closed"
@@ -277,7 +281,7 @@ class Market:
         if outcome is ResolutionOutcome.UNRESOLVED:
             if self.resolution_outcome is ResolutionOutcome.UNRESOLVED:
                 return self
-            raise MarketInvariantError("a confirmed resolution is terminal")
+            raise MarketResolutionConflictError("a confirmed resolution is terminal")
 
         normalized_resolved_at = (
             _utc_timestamp(resolved_at, "resolved_at") if resolved_at is not None else None
@@ -303,7 +307,9 @@ class Market:
                     updated_at=_changed_at(changed_at, self.updated_at),
                 )
             if self.resolution_outcome is not outcome:
-                raise MarketInvariantError("a confirmed resolution cannot be overwritten")
+                raise MarketResolutionConflictError(
+                    "a confirmed resolution cannot be overwritten"
+                )
             merged_resolved_at = _merge_confirmed_value(
                 self.resolved_at,
                 normalized_resolved_at,
@@ -574,7 +580,9 @@ def _merge_confirmed_value[T](
     if incoming is None:
         return current
     if current is not None and current != incoming:
-        raise MarketInvariantError(f"confirmed {field_name} cannot be overwritten")
+        raise MarketResolutionConflictError(
+            f"confirmed {field_name} cannot be overwritten"
+        )
     return incoming
 
 

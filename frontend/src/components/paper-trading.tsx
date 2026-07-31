@@ -35,6 +35,7 @@ type PaperSection = "portfolio" | "trades" | "positions" | "performance";
 type Props = Readonly<{
   section: PaperSection;
   mode: "simple" | "advanced";
+  portfolios: PaperPortfolio[];
   portfolio: PaperPortfolio | null;
   decisions: TradeDecision[];
   trades: PaperTrade[];
@@ -42,6 +43,7 @@ type Props = Readonly<{
   settlements: PaperSettlement[];
   performance: PaperPerformance | null;
   equityCurve: EquityCurvePoint[];
+  onSelectPortfolio: (portfolioId: string) => void;
 }>;
 
 export function PaperTradingView(props: Props) {
@@ -59,9 +61,11 @@ export function PaperTradingView(props: Props) {
 
 function PortfolioView({
   portfolio,
+  portfolios,
   positions,
   performance,
   mode,
+  onSelectPortfolio,
 }: Props) {
   const { t } = useI18n();
   if (!portfolio) {
@@ -73,6 +77,9 @@ function PortfolioView({
     <PaperLayout
       title={t("paper.portfolioTitle")}
       description={t("paper.portfolioDescription")}
+      portfolio={portfolio}
+      portfolios={portfolios}
+      onSelectPortfolio={onSelectPortfolio}
     >
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Metric
@@ -143,11 +150,13 @@ function PortfolioView({
 
 function TradesView({
   portfolio,
+  portfolios,
   decisions,
   trades,
   positions,
   settlements,
   mode,
+  onSelectPortfolio,
 }: Props) {
   const { t } = useI18n();
   const decisionById = new Map(decisions.map((item) => [item.decision_id, item]));
@@ -159,6 +168,9 @@ function TradesView({
     <PaperLayout
       title={t("paper.tradesTitle")}
       description={t("paper.tradesDescription")}
+      portfolio={portfolio}
+      portfolios={portfolios}
+      onSelectPortfolio={onSelectPortfolio}
     >
       {!trades.length ? (
         <EmptyState message={t("empty.paperTrades")} />
@@ -184,14 +196,25 @@ function TradesView({
                       {new Date(trade.executed_at).toLocaleString()}
                     </p>
                   </div>
-                  <StatusBadge
-                    label={`${trade.side.toUpperCase()} · ${
-                      settlement
-                        ? t(outcomeKey[settlement.outcome])
-                        : t("paper.noResult")
-                    }`}
-                    positive={settlement ? Number(settlement.realized_pnl) >= 0 : true}
-                  />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-slate-300">
+                      {trade.decision_source === "manual_override"
+                        ? t("paper.source.manual")
+                        : t("paper.source.automatic")}
+                    </span>
+                    <StatusBadge
+                      label={`${trade.side.toUpperCase()} · ${
+                        settlement
+                          ? t(outcomeKey[settlement.outcome])
+                          : t("paper.noResult")
+                      }`}
+                      positive={
+                        settlement
+                          ? Number(settlement.realized_pnl) >= 0
+                          : true
+                      }
+                    />
+                  </div>
                 </div>
                 <div className="mt-5 grid gap-4 text-sm sm:grid-cols-2 xl:grid-cols-5">
                   <Value label={t("paper.entry")} value={percent(trade.effective_probability)} />
@@ -244,12 +267,21 @@ function TradesView({
   );
 }
 
-function PositionsView({ portfolio, positions, mode }: Props) {
+function PositionsView({
+  portfolio,
+  portfolios,
+  positions,
+  mode,
+  onSelectPortfolio,
+}: Props) {
   const { t } = useI18n();
   return (
     <PaperLayout
       title={t("paper.positionsTitle")}
       description={t("paper.positionsDescription")}
+      portfolio={portfolio}
+      portfolios={portfolios}
+      onSelectPortfolio={onSelectPortfolio}
     >
       {!positions.length ? (
         <EmptyState message={t("empty.paperPositions")} />
@@ -322,9 +354,11 @@ function PositionsView({ portfolio, positions, mode }: Props) {
 
 function PerformanceView({
   portfolio,
+  portfolios,
   performance,
   equityCurve,
   mode,
+  onSelectPortfolio,
 }: Props) {
   const { t } = useI18n();
   if (!portfolio || !performance) {
@@ -340,6 +374,9 @@ function PerformanceView({
     <PaperLayout
       title={t("paper.performanceTitle")}
       description={t("paper.performanceDescription")}
+      portfolio={portfolio}
+      portfolios={portfolios}
+      onSelectPortfolio={onSelectPortfolio}
     >
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Metric
@@ -449,18 +486,42 @@ function PerformanceView({
 function PaperLayout({
   title,
   description,
+  portfolio,
+  portfolios,
+  onSelectPortfolio,
   children,
 }: Readonly<{
   title: string;
   description: string;
+  portfolio: PaperPortfolio | null;
+  portfolios: PaperPortfolio[];
+  onSelectPortfolio: (portfolioId: string) => void;
   children: ReactNode;
 }>) {
   const { t } = useI18n();
   return (
     <div className="space-y-6">
-      <header>
-        <h2 className="text-xl font-semibold">{title}</h2>
-        <p className="mt-1 text-sm text-slate-500">{description}</p>
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-semibold">{title}</h2>
+          <p className="mt-1 text-sm text-slate-500">{description}</p>
+        </div>
+        <label className="min-w-64 text-xs text-slate-400">
+          <span className="mb-1.5 block">{t("paper.portfolioSelector")}</span>
+          <select
+            aria-label={t("paper.portfolioSelector")}
+            className="w-full rounded-xl border border-white/10 bg-[#0a101a] px-3 py-2 text-sm text-slate-200"
+            value={portfolio?.portfolio_id ?? ""}
+            onChange={(event) => onSelectPortfolio(event.target.value)}
+          >
+            {!portfolio && <option value="">—</option>}
+            {portfolios.map((item) => (
+              <option key={item.portfolio_id} value={item.portfolio_id}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+        </label>
       </header>
       <div
         className="flex items-start gap-3 rounded-2xl border border-cyan-300/15 bg-cyan-300/5 p-4 text-sm text-cyan-100"

@@ -15,7 +15,7 @@ from predictionlab.application.paper_trading import (
     PaperTradingQueryService,
 )
 from predictionlab.core.settings import AppEnvironment, LogLevel, Settings
-from predictionlab.domain.paper_trading import CurrencyUnit
+from predictionlab.domain.paper_trading import CurrencyUnit, TradeDecisionSource
 from predictionlab.infrastructure.database.models import (
     AgentPredictionModel,
     CollectorCheckpointModel,
@@ -137,6 +137,7 @@ async def test_replay_trade_is_deterministic_persistent_and_queryable() -> None:
 
         assert trades.total == trade_counts[0]
         assert trades.items[0].prediction_result_hash
+        assert trades.items[0].decision_source is TradeDecisionSource.AUTOMATIC
         assert report.metrics.closed_trade_count == settlement_count
         assert report.metrics.net_profit == report.portfolio.equity - Decimal("100")
         assert {item.name for item in report.baselines} == {
