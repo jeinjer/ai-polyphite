@@ -5,6 +5,7 @@ completada hasta que su código, tests y documentación hayan sido validados.
 
 ## Completed
 
+- [x] Añadir un comando único para iniciar y verificar el stack autónomo.
 - [x] Rediseñar el dashboard para una audiencia ejecutiva no técnica.
 - [x] Reducir la navegación visible a Resumen, Oportunidades, Actividad y Mercados.
 - [x] Añadir feedback visual de hover, foco y click con movimiento reducido accesible.

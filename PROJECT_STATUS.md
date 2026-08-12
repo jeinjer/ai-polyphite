@@ -1,6 +1,6 @@
 # AI-Polyphite — Project Status
 
-Última actualización: 2026-07-31
+Última actualización: 2026-08-12
 
 ## Estado general
 
@@ -140,6 +140,8 @@ Intervención humana opcional
   del host y a señales de parada.
 - Selector explícito de cartera paper; la autónoma es el default y las
   operaciones muestran origen automático o manual.
+- Inicio cotidiano con `scripts/start.ps1`, incluyendo arranque de Docker
+  Desktop, health checks y verificación de todos los procesos autónomos.
 
 ## Decisiones vigentes
 

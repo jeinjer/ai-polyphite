@@ -3,8 +3,19 @@
 Automatización local explícita y no destructiva.
 
 - `bootstrap.ps1`: crea el entorno Python e instala dependencias locales.
+- `start.ps1`: inicia Docker Desktop si es necesario, levanta todo el stack y
+  espera hasta que API y dashboard estén listos.
 - `check.ps1`: ejecuta audit, lint, typing, unit tests, build y validación de
   Compose sin modificar código fuente.
+
+Inicio cotidiano del laboratorio:
+
+```powershell
+.\scripts\start.ps1
+```
+
+El comando reconstruye imágenes usando la caché de Docker. Para limitarse a
+encender las imágenes existentes puede usarse `-SkipBuild`.
 
 Para incluir las pruebas de integración contra PostgreSQL y Redis en ejecución:
 

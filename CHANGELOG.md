@@ -20,6 +20,8 @@ versionada.
 
 ### Fixed
 
+- Se actualizaron dependencias transitivas de desarrollo para resolver los
+  avisos de seguridad de `brace-expansion`, `js-yaml` y `nanoid`.
 - La ingesta Manifold conserva resoluciones confirmadas ante correcciones
   incompatibles del proveedor, registra el conflicto y continúa el catálogo.
 - La valoración paper usa la misma precisión decimal que PostgreSQL y
@@ -37,6 +39,9 @@ versionada.
   variables heredadas del runner.
 
 ### Added
+
+- Comando `scripts/start.ps1` para iniciar Docker Desktop, levantar el stack
+  autónomo completo y validar API, dashboard y procesos en segundo plano.
 
 - `CommercialEvaluation` durable para separar estimación probabilística de
   conveniencia comercial por campaña y portfolio.

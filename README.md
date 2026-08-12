@@ -255,6 +255,15 @@ make paper-validation-worker
 docker compose up -d --build
 ```
 
+Para iniciar toda la operación cotidiana con un solo comando en Windows:
+
+```powershell
+.\scripts\start.ps1
+```
+
+El script inicia Docker Desktop si está cerrado, levanta todos los servicios,
+espera los health checks y muestra las URLs del dashboard y de la API.
+
 Compose mantiene el servicio activo por defecto. Cada ciclo usa una
 configuración hasheada, registra su auditoría y verifica ledger y balances antes
 de declararse completo. La campaña conservadora prevalece por defecto y una
