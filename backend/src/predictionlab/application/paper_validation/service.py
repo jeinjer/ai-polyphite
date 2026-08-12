@@ -265,17 +265,21 @@ class PaperValidationService:
             correlation_id=correlation_id,
             causation_id=cycle_causation,
         )
+        # A worker slot is deliberately stable and rounded down for idempotency.
+        # On the first cycle that slot can precede a just-created portfolio by a
+        # few milliseconds, so lifecycle mutations must use real execution time.
+        effective_settlement_at = max(scheduled_for, self._clock.now())
         settlements = await self._paper.settle(
             SettlePaperPortfolio(
                 portfolio_id=portfolio_id,
-                settled_at=scheduled_for,
+                settled_at=effective_settlement_at,
                 correlation_id=correlation_id,
                 causation_id=cycle_causation,
             )
         )
         reconciliation = await self._store.reconcile(
             portfolio_id,
-            checked_at=scheduled_for,
+            checked_at=effective_settlement_at,
         )
         status = (
             PaperValidationRunStatus.COMPLETED

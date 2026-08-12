@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 
 import pytest
 
+from predictionlab.application.automation import AutomationState
 from predictionlab.application.paper_validation import (
     PaperValidationRunResult,
     PaperValidationRunStatus,
@@ -58,6 +59,15 @@ class RecordingRunner:
             status=PaperValidationRunStatus.COMPLETED,
             correlation_id=correlation_id or "test",
             causation_id=causation_id,
+        )
+
+
+class PausedControl:
+    async def status(self) -> AutomationState:
+        return AutomationState(
+            paused=True,
+            updated_at=NOW,
+            reason="operator pause",
         )
 
 
@@ -129,3 +139,19 @@ async def test_worker_waits_in_short_slices_for_resume_detection(monkeypatch) ->
 
     assert await worker._wait_until(NOW, next_slot=True) is False
     assert timeouts == [60.0]
+
+
+@pytest.mark.asyncio
+async def test_periodic_cycle_does_not_run_while_operator_pause_is_active() -> None:
+    runner = RecordingRunner()
+    worker = PaperValidationWorker(
+        runner=runner,
+        interval_seconds=60,
+        run_immediately=True,
+        clock=FixedClock(),
+        automation_control=PausedControl(),
+    )
+
+    await worker._run_safely(NOW, causation_id="test")
+
+    assert runner.calls == []

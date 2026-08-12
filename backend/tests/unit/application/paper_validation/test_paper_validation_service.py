@@ -34,6 +34,7 @@ class MemoryRunStore:
         self.started = []
         self.finished = []
         self.completed: CompletedPaperValidationCycle | None = None
+        self.last_checked_at: datetime | None = None
 
     async def start(self, run) -> None:
         self.started.append(run)
@@ -64,6 +65,7 @@ class MemoryRunStore:
         *,
         checked_at: datetime,
     ) -> PortfolioReconciliation:
+        self.last_checked_at = checked_at
         discrepancies = () if self.consistent else ("ledger_cash_balance",)
         return PortfolioReconciliation(
             portfolio_id=portfolio_id,
@@ -125,6 +127,7 @@ class PaperRunner:
         self.portfolio_calls = 0
         self.batch_calls = 0
         self.settlement_calls = 0
+        self.last_settlement_command = None
 
     async def create_portfolio(self, command):
         self.portfolio_calls += 1
@@ -144,6 +147,7 @@ class PaperRunner:
 
     async def settle(self, command):
         self.settlement_calls += 1
+        self.last_settlement_command = command
         return SimpleNamespace(
             settlements=(),
             artifact_hashes=("f" * 64,),
@@ -154,6 +158,7 @@ def service(
     store: MemoryRunStore,
     *,
     lock: StaticLock | None = None,
+    clock=None,
 ) -> tuple[PaperValidationService, PredictionRunner, PaperRunner]:
     predictions = PredictionRunner()
     paper = PaperRunner()
@@ -170,7 +175,7 @@ def service(
             random_seed=17,
             provider_codes=("manifold",),
             only_with_new_observations=True,
-            clock=FixedClock(),
+            clock=clock or FixedClock(),
         ),
         predictions,
         paper,
@@ -212,6 +217,21 @@ async def test_cycle_records_lock_contention_without_side_effects() -> None:
     assert predictions.calls == 0
     assert paper.portfolio_calls == 0
     assert store.finished[0].status is PaperValidationRunStatus.SKIPPED_LOCKED
+
+
+@pytest.mark.asyncio
+async def test_first_cycle_uses_execution_time_for_portfolio_mutations() -> None:
+    execution_time = datetime(2026, 7, 28, 12, 0, 1, tzinfo=UTC)
+    store = MemoryRunStore()
+    runner, _, paper = service(
+        store,
+        clock=SimpleNamespace(now=lambda: execution_time),
+    )
+
+    await runner.run_cycle(scheduled_for=NOW)
+
+    assert paper.last_settlement_command.settled_at == execution_time
+    assert store.last_checked_at == execution_time
 
 
 @pytest.mark.asyncio

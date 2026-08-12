@@ -1,894 +1,318 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
-  AlertTriangle,
   ArrowRight,
-  BarChart3,
-  BrainCircuit,
-  Check,
-  ChevronRight,
-  CircleDollarSign,
-  Globe2,
-  Languages,
-  Menu,
-  Radar,
-  Search,
+  Bot,
+  BriefcaseBusiness,
+  CalendarDays,
+  ChartNoAxesCombined,
+  CircleHelp,
+  DatabaseZap,
+  FlaskConical,
+  Gauge,
+  Info,
+  Moon,
+  Pause,
+  Play,
+  RefreshCw,
+  ShieldAlert,
   Sparkles,
+  Sun,
   Target,
+  TrendingDown,
   TrendingUp,
   WalletCards,
   X,
-  Zap,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  Area,
-  AreaChart,
+  CartesianGrid,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
+  YAxis,
 } from "recharts";
 
 import { PredictionsWorkspace } from "@/components/predictions-workspace";
-import { useI18n } from "@/i18n/i18n-provider";
-import type { MessageKey } from "@/i18n/messages";
 import { api } from "@/lib/api";
 import type {
+  AutomationState,
   EquityCurvePoint,
-  Market,
   PaperPerformance,
   PaperPortfolio,
   PaperPosition,
   PaperTrade,
+  PredictionListItem,
+  PredictionEvaluation,
   SourceHealth,
   SyncRun,
 } from "@/lib/api-types";
 
-type ExecutiveSection = "overview" | "predictions" | "trades" | "markets";
-type TradeFilter = "all" | "automatic" | "manual_override";
+type Section = "overview" | "predictions" | "activity";
+const DISPLAY_TIME_ZONE = "Europe/Paris";
 
-const navigation: {
-  section: ExecutiveSection;
-  href: string;
-  label: MessageKey;
-  icon: LucideIcon;
-}[] = [
-  { section: "overview", href: "/", label: "exec.nav.overview", icon: BarChart3 },
-  {
-    section: "predictions",
-    href: "/predictions",
-    label: "exec.nav.opportunities",
-    icon: Target,
-  },
-  { section: "trades", href: "/trades", label: "exec.nav.activity", icon: Zap },
-  { section: "markets", href: "/markets", label: "exec.nav.markets", icon: Globe2 },
+const navigation: { section: Section; href: string; label: string; icon: LucideIcon }[] = [
+  { section: "overview", href: "/", label: "Resumen", icon: Gauge },
+  { section: "predictions", href: "/predictions", label: "Predicciones", icon: Target },
+  { section: "activity", href: "/trades", label: "Actividad", icon: Activity },
 ];
 
 export function ExecutiveDashboard() {
   const pathname = usePathname();
-  const { locale, setLocale, t } = useI18n();
-  const pathParts = pathname.split("/").filter(Boolean);
-  const section = executiveSection(pathParts[0]);
-  const predictionId = section === "predictions" ? pathParts[1] ?? null : null;
-  const marketId = section === "markets" ? pathParts[1] ?? null : null;
-  const [menuOpen, setMenuOpen] = useState(false);
+  const parts = pathname.split("/").filter(Boolean);
+  const section = currentSection(parts[0]);
+  const predictionId = section === "predictions" ? parts[1] ?? null : null;
+  const [dark, setDark] = useState(false);
+  const [now, setNow] = useState(() => new Date());
 
-  const marketsQuery = useQuery({ queryKey: ["markets"], queryFn: api.markets });
-  const sourcesQuery = useQuery({ queryKey: ["sources"], queryFn: api.sources });
-  const runsQuery = useQuery({ queryKey: ["sync-runs"], queryFn: api.syncRuns });
-  const portfoliosQuery = useQuery({
-    queryKey: ["paper-portfolios"],
-    queryFn: api.paperPortfolios,
-  });
-  const portfolio = useMemo(
-    () => preferredPortfolio(portfoliosQuery.data?.items ?? []),
-    [portfoliosQuery.data?.items],
-  );
-  const performanceQuery = useQuery({
-    queryKey: ["paper-performance", portfolio?.portfolio_id],
-    queryFn: () => api.paperPerformance(portfolio?.portfolio_id ?? ""),
-    enabled: portfolio !== null,
-  });
-  const tradesQuery = useQuery({
-    queryKey: ["paper-trades", portfolio?.portfolio_id],
-    queryFn: () => api.paperTrades(portfolio?.portfolio_id ?? ""),
-    enabled: portfolio !== null,
-  });
-  const positionsQuery = useQuery({
-    queryKey: ["paper-positions", portfolio?.portfolio_id],
-    queryFn: () => api.paperPositions(portfolio?.portfolio_id ?? ""),
-    enabled: portfolio !== null,
-  });
-  const equityQuery = useQuery({
-    queryKey: ["paper-equity", portfolio?.portfolio_id],
-    queryFn: () => api.paperEquityCurve(portfolio?.portfolio_id ?? ""),
-    enabled: portfolio !== null,
-  });
-
-  const commonLoading =
-    marketsQuery.isLoading ||
-    sourcesQuery.isLoading ||
-    runsQuery.isLoading ||
-    portfoliosQuery.isLoading;
-  const commonError =
-    marketsQuery.isError ||
-    sourcesQuery.isError ||
-    runsQuery.isError ||
-    portfoliosQuery.isError;
-
-  return (
-    <div className="min-h-screen bg-[#f5f2ea] text-[#182033]">
-      <PointerAura />
-      <header className="sticky top-0 z-40 border-b border-[#182033]/8 bg-[#f5f2ea]/90 backdrop-blur-xl">
-        <div className="mx-auto flex h-20 max-w-[1440px] items-center gap-4 px-4 sm:px-7">
-          <Link
-            href="/"
-            className="group flex cursor-pointer items-center gap-3 rounded-2xl outline-none"
-            onClick={() => setMenuOpen(false)}
-          >
-            <span className="grid size-11 place-items-center rounded-2xl bg-[#5b43f1] text-white shadow-[0_10px_30px_rgba(91,67,241,.28)] transition-transform duration-300 group-hover:-rotate-6 group-hover:scale-105 group-active:scale-95">
-              <Sparkles aria-hidden="true" className="size-5" />
-            </span>
-            <span>
-              <span className="block text-base font-black tracking-[-0.03em]">
-                AI-Polyphite
-              </span>
-              <span className="block text-[11px] font-semibold uppercase tracking-[0.15em] text-[#777b87]">
-                {t("exec.brand.subtitle")}
-              </span>
-            </span>
-          </Link>
-
-          <nav className="mx-auto hidden items-center gap-1 rounded-2xl border border-[#182033]/8 bg-white/70 p-1.5 shadow-sm lg:flex">
-            {navigation.map((item) => (
-              <TopNavigationItem key={item.section} item={item} active={section === item.section} />
-            ))}
-          </nav>
-
-          <div className="ml-auto flex items-center gap-2 lg:ml-0">
-            <SystemPill
-              sources={sourcesQuery.data ?? []}
-              latestRun={runsQuery.data?.items[0] ?? null}
-              compact
-            />
-            <button
-              type="button"
-              className="interactive-button grid size-11 cursor-pointer place-items-center rounded-2xl border border-[#182033]/10 bg-white text-[#5b43f1] shadow-sm"
-              aria-label={t("language.label")}
-              title={t("language.label")}
-              onClick={() => setLocale(locale === "es-ES" ? "en-US" : "es-ES")}
-            >
-              <Languages aria-hidden="true" className="size-5" />
-            </button>
-            <button
-              type="button"
-              className="interactive-button grid size-11 cursor-pointer place-items-center rounded-2xl border border-[#182033]/10 bg-white text-[#182033] shadow-sm lg:hidden"
-              aria-label={t("exec.nav.menu")}
-              onClick={() => setMenuOpen((value) => !value)}
-            >
-              {menuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
-            </button>
-          </div>
-        </div>
-
-        {menuOpen && (
-          <nav className="animate-slide-down border-t border-[#182033]/8 bg-[#f5f2ea] p-3 lg:hidden">
-            <div className="mx-auto grid max-w-[1440px] grid-cols-2 gap-2">
-              {navigation.map((item) => (
-                <MobileNavigationItem
-                  key={item.section}
-                  item={item}
-                  active={section === item.section}
-                  onClick={() => setMenuOpen(false)}
-                />
-              ))}
-            </div>
-          </nav>
-        )}
-      </header>
-
-      <main className="mx-auto min-h-[calc(100vh-80px)] max-w-[1440px] px-4 py-7 sm:px-7 sm:py-10">
-        {section === "predictions" ? (
-          <PredictionsWorkspace predictionId={predictionId} />
-        ) : commonLoading ? (
-          <ExecutiveLoading />
-        ) : commonError ? (
-          <ExecutiveError />
-        ) : section === "trades" ? (
-          <ActivityView />
-        ) : section === "markets" ? (
-          <MarketsView
-            markets={marketsQuery.data?.items ?? []}
-            marketId={marketId}
-          />
-        ) : (
-          <Overview
-            marketsTotal={marketsQuery.data?.total ?? 0}
-            sources={sourcesQuery.data ?? []}
-            latestRun={runsQuery.data?.items[0] ?? null}
-            portfolio={portfolio}
-            performance={performanceQuery.data ?? null}
-            trades={tradesQuery.data?.items ?? []}
-            tradeTotal={tradesQuery.data?.total ?? 0}
-            positions={positionsQuery.data?.items ?? []}
-            equity={equityQuery.data ?? []}
-            loading={
-              performanceQuery.isLoading ||
-              tradesQuery.isLoading ||
-              positionsQuery.isLoading ||
-              equityQuery.isLoading
-            }
-          />
-        )}
-      </main>
-
-      <footer className="border-t border-[#182033]/8 bg-white/40 px-4 py-6 text-center text-xs font-medium text-[#777b87]">
-        {t("exec.footer")}
-      </footer>
-    </div>
-  );
-}
-
-function Overview({
-  marketsTotal,
-  sources,
-  latestRun,
-  portfolio,
-  performance,
-  trades,
-  tradeTotal,
-  positions,
-  equity,
-  loading,
-}: Readonly<{
-  marketsTotal: number;
-  sources: SourceHealth[];
-  latestRun: SyncRun | null;
-  portfolio: PaperPortfolio | null;
-  performance: PaperPerformance | null;
-  trades: PaperTrade[];
-  tradeTotal: number;
-  positions: PaperPosition[];
-  equity: EquityCurvePoint[];
-  loading: boolean;
-}>) {
-  const { locale, t } = useI18n();
-  const healthy = systemHealthy(sources, latestRun);
-  const netProfit = Number(performance?.metrics.net_profit ?? 0);
-  const openPositions = positions.filter((item) => item.status === "open").length;
-  const lastActivity = latestRun?.finished_at ?? latestRun?.started_at ?? null;
-
-  return (
-    <div className="space-y-8 animate-page-in">
-      <section className="relative overflow-hidden rounded-[2rem] bg-[#182033] px-6 py-8 text-white shadow-[0_24px_70px_rgba(24,32,51,.18)] sm:px-10 sm:py-11">
-        <div className="pointer-events-none absolute -right-20 -top-24 size-80 rounded-full bg-[#ff7759]/25 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-32 left-1/3 size-80 rounded-full bg-[#5b43f1]/35 blur-3xl" />
-        <div className="relative grid items-end gap-8 lg:grid-cols-[1fr_auto]">
-          <div className="max-w-3xl">
-            <div className="mb-5 flex flex-wrap items-center gap-3">
-              <SystemPill sources={sources} latestRun={latestRun} />
-              <span className="rounded-full border border-white/15 bg-white/8 px-3 py-1.5 text-xs font-bold text-white/75">
-                {t("exec.simulation.badge")}
-              </span>
-            </div>
-            <h1 className="max-w-2xl text-3xl font-black tracking-[-0.045em] sm:text-5xl">
-              {healthy ? t("exec.hero.healthy") : t("exec.hero.attention")}
-            </h1>
-            <p className="mt-4 max-w-2xl text-base leading-7 text-white/68 sm:text-lg">
-              {healthy ? t("exec.hero.healthyDescription") : t("exec.hero.attentionDescription")}
-            </p>
-            <div className="mt-7 flex flex-wrap items-center gap-4">
-              <Link
-                href="/predictions"
-                className="interactive-button inline-flex cursor-pointer items-center gap-2 rounded-2xl bg-[#ff7759] px-5 py-3 text-sm font-black text-white shadow-[0_12px_30px_rgba(255,119,89,.25)]"
-              >
-                <Target className="size-4" />
-                {t("exec.hero.cta")}
-                <ArrowRight className="size-4" />
-              </Link>
-              <span className="text-sm font-semibold text-white/55">
-                {lastActivity
-                  ? t("exec.hero.updated", {
-                      value: relativeTime(lastActivity, locale),
-                    })
-                  : t("exec.hero.waiting")}
-              </span>
-            </div>
-          </div>
-          <div className="rounded-3xl border border-white/12 bg-white/8 p-5 backdrop-blur-sm sm:min-w-64">
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-white/50">
-              {t("exec.hero.currentResult")}
-            </p>
-            <p className={`mt-2 text-4xl font-black ${netProfit >= 0 ? "text-[#72e0b1]" : "text-[#ff9a85]"}`}>
-              {loading ? "—" : signedCredits(netProfit, locale)}
-            </p>
-            <p className="mt-2 text-sm text-white/55">{t("exec.hero.resultHelp")}</p>
-          </div>
-        </div>
-      </section>
-
-      <section>
-        <SectionHeading
-          eyebrow={t("exec.overview.eyebrow")}
-          title={t("exec.overview.title")}
-          description={t("exec.overview.description")}
-        />
-        <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <ExecutiveMetric
-            icon={CircleDollarSign}
-            color="violet"
-            label={t("exec.metric.result")}
-            value={loading ? "—" : signedCredits(netProfit, locale)}
-            help={t("exec.metric.resultHelp")}
-          />
-          <ExecutiveMetric
-            icon={Zap}
-            color="orange"
-            label={t("exec.metric.trades")}
-            value={loading ? "—" : String(tradeTotal)}
-            help={t("exec.metric.tradesHelp")}
-          />
-          <ExecutiveMetric
-            icon={WalletCards}
-            color="green"
-            label={t("exec.metric.open")}
-            value={loading ? "—" : String(openPositions)}
-            help={t("exec.metric.openHelp")}
-          />
-          <ExecutiveMetric
-            icon={Radar}
-            color="blue"
-            label={t("exec.metric.markets")}
-            value={String(marketsTotal)}
-            help={t("exec.metric.marketsHelp")}
-          />
-        </div>
-      </section>
-
-      <div className="grid min-w-0 gap-6 xl:grid-cols-[1.15fr_.85fr]">
-        <CapitalPanel equity={equity} portfolio={portfolio} />
-        <RecentActivity trades={trades.slice(0, 4)} portfolio={portfolio} />
-      </div>
-
-      <section className="rounded-[2rem] border border-[#182033]/8 bg-white p-6 shadow-[0_18px_50px_rgba(24,32,51,.06)] sm:p-8">
-        <SectionHeading
-          eyebrow={t("exec.how.eyebrow")}
-          title={t("exec.how.title")}
-          description={t("exec.how.description")}
-        />
-        <div className="mt-7 grid gap-4 md:grid-cols-3">
-          <SimpleStep number="01" icon={Globe2} title={t("exec.how.observe")} text={t("exec.how.observeText")} />
-          <SimpleStep number="02" icon={BrainCircuit} title={t("exec.how.decide")} text={t("exec.how.decideText")} />
-          <SimpleStep number="03" icon={TrendingUp} title={t("exec.how.simulate")} text={t("exec.how.simulateText")} />
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function ActivityView() {
-  const { locale, t } = useI18n();
-  const [filter, setFilter] = useState<TradeFilter>("all");
-  const tradesQuery = useQuery({
-    queryKey: ["all-paper-trades"],
-    queryFn: api.allPaperTrades,
-  });
-  const positionsQuery = useQuery({
-    queryKey: ["all-paper-positions"],
-    queryFn: api.allPaperPositions,
-  });
-  const positions = positionsQuery.data?.items ?? [];
-  const positionByTrade = new Map(positions.map((item) => [item.trade_id, item]));
-  const trades = (tradesQuery.data?.items ?? [])
-    .filter((item) => item.experiment_run_id === null)
-    .filter((item) => filter === "all" || item.decision_source === filter);
-
-  return (
-    <div className="space-y-7 animate-page-in">
-      <SectionHeading
-        eyebrow={t("exec.activity.eyebrow")}
-        title={t("exec.activity.title")}
-        description={t("exec.activity.description")}
-      />
-      <div className="flex flex-wrap gap-2">
-        {(["all", "automatic", "manual_override"] as const).map((value) => (
-          <button
-            key={value}
-            type="button"
-            className={`interactive-button cursor-pointer rounded-full px-4 py-2 text-sm font-bold ${
-              filter === value
-                ? "bg-[#182033] text-white shadow-lg"
-                : "border border-[#182033]/10 bg-white text-[#626777]"
-            }`}
-            onClick={() => setFilter(value)}
-          >
-            {t(
-              value === "all"
-                ? "exec.filter.all"
-                : value === "automatic"
-                  ? "exec.filter.automatic"
-                  : "exec.filter.manual",
-            )}
-          </button>
-        ))}
-      </div>
-
-      {tradesQuery.isLoading || positionsQuery.isLoading ? (
-        <ExecutiveLoading compact />
-      ) : trades.length === 0 ? (
-        <EmptyPanel icon={Activity} title={t("exec.activity.empty")} text={t("exec.activity.emptyText")} />
-      ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {trades.map((trade) => (
-            <TradeCard
-              key={trade.trade_id}
-              trade={trade}
-              position={positionByTrade.get(trade.trade_id) ?? null}
-              locale={locale}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function MarketsView({
-  markets,
-  marketId,
-}: Readonly<{ markets: Market[]; marketId: string | null }>) {
-  const { t } = useI18n();
-  const [search, setSearch] = useState("");
-  if (marketId) {
-    return <MarketDetail market={markets.find((item) => item.market_id === marketId) ?? null} />;
-  }
-  const visible = markets.filter((market) =>
-    market.title.toLocaleLowerCase().includes(search.toLocaleLowerCase()),
-  );
-  return (
-    <div className="space-y-7 animate-page-in">
-      <SectionHeading
-        eyebrow={t("exec.markets.eyebrow")}
-        title={t("exec.markets.title")}
-        description={t("exec.markets.description")}
-      />
-      <label className="relative block max-w-xl">
-        <Search className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-[#8b8e98]" />
-        <span className="sr-only">{t("exec.markets.search")}</span>
-        <input
-          className="w-full rounded-2xl border border-[#182033]/10 bg-white py-3.5 pl-12 pr-4 text-sm font-semibold shadow-sm outline-none transition focus:border-[#5b43f1]/50 focus:ring-4 focus:ring-[#5b43f1]/10"
-          value={search}
-          placeholder={t("exec.markets.search")}
-          onChange={(event) => setSearch(event.target.value)}
-        />
-      </label>
-      {visible.length === 0 ? (
-        <EmptyPanel icon={Search} title={t("exec.markets.empty")} text={t("exec.markets.emptyText")} />
-      ) : (
-        <div className="overflow-hidden rounded-[2rem] border border-[#182033]/8 bg-white shadow-[0_18px_50px_rgba(24,32,51,.06)]">
-          {visible.map((market) => (
-            <MarketRow key={market.market_id} market={market} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function MarketDetail({ market }: Readonly<{ market: Market | null }>) {
-  const { locale, t } = useI18n();
-  const observationsQuery = useQuery({
-    queryKey: ["observations", market?.market_id],
-    queryFn: () => api.observations(market?.market_id ?? ""),
-    enabled: market !== null,
-  });
-  if (!market) {
-    return <EmptyPanel icon={Globe2} title={t("exec.market.missing")} text={t("exec.market.missingText")} />;
-  }
-  const chart = [...(observationsQuery.data?.items ?? [])]
-    .reverse()
-    .filter((item) => item.probability !== null)
-    .map((item) => ({
-      date: new Date(item.observed_at).toLocaleDateString(locale, { month: "short", day: "numeric" }),
-      probability: Number(item.probability) * 100,
-    }));
-  return (
-    <div className="space-y-7 animate-page-in">
-      <Link href="/markets" className="inline-flex cursor-pointer items-center gap-2 text-sm font-black text-[#5b43f1] transition hover:gap-3">
-        <ArrowRight className="size-4 rotate-180" /> {t("exec.market.back")}
-      </Link>
-      <section className="rounded-[2rem] bg-[#182033] p-7 text-white shadow-xl sm:p-10">
-        <div className="flex flex-wrap items-start justify-between gap-6">
-          <div className="max-w-3xl">
-            <StatusChip status={market.status} />
-            <h1 className="mt-5 text-3xl font-black tracking-[-0.04em] sm:text-4xl">{market.title}</h1>
-            {market.description && <p className="mt-4 line-clamp-3 leading-7 text-white/62">{market.description}</p>}
-          </div>
-          <ProbabilityDisplay value={market.latest_observation?.probability ?? null} dark />
-        </div>
-      </section>
-      <section className="rounded-[2rem] border border-[#182033]/8 bg-white p-6 shadow-sm sm:p-8">
-        <h2 className="text-xl font-black">{t("exec.market.evolution")}</h2>
-        <p className="mt-1 text-sm text-[#777b87]">{t("exec.market.evolutionHelp")}</p>
-        <div className="mt-6 h-72">
-          {observationsQuery.isLoading ? (
-            <ExecutiveLoading compact />
-          ) : chart.length < 2 ? (
-            <div className="grid h-full place-items-center text-sm font-semibold text-[#8b8e98]">{t("exec.market.noHistory")}</div>
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chart}>
-                <defs>
-                  <linearGradient id="marketFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#5b43f1" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="#5b43f1" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: "#8b8e98", fontSize: 11 }} />
-                <Tooltip formatter={(value) => [`${Number(value).toFixed(1)}%`, t("exec.metric.probability")]} />
-                <Area type="monotone" dataKey="probability" stroke="#5b43f1" strokeWidth={3} fill="url(#marketFill)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function CapitalPanel({ equity, portfolio }: Readonly<{ equity: EquityCurvePoint[]; portfolio: PaperPortfolio | null }>) {
-  const { locale, t } = useI18n();
-  const chart = equity.map((item) => ({
-    date: new Date(item.recorded_at).toLocaleDateString(locale, { month: "short", day: "numeric" }),
-    value: Number(item.equity),
-  }));
-  return (
-    <section className="min-w-0 rounded-[2rem] border border-[#182033]/8 bg-white p-6 shadow-[0_18px_50px_rgba(24,32,51,.06)] sm:p-8">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.16em] text-[#5b43f1]">{t("exec.capital.eyebrow")}</p>
-          <h2 className="mt-2 text-xl font-black">{t("exec.capital.title")}</h2>
-        </div>
-        <span className="rounded-full bg-[#e9fff4] px-3 py-1.5 text-xs font-black text-[#16845f]">{t("exec.capital.simulated")}</span>
-      </div>
-      <div className="mt-4 flex items-baseline gap-2">
-        <span className="text-3xl font-black tracking-[-0.04em]">{portfolio ? credits(Number(portfolio.equity), locale) : "—"}</span>
-        <span className="text-xs font-bold text-[#8b8e98]">{t("exec.capital.credits")}</span>
-      </div>
-      <div className="mt-5 h-56">
-        {chart.length < 2 ? (
-          <div className="grid h-full place-items-center rounded-2xl bg-[#f7f5f0] text-center text-sm font-semibold text-[#8b8e98]">{t("exec.capital.collecting")}</div>
-        ) : (
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chart}>
-              <defs>
-                <linearGradient id="capitalFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#ff7759" stopOpacity={0.35} />
-                  <stop offset="100%" stopColor="#ff7759" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: "#999ca5", fontSize: 11 }} />
-              <Tooltip formatter={(value) => [credits(Number(value), locale), t("exec.capital.title")]} />
-              <Area type="monotone" dataKey="value" stroke="#ff7759" strokeWidth={3} fill="url(#capitalFill)" />
-            </AreaChart>
-          </ResponsiveContainer>
-        )}
-      </div>
-    </section>
-  );
-}
-
-function RecentActivity({ trades, portfolio }: Readonly<{ trades: PaperTrade[]; portfolio: PaperPortfolio | null }>) {
-  const { locale, t } = useI18n();
-  return (
-    <section className="min-w-0 rounded-[2rem] border border-[#182033]/8 bg-white p-6 shadow-[0_18px_50px_rgba(24,32,51,.06)] sm:p-8">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.16em] text-[#ff7759]">{t("exec.recent.eyebrow")}</p>
-          <h2 className="mt-2 text-xl font-black">{t("exec.recent.title")}</h2>
-        </div>
-        <Link href="/trades" className="interactive-button grid size-10 cursor-pointer place-items-center rounded-full bg-[#f5f2ea] text-[#182033]">
-          <ArrowRight className="size-4" />
-          <span className="sr-only">{t("exec.recent.all")}</span>
-        </Link>
-      </div>
-      {trades.length === 0 ? (
-        <div className="mt-8 rounded-2xl bg-[#f7f5f0] p-6 text-center text-sm font-semibold text-[#8b8e98]">{t("exec.recent.empty")}</div>
-      ) : (
-        <div className="mt-5 divide-y divide-[#182033]/7">
-          {trades.map((trade) => (
-            <div key={trade.trade_id} className="flex items-center gap-3 py-4 first:pt-0 last:pb-0">
-              <span className={`grid size-10 shrink-0 place-items-center rounded-xl ${trade.side === "yes" ? "bg-[#e9fff4] text-[#16845f]" : "bg-[#fff0ec] text-[#d95034]"}`}>
-                {trade.side === "yes" ? <Check className="size-4" /> : <X className="size-4" />}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-black">{trade.market_title}</p>
-                <p className="mt-1 text-xs font-semibold text-[#8b8e98]">
-                  {t(trade.side === "yes" ? "exec.side.yes" : "exec.side.no")} · {relativeTime(trade.executed_at, locale)}
-                </p>
-              </div>
-              <span className="text-sm font-black text-[#626777]">{credits(Number(trade.maximum_loss), locale)}</span>
-            </div>
-          ))}
-        </div>
-      )}
-      {portfolio && <p className="mt-6 text-xs font-semibold text-[#a0a2aa]">{t("exec.recent.portfolio")}</p>}
-    </section>
-  );
-}
-
-function TradeCard({ trade, position, locale }: Readonly<{ trade: PaperTrade; position: PaperPosition | null; locale: "es-ES" | "en-US" }>) {
-  const { t } = useI18n();
-  const result = position?.status === "open" ? null : Number(position?.realized_pnl ?? 0);
-  return (
-    <article className="executive-card group rounded-[1.6rem] border border-[#182033]/8 bg-white p-5 shadow-sm sm:p-6">
-      <div className="flex items-start justify-between gap-4">
-        <span className={`grid size-11 shrink-0 place-items-center rounded-2xl ${trade.side === "yes" ? "bg-[#e9fff4] text-[#16845f]" : "bg-[#fff0ec] text-[#d95034]"}`}>
-          {trade.side === "yes" ? <Check className="size-5" /> : <X className="size-5" />}
-        </span>
-        <span className={`rounded-full px-3 py-1.5 text-xs font-black ${trade.decision_source === "automatic" ? "bg-[#eeeaff] text-[#5b43f1]" : "bg-[#fff3d6] text-[#9b6a00]"}`}>
-          {t(trade.decision_source === "automatic" ? "exec.filter.automatic" : "exec.filter.manual")}
-        </span>
-      </div>
-      <h2 className="mt-5 line-clamp-2 text-lg font-black leading-6 tracking-[-0.02em]">{trade.market_title}</h2>
-      <p className="mt-2 text-sm font-semibold text-[#8b8e98]">{relativeTime(trade.executed_at, locale)}</p>
-      <div className="mt-5 grid grid-cols-3 gap-3 rounded-2xl bg-[#f7f5f0] p-4">
-        <PlainValue label={t("exec.activity.choice")} value={t(trade.side === "yes" ? "exec.side.yes" : "exec.side.no")} />
-        <PlainValue label={t("exec.activity.risk")} value={credits(Number(trade.maximum_loss), locale)} />
-        <PlainValue
-          label={t("exec.activity.result")}
-          value={result === null ? t("exec.activity.inProgress") : signedCredits(result, locale)}
-          positive={result !== null ? result >= 0 : undefined}
-        />
-      </div>
-      <Link href={`/predictions/${encodeURIComponent(trade.prediction_run_id)}`} className="mt-5 inline-flex cursor-pointer items-center gap-2 text-sm font-black text-[#5b43f1] transition-all group-hover:gap-3">
-        {t("exec.activity.understand")} <ChevronRight className="size-4" />
-      </Link>
-    </article>
-  );
-}
-
-function MarketRow({ market }: Readonly<{ market: Market }>) {
-  const { t } = useI18n();
-  return (
-    <Link
-      href={`/markets/${encodeURIComponent(market.market_id)}`}
-      className="group grid cursor-pointer items-center gap-4 border-b border-[#182033]/7 px-5 py-5 transition duration-300 last:border-0 hover:bg-[#f8f6ff] sm:grid-cols-[1fr_auto_auto] sm:px-7"
-    >
-      <div className="min-w-0">
-        <h2 className="line-clamp-2 font-black leading-6 transition-colors group-hover:text-[#5b43f1]">{market.title}</h2>
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-bold text-[#8b8e98]">
-          <StatusChip status={market.status} compact />
-          {market.category && <span>{market.category}</span>}
-        </div>
-      </div>
-      <div className="flex items-center justify-between gap-5 sm:justify-end">
-        <div className="text-right">
-          <p className="text-xs font-bold text-[#8b8e98]">{t("exec.metric.probability")}</p>
-          <p className="mt-1 text-xl font-black">{probability(market.latest_observation?.probability ?? null)}</p>
-        </div>
-        <span className={`text-sm font-black ${Number(market.probability_change ?? 0) >= 0 ? "text-[#16845f]" : "text-[#d95034]"}`}>
-          {market.probability_change ? signedPoints(market.probability_change) : "—"}
-        </span>
-      </div>
-      <ChevronRight className="hidden size-5 text-[#b3b4bb] transition-transform group-hover:translate-x-1 sm:block" />
-    </Link>
-  );
-}
-
-function ExecutiveMetric({ icon: Icon, color, label, value, help }: Readonly<{ icon: LucideIcon; color: "violet" | "orange" | "green" | "blue"; label: string; value: string; help: string }>) {
-  const colors = {
-    violet: "bg-[#eeeaff] text-[#5b43f1]",
-    orange: "bg-[#fff0ec] text-[#e45c3f]",
-    green: "bg-[#e9fff4] text-[#16845f]",
-    blue: "bg-[#e8f5ff] text-[#2077a8]",
-  };
-  return (
-    <article className="executive-card rounded-[1.6rem] border border-[#182033]/8 bg-white p-5 shadow-sm sm:p-6">
-      <span className={`grid size-11 place-items-center rounded-2xl ${colors[color]}`}><Icon className="size-5" /></span>
-      <p className="mt-5 text-sm font-bold text-[#777b87]">{label}</p>
-      <p className="mt-1 text-3xl font-black tracking-[-0.04em]">{value}</p>
-      <p className="mt-2 text-xs font-medium leading-5 text-[#a0a2aa]">{help}</p>
-    </article>
-  );
-}
-
-function SimpleStep({ number, icon: Icon, title, text }: Readonly<{ number: string; icon: LucideIcon; title: string; text: string }>) {
-  return (
-    <article className="relative overflow-hidden rounded-3xl bg-[#f7f5f0] p-5">
-      <span className="absolute right-4 top-2 text-5xl font-black text-[#182033]/5">{number}</span>
-      <span className="grid size-11 place-items-center rounded-2xl bg-white text-[#5b43f1] shadow-sm"><Icon className="size-5" /></span>
-      <h3 className="mt-5 font-black">{title}</h3>
-      <p className="mt-2 text-sm leading-6 text-[#777b87]">{text}</p>
-    </article>
-  );
-}
-
-function PlainValue({ label, value, positive }: Readonly<{ label: string; value: string; positive?: boolean }>) {
-  return (
-    <div className="min-w-0">
-      <p className="truncate text-[10px] font-black uppercase tracking-[0.1em] text-[#9a9ca5]">{label}</p>
-      <p className={`mt-1 truncate text-sm font-black ${positive === undefined ? "text-[#182033]" : positive ? "text-[#16845f]" : "text-[#d95034]"}`}>{value}</p>
-    </div>
-  );
-}
-
-function SectionHeading({ eyebrow, title, description }: Readonly<{ eyebrow: string; title: string; description: string }>) {
-  return (
-    <div className="max-w-3xl">
-      <p className="text-xs font-black uppercase tracking-[0.18em] text-[#5b43f1]">{eyebrow}</p>
-      <h1 className="mt-2 text-3xl font-black tracking-[-0.04em] sm:text-4xl">{title}</h1>
-      <p className="mt-3 text-base leading-7 text-[#777b87]">{description}</p>
-    </div>
-  );
-}
-
-function SystemPill({ sources, latestRun, compact = false }: Readonly<{ sources: SourceHealth[]; latestRun: SyncRun | null; compact?: boolean }>) {
-  const { t } = useI18n();
-  const healthy = systemHealthy(sources, latestRun);
-  return (
-    <span
-      className={`items-center gap-2 rounded-full font-black ${
-        compact
-          ? "hidden border border-[#182033]/8 bg-white px-3 py-2 text-xs text-[#626777] sm:inline-flex"
-          : "inline-flex border border-white/15 bg-white/8 px-3 py-1.5 text-xs text-white"
-      }`}
-      aria-label={healthy ? t("exec.status.healthy") : t("exec.status.attention")}
-    >
-      <span className={`relative size-2 rounded-full ${healthy ? "bg-[#37c98b]" : "bg-[#ff8a70]"}`}>
-        <span className={`absolute inset-0 animate-ping rounded-full opacity-50 ${healthy ? "bg-[#37c98b]" : "bg-[#ff8a70]"}`} />
-      </span>
-      {healthy ? t("exec.status.healthy") : t("exec.status.attention")}
-    </span>
-  );
-}
-
-function StatusChip({ status, compact = false }: Readonly<{ status: Market["status"]; compact?: boolean }>) {
-  const { t } = useI18n();
-  const label = t(
-    status === "open"
-      ? "exec.market.open"
-      : status === "resolved"
-        ? "exec.market.resolved"
-        : status === "cancelled"
-          ? "exec.market.cancelled"
-          : "exec.market.closed",
-  );
-  return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full font-black ${compact ? "px-2 py-1 text-[10px]" : "bg-white/10 px-3 py-1.5 text-xs text-white"} ${compact ? (status === "open" ? "bg-[#e9fff4] text-[#16845f]" : "bg-[#f0f0f2] text-[#777b87]") : ""}`}>
-      <span className={`size-1.5 rounded-full ${status === "open" ? "bg-[#37c98b]" : "bg-current"}`} /> {label}
-    </span>
-  );
-}
-
-function ProbabilityDisplay({ value, dark = false }: Readonly<{ value: string | null; dark?: boolean }>) {
-  const { t } = useI18n();
-  return (
-    <div className={`min-w-40 rounded-3xl p-5 text-center ${dark ? "border border-white/12 bg-white/8" : "bg-[#f7f5f0]"}`}>
-      <p className={`text-xs font-black uppercase tracking-[0.12em] ${dark ? "text-white/50" : "text-[#8b8e98]"}`}>{t("exec.metric.probability")}</p>
-      <p className="mt-2 text-4xl font-black">{probability(value)}</p>
-    </div>
-  );
-}
-
-function EmptyPanel({ icon: Icon, title, text }: Readonly<{ icon: LucideIcon; title: string; text: string }>) {
-  return (
-    <div className="grid min-h-72 place-items-center rounded-[2rem] border border-dashed border-[#182033]/15 bg-white/60 p-8 text-center">
-      <div>
-        <span className="mx-auto grid size-14 place-items-center rounded-2xl bg-[#eeeaff] text-[#5b43f1]"><Icon className="size-6" /></span>
-        <h2 className="mt-5 text-xl font-black">{title}</h2>
-        <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#777b87]">{text}</p>
-      </div>
-    </div>
-  );
-}
-
-function ExecutiveLoading({ compact = false }: Readonly<{ compact?: boolean }>) {
-  const { t } = useI18n();
-  return (
-    <div className={`grid place-items-center ${compact ? "min-h-56" : "min-h-[65vh]"}`} aria-label={t("loading.label")}>
-      <div className="text-center">
-        <span className="mx-auto grid size-14 animate-pulse place-items-center rounded-2xl bg-[#eeeaff] text-[#5b43f1]"><Radar className="size-6 animate-spin-slow" /></span>
-        <p className="mt-4 text-sm font-black text-[#777b87]">{t("exec.loading")}</p>
-      </div>
-    </div>
-  );
-}
-
-function ExecutiveError() {
-  const { t } = useI18n();
-  return (
-    <div className="grid min-h-[65vh] place-items-center">
-      <div className="max-w-lg rounded-[2rem] border border-[#ff7759]/20 bg-white p-8 text-center shadow-xl">
-        <span className="mx-auto grid size-14 place-items-center rounded-2xl bg-[#fff0ec] text-[#d95034]"><AlertTriangle className="size-6" /></span>
-        <h1 className="mt-5 text-2xl font-black">{t("exec.error.title")}</h1>
-        <p className="mt-3 leading-7 text-[#777b87]">{t("exec.error.description")}</p>
-        <button type="button" className="interactive-button mt-6 cursor-pointer rounded-2xl bg-[#182033] px-5 py-3 text-sm font-black text-white" onClick={() => window.location.reload()}>{t("error.retry")}</button>
-      </div>
-    </div>
-  );
-}
-
-function TopNavigationItem({ item, active }: Readonly<{ item: (typeof navigation)[number]; active: boolean }>) {
-  const { t } = useI18n();
-  const Icon = item.icon;
-  return (
-    <Link href={item.href} className={`interactive-button flex cursor-pointer items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black ${active ? "bg-[#182033] text-white shadow-lg" : "text-[#777b87] hover:bg-white hover:text-[#182033]"}`}>
-      <Icon className="size-4" /> {t(item.label)}
-    </Link>
-  );
-}
-
-function MobileNavigationItem({ item, active, onClick }: Readonly<{ item: (typeof navigation)[number]; active: boolean; onClick: () => void }>) {
-  const { t } = useI18n();
-  const Icon = item.icon;
-  return (
-    <Link href={item.href} onClick={onClick} className={`interactive-button flex cursor-pointer items-center gap-3 rounded-2xl p-4 text-sm font-black ${active ? "bg-[#182033] text-white" : "bg-white text-[#626777]"}`}>
-      <Icon className="size-5" /> {t(item.label)}
-    </Link>
-  );
-}
-
-function PointerAura() {
-  const aura = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const move = (event: PointerEvent) => {
-      aura.current?.style.setProperty("--pointer-x", `${event.clientX}px`);
-      aura.current?.style.setProperty("--pointer-y", `${event.clientY}px`);
+    const stored = localStorage.getItem("ai-polyphite-theme");
+    const preferred = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const frame = window.requestAnimationFrame(() => {
+      setDark(stored ? stored === "dark" : preferred);
+    });
+    const timer = window.setInterval(() => setNow(new Date()), 30_000);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearInterval(timer);
     };
-    window.addEventListener("pointermove", move, { passive: true });
-    return () => window.removeEventListener("pointermove", move);
   }, []);
-  return <div ref={aura} className="pointer-aura" aria-hidden="true" />;
-}
+  useEffect(() => {
+    document.documentElement.dataset.theme = dark ? "dark" : "light";
+    localStorage.setItem("ai-polyphite-theme", dark ? "dark" : "light");
+  }, [dark]);
 
-function preferredPortfolio(portfolios: PaperPortfolio[]): PaperPortfolio | null {
+  const sources = useQuery({ queryKey: ["sources"], queryFn: api.sources });
+  const runs = useQuery({ queryKey: ["sync-runs"], queryFn: api.syncRuns });
+  const portfolios = useQuery({ queryKey: ["paper-portfolios"], queryFn: api.paperPortfolios });
+  const portfolio = useMemo(() => preferredPortfolio(portfolios.data?.items ?? []), [portfolios.data?.items]);
+  const performance = useQuery({ queryKey: ["paper-performance", portfolio?.portfolio_id], queryFn: () => api.paperPerformance(portfolio?.portfolio_id ?? ""), enabled: portfolio !== null });
+  const trades = useQuery({ queryKey: ["paper-trades", portfolio?.portfolio_id], queryFn: () => api.paperTrades(portfolio?.portfolio_id ?? ""), enabled: portfolio !== null });
+  const positions = useQuery({ queryKey: ["paper-positions", portfolio?.portfolio_id], queryFn: () => api.paperPositions(portfolio?.portfolio_id ?? ""), enabled: portfolio !== null });
+  const equity = useQuery({ queryKey: ["paper-equity", portfolio?.portfolio_id], queryFn: () => api.paperEquityCurve(portfolio?.portfolio_id ?? ""), enabled: portfolio !== null });
+  const latestPredictions = useQuery({ queryKey: ["latest-predictions"], queryFn: () => api.predictions("page=1&page_size=25&sort=predicted_at&direction=desc") });
+  const todayPredictions = useQuery({ queryKey: ["today-predictions", dayKey(now)], queryFn: () => api.predictions(`page=1&page_size=25&sort=predicted_at&direction=desc&date_from=${encodeURIComponent(startOfDay(now))}`) });
+  const actionableToday = useQuery({ queryKey: ["actionable-today", dayKey(now)], queryFn: () => api.predictions(`page=1&page_size=25&sort=predicted_at&direction=desc&commercial_label=actionable&date_from=${encodeURIComponent(startOfDay(now))}`) });
+  const automation = useQuery({ queryKey: ["automation"], queryFn: api.automation });
+  const evaluation = useQuery({
+    queryKey: ["prediction-evaluation"],
+    queryFn: api.predictionEvaluation,
+  });
+
+  const loading = sources.isLoading || runs.isLoading || portfolios.isLoading;
+  const error = sources.isError || runs.isError || portfolios.isError;
+  const latestCompletedRun = runs.data?.items.find((run) => run.status === "completed") ?? null;
+  const latestRun = runs.data?.items[0] ?? null;
+  const lastPrediction = latestPredictions.data?.items[0]?.predicted_at ?? null;
+
   return (
-    portfolios.find((item) => item.name.toLowerCase().includes("autonomous manifold")) ??
-    portfolios.find((item) => item.status === "active" && !item.name.toLowerCase().includes("manual") && !item.name.toLowerCase().includes("experimental")) ??
-    portfolios[0] ??
-    null
+    <div className="app-shell min-h-screen bg-app text-default">
+      <Sidebar section={section} automation={automation.data ?? null} />
+      <div className="min-w-0 lg:pl-[224px]">
+        <TopBar
+          portfolio={portfolio}
+          now={now}
+          latestData={latestCompletedRun?.finished_at ?? latestCompletedRun?.started_at ?? null}
+          latestPrediction={lastPrediction}
+          dark={dark}
+          onTheme={() => setDark((value) => !value)}
+        />
+        <main className="mx-auto min-h-[calc(100vh-72px)] max-w-[1320px] px-4 py-6 sm:px-6 lg:px-8">
+          {section === "predictions" ? (
+            <PredictionsWorkspace predictionId={predictionId} />
+          ) : loading ? (
+            <Loading />
+          ) : error ? (
+            <StatePanel title="No se pudo cargar el tablero" text="El backend no respondió. El refresco automático seguirá intentando." />
+          ) : section === "activity" ? (
+            <ActivityView trades={trades.data?.items ?? []} positions={positions.data?.items ?? []} />
+          ) : (
+            <Overview
+              sources={sources.data ?? []}
+              latestRun={latestRun}
+              latestCompletedRun={latestCompletedRun}
+              portfolio={portfolio}
+              performance={performance.data ?? null}
+              predictions={latestPredictions.data?.items ?? []}
+              predictionsToday={todayPredictions.data?.total_items ?? 0}
+              actionableToday={actionableToday.data?.total_items ?? 0}
+              trades={trades.data?.items ?? []}
+              positions={positions.data?.items ?? []}
+              equity={equity.data ?? []}
+              automation={automation.data ?? null}
+              evaluation={evaluation.data ?? null}
+            />
+          )}
+        </main>
+      </div>
+      <MobileNavigation section={section} />
+    </div>
   );
 }
 
-function executiveSection(value: string | undefined): ExecutiveSection {
-  if (value === "predictions" || value === "trades" || value === "markets") return value;
-  return "overview";
+function Sidebar({ section, automation }: Readonly<{ section: Section; automation: AutomationState | null }>) {
+  return (
+    <aside className="fixed inset-y-0 left-0 z-40 hidden w-[224px] flex-col border-r border-sidebar-line bg-sidebar text-sidebar lg:flex">
+      <Link href="/" className="flex h-[72px] items-center gap-3 border-b border-sidebar-line px-5">
+        <span className="grid size-9 place-items-center rounded-lg bg-accent text-white"><Sparkles className="size-4" /></span>
+        <span><strong className="block text-sm tracking-[-.02em]">AI-Polyphite</strong><small className="block text-[10px] uppercase tracking-[.14em] text-sidebar-muted">Paper research</small></span>
+      </Link>
+      <nav className="space-y-1 p-3">
+        {navigation.map((item) => <NavigationItem key={item.section} item={item} active={section === item.section} />)}
+      </nav>
+      <div className="mt-auto p-4">
+        <div className="rounded-xl border border-sidebar-line bg-sidebar-soft p-3 text-xs leading-5 text-sidebar-muted">
+          <div className="mb-1.5 flex items-center gap-2 font-semibold text-sidebar"><FlaskConical className="size-3.5 text-accent" /> 100% simulado</div>
+          No hay dinero real, wallets ni ejecución externa.
+        </div>
+        <div className={`mt-3 flex items-center gap-2 text-xs font-semibold ${automation?.paused ? "text-warning" : "text-positive"}`}>
+          <span className={`size-2 rounded-full ${automation?.paused ? "bg-warning" : "animate-pulse bg-positive"}`} />
+          {automation?.paused ? "Automatización pausada" : "Automatización activa"}
+        </div>
+      </div>
+    </aside>
+  );
 }
 
-function systemHealthy(sources: SourceHealth[], latestRun: SyncRun | null): boolean {
-  return sources.length > 0 && sources.every((item) => item.status === "healthy") && latestRun?.status === "completed";
+function NavigationItem({ item, active }: Readonly<{ item: (typeof navigation)[number]; active: boolean }>) {
+  const Icon = item.icon;
+  return <Link href={item.href} className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${active ? "bg-sidebar-active text-white" : "text-sidebar-muted hover:bg-sidebar-soft hover:text-white"}`}><Icon className="size-4" />{item.label}</Link>;
 }
 
-function probability(value: string | null): string {
-  if (value === null) return "—";
-  return `${(Number(value) * 100).toFixed(0)}%`;
+function MobileNavigation({ section }: Readonly<{ section: Section }>) {
+  return <nav className="fixed inset-x-3 bottom-3 z-50 flex justify-around rounded-2xl border border-line bg-panel/95 p-1.5 shadow-2xl backdrop-blur lg:hidden">{navigation.map((item) => { const Icon = item.icon; const active = item.section === section; return <Link key={item.section} href={item.href} className={`flex min-w-20 flex-col items-center gap-1 rounded-xl px-3 py-2 text-[10px] font-semibold ${active ? "bg-accent text-white" : "text-muted"}`}><Icon className="size-4" />{item.label}</Link>; })}</nav>;
 }
 
-function signedPoints(value: string): string {
-  const points = Number(value) * 100;
-  return `${points >= 0 ? "+" : ""}${points.toFixed(1)} pp`;
+function TopBar({ portfolio, now, latestData, latestPrediction, dark, onTheme }: Readonly<{ portfolio: PaperPortfolio | null; now: Date; latestData: string | null; latestPrediction: string | null; dark: boolean; onTheme: () => void }>) {
+  const invested = Number(portfolio?.reserved_balance ?? 0);
+  const reserve = Number(portfolio?.cash_balance ?? 0);
+  const delta = Number(portfolio?.equity ?? 0) - Number(portfolio?.initial_balance ?? 0);
+  return (
+    <header className="sticky top-0 z-30 border-b border-line bg-panel/92 backdrop-blur-xl">
+      <div className="flex min-h-[72px] items-center gap-3 overflow-x-auto px-4 sm:px-6 lg:px-8">
+        <Link href="/" className="mr-2 flex shrink-0 items-center gap-2 lg:hidden"><span className="grid size-8 place-items-center rounded-lg bg-accent text-white"><Sparkles className="size-4" /></span><strong className="text-sm">AI-Polyphite</strong></Link>
+        <MoneyPill icon={BriefcaseBusiness} label="Invertido" value={money(invested)} tone="neutral" help="Capital virtual actualmente comprometido en posiciones abiertas." />
+        <MoneyPill icon={WalletCards} label="Reserva" value={money(reserve)} tone="neutral" help="Capital virtual disponible para futuras operaciones." />
+        <MoneyPill icon={delta >= 0 ? TrendingUp : TrendingDown} label="Diferencia" value={signedMoney(delta)} tone={delta > 0 ? "positive" : delta < 0 ? "negative" : "neutral"} help="Diferencia entre el capital virtual actual y el inicial." />
+        <div className="ml-auto flex shrink-0 items-center gap-4 border-l border-line pl-4 text-[11px] text-muted">
+          <TimeLabel icon={CalendarDays} label="Ahora" value={fullDate(now)} />
+          <TimeLabel icon={DatabaseZap} label="Últimos datos" value={shortDate(latestData)} />
+          <TimeLabel icon={Bot} label="Última predicción" value={shortDate(latestPrediction)} />
+          <button type="button" className="icon-button" onClick={onTheme} aria-label="Cambiar tema" title="Cambiar entre tema claro y oscuro">{dark ? <Sun className="size-4" /> : <Moon className="size-4" />}</button>
+        </div>
+      </div>
+    </header>
+  );
 }
 
-function credits(value: number, locale: string): string {
-  return new Intl.NumberFormat(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
+function Overview({ sources, latestRun, latestCompletedRun, portfolio, performance, predictions, predictionsToday, actionableToday, trades, positions, equity, automation, evaluation }: Readonly<{ sources: SourceHealth[]; latestRun: SyncRun | null; latestCompletedRun: SyncRun | null; portfolio: PaperPortfolio | null; performance: PaperPerformance | null; predictions: PredictionListItem[]; predictionsToday: number; actionableToday: number; trades: PaperTrade[]; positions: PaperPosition[]; equity: EquityCurvePoint[]; automation: AutomationState | null; evaluation: PredictionEvaluation | null }>) {
+  const status = operationalStatus(sources, latestRun, latestCompletedRun, automation);
+  const openPositions = positions.filter((item) => item.status === "open");
+  const automaticTrades = trades.filter((item) => item.decision_source === "automatic" && item.experiment_run_id === null);
+  return (
+    <div className="page-enter space-y-6">
+      <section className="flex flex-col gap-4 border-b border-line pb-6 md:flex-row md:items-end md:justify-between">
+        <div><p className="eyebrow">Estado general</p><h1 className="mt-1 text-3xl font-bold tracking-[-.04em] text-strong">{status.title}</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-muted">{status.description}</p></div>
+        <AutomationControl state={automation} />
+      </section>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Kpi icon={ChartNoAxesCombined} label="Resultado" value={signedMoney(Number(portfolio?.equity ?? 0) - Number(portfolio?.initial_balance ?? 0))} help="Ganancia o pérdida virtual total, incluyendo posiciones abiertas." />
+        <Kpi icon={BriefcaseBusiness} label="Posiciones abiertas" value={String(openPositions.length)} help="Operaciones automáticas esperando un resultado oficial." />
+        <Kpi icon={Bot} label="Predicciones hoy" value={String(predictionsToday)} help="Análisis nuevos creados desde el inicio del día local." />
+        <Kpi icon={Target} label="Oportunidades hoy" value={String(actionableToday)} help="Predicciones que superaron costos, confianza y reglas comerciales." />
+      </div>
+
+      <LearningStrip evaluation={evaluation} />
+
+      <section className="panel p-5 md:p-6">
+        <SectionTitle icon={RefreshCw} title="Qué está haciendo ahora" subtitle="Cada etapa muestra trabajo real del último ciclo, no actividad inventada." />
+        <div className="mt-5 grid gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-4">
+          <FunnelStep number="1" label="Mercados leídos" value={latestCompletedRun?.markets_fetched ?? 0} detail="Última consulta pública" />
+          <FunnelStep number="2" label="Datos nuevos" value={(latestCompletedRun?.markets_created ?? 0) + (latestCompletedRun?.markets_updated ?? 0)} detail="Creados o actualizados" />
+          <FunnelStep number="3" label="Predichos hoy" value={predictionsToday} detail="Solo corto plazo" />
+          <FunnelStep number="4" label="Operados" value={automaticTrades.length} detail="Campaña automática" />
+        </div>
+        {latestRun?.status === "failed" && <div className="mt-4 flex items-start gap-3 rounded-lg border border-warning/25 bg-warning-soft p-3 text-sm text-warning"><ShieldAlert className="mt-0.5 size-4 shrink-0" /><span>La última ingesta falló ({latestRun.safe_error_type ?? "error de proveedor"}). El worker seguirá reintentando.</span></div>}
+      </section>
+
+      <div className="grid min-w-0 gap-5 xl:grid-cols-[1.1fr_.9fr]">
+        <EquityPanel equity={equity} performance={performance} />
+        <LatestPredictions items={predictions.slice(0, 5)} />
+      </div>
+
+      <section className="grid gap-4 md:grid-cols-3">
+        <PlainStep icon={DatabaseZap} title="Observa" text="Lee probabilidades públicas y detecta cambios cada minuto." />
+        <PlainStep icon={Bot} title="Razona y debate" text="Filtra bait y largo plazo; después compara análisis semántico, mercado y crítica." />
+        <PlainStep icon={FlaskConical} title="Simula y aprende" text="Opera con reglas fijas y evalúa solo cuando aparece un resultado oficial." />
+      </section>
+    </div>
+  );
 }
 
-function signedCredits(value: number, locale: string): string {
-  return `${value >= 0 ? "+" : ""}${credits(value, locale)}`;
+function ActivityView({ trades, positions }: Readonly<{ trades: PaperTrade[]; positions: PaperPosition[] }>) {
+  const liveTrades = trades.filter((item) => item.experiment_run_id === null && item.decision_source === "automatic");
+  const positionByTrade = new Map(positions.map((item) => [item.trade_id, item]));
+  return (
+    <div className="page-enter space-y-5">
+      <div><p className="eyebrow">Registro automático</p><h1 className="mt-1 text-3xl font-bold tracking-[-.04em] text-strong">Actividad</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-muted">Operaciones paper realizadas sin intervención manual. Las posiciones abiertas se actualizan hasta su resolución.</p></div>
+      {liveTrades.length === 0 ? <StatePanel title="Todavía no hubo operaciones automáticas" text="El sistema sigue analizando. Solo operará si una predicción supera todos los controles." /> : <section className="panel overflow-hidden"><div className="hidden grid-cols-[minmax(240px,1fr)_90px_110px_110px_130px] gap-3 border-b border-line px-4 py-2 text-[11px] font-bold uppercase tracking-[.12em] text-muted md:grid"><span>Mercado</span><span>Lado</span><span>Invertido</span><span>Resultado</span><span>Estado</span></div>{liveTrades.map((trade) => <TradeRow key={trade.trade_id} trade={trade} position={positionByTrade.get(trade.trade_id) ?? null} />)}</section>}
+    </div>
+  );
 }
 
-function relativeTime(value: string, locale: string): string {
-  const milliseconds = Date.now() - new Date(value).getTime();
-  const minutes = Math.max(0, Math.floor(milliseconds / 60_000));
-  const formatter = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
-  if (minutes < 60) return formatter.format(-minutes, "minute");
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return formatter.format(-hours, "hour");
-  return formatter.format(-Math.floor(hours / 24), "day");
+function LearningStrip({ evaluation }: Readonly<{ evaluation: PredictionEvaluation | null }>) {
+  const system = evaluation?.system;
+  const market = evaluation?.market_baseline;
+  const better = system && market ? Number(system.brier_score) < Number(market.brier_score) : false;
+  return <section className="panel grid gap-px overflow-hidden bg-line md:grid-cols-[1fr_150px_150px_150px]"><div className="bg-panel p-4"><p className="eyebrow">Aprendizaje confirmado</p><h2 className="mt-1 font-bold text-strong">{evaluation && evaluation.resolved_count >= 100 && better ? "Señal favorable en observación" : "Todavía no hay evidencia suficiente"}</h2><p className="mt-1 text-xs leading-5 text-muted">Se usa una sola predicción por mercado resuelto. Menor Brier es mejor; actividad por minuto no cuenta como un nuevo caso.</p></div><LearningMetric label="Mercados resueltos" value={String(evaluation?.resolved_count ?? 0)} /><LearningMetric label="Brier sistema" value={system ? Number(system.brier_score).toFixed(3) : "—"} /><LearningMetric label="Brier mercado" value={market ? Number(market.brier_score).toFixed(3) : "—"} /></section>;
 }
+
+function LearningMetric({ label, value }: Readonly<{ label: string; value: string }>) { return <div className="bg-panel p-4 md:text-center"><strong className="block font-mono text-xl text-strong">{value}</strong><span className="mt-1 block text-[11px] font-semibold text-muted">{label}</span></div>; }
+
+function AutomationControl({ state }: Readonly<{ state: AutomationState | null }>) {
+  const client = useQueryClient();
+  const [confirming, setConfirming] = useState(false);
+  const mutation = useMutation({ mutationFn: state?.paused ? api.resumeAutomation : api.pauseAutomation, onSuccess: (value) => { client.setQueryData(["automation"], value); setConfirming(false); } });
+  if (confirming && !state?.paused) return <div className="flex items-center gap-2 rounded-xl border border-negative/25 bg-negative-soft p-2"><span className="px-2 text-xs font-semibold text-negative">¿Pausar nuevas operaciones?</span><button className="button-danger" type="button" onClick={() => mutation.mutate()} disabled={mutation.isPending}><Pause className="size-4" /> Pausar</button><button className="icon-button" type="button" onClick={() => setConfirming(false)}><X className="size-4" /></button></div>;
+  return <button type="button" className={state?.paused ? "button-primary" : "button-secondary"} onClick={() => state?.paused ? mutation.mutate() : setConfirming(true)} disabled={mutation.isPending}>{state?.paused ? <Play className="size-4" /> : <Pause className="size-4" />}{state?.paused ? "Reanudar automatización" : "Pausar automatización"}</button>;
+}
+
+function EquityPanel({ equity, performance }: Readonly<{ equity: EquityCurvePoint[]; performance: PaperPerformance | null }>) {
+  const chart = equity.slice(-50).map((item) => ({ date: new Date(item.recorded_at).getTime(), value: Number(item.equity) }));
+  const evidence = performance?.metrics.evidence_state ?? "insufficient_sample";
+  return <section className="panel min-w-0 p-5"><SectionTitle icon={TrendingUp} title="Evolución del capital" subtitle="Capital virtual, costos y posiciones abiertas." /><div className="mt-4 h-56">{chart.length > 1 ? <ResponsiveContainer width="100%" height="100%"><LineChart data={chart} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}><CartesianGrid stroke="var(--line)" vertical={false} /><XAxis dataKey="date" type="number" domain={["dataMin", "dataMax"]} tickFormatter={(value) => new Date(value).toLocaleDateString("es-AR", { day: "2-digit", month: "short", timeZone: DISPLAY_TIME_ZONE })} tick={{ fill: "var(--muted)", fontSize: 11 }} axisLine={false} tickLine={false} /><YAxis tick={{ fill: "var(--muted)", fontSize: 11 }} axisLine={false} tickLine={false} /><Tooltip contentStyle={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 8, color: "var(--strong)" }} formatter={(value) => money(Number(value))} labelFormatter={(value) => shortDate(new Date(Number(value)).toISOString())} /><Line type="monotone" dataKey="value" stroke="var(--accent)" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} /></LineChart></ResponsiveContainer> : <div className="grid h-full place-items-center text-center text-sm text-muted"><div><ChartNoAxesCombined className="mx-auto mb-2 size-6" />El gráfico aparecerá después de registrar más de un punto.</div></div>}</div><div className="mt-3 flex items-center gap-2 border-t border-line pt-3 text-xs text-muted"><Info className="size-3.5" /><span>{evidenceLabel(evidence)}</span></div></section>;
+}
+
+function LatestPredictions({ items }: Readonly<{ items: PredictionListItem[] }>) {
+  return <section className="panel p-5"><SectionTitle icon={Bot} title="Últimas predicciones" subtitle="Los análisis más recientes y su decisión comercial." /><div className="mt-3 divide-y divide-line">{items.length ? items.map((item) => <Link key={item.prediction_run_id} href={`/predictions/${item.prediction_run_id}`} className="group flex items-center gap-3 py-3"><span className={`size-2 shrink-0 rounded-full ${item.is_actionable ? "bg-positive" : "bg-neutral"}`} /><span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-strong group-hover:text-accent">{item.market_title}</span><span className="text-xs text-muted">Mercado {percent(item.market_probability)} · Sistema {percent(item.consensus_probability)}</span></span><ArrowRight className="size-4 text-muted transition group-hover:translate-x-0.5 group-hover:text-accent" /></Link>) : <p className="py-8 text-center text-sm text-muted">Esperando el próximo análisis de corto plazo.</p>}</div></section>;
+}
+
+function FunnelStep({ number, label, value, detail }: Readonly<{ number: string; label: string; value: number; detail: string }>) { return <div className="bg-panel p-4"><span className="text-[10px] font-bold text-accent">{number}</span><strong className="mt-2 block text-2xl text-strong">{value.toLocaleString("es-AR")}</strong><span className="mt-1 block text-sm font-semibold text-default">{label}</span><small className="text-xs text-muted">{detail}</small></div>; }
+function Kpi({ icon: Icon, label, value, help }: Readonly<{ icon: LucideIcon; label: string; value: string; help: string }>) { return <article className="panel p-4"><div className="flex items-start justify-between"><span className="grid size-8 place-items-center rounded-lg bg-accent-soft text-accent"><Icon className="size-4" /></span><span title={help}><CircleHelp className="size-3.5 text-muted" /></span></div><strong className="mt-4 block text-2xl tracking-[-.03em] text-strong">{value}</strong><span className="mt-1 block text-xs font-semibold text-muted">{label}</span></article>; }
+function SectionTitle({ icon: Icon, title, subtitle }: Readonly<{ icon: LucideIcon; title: string; subtitle: string }>) { return <div className="flex items-start gap-3"><Icon className="mt-0.5 size-4 text-accent" /><div><h2 className="font-bold text-strong">{title}</h2><p className="mt-0.5 text-xs leading-5 text-muted">{subtitle}</p></div></div>; }
+function PlainStep({ icon: Icon, title, text }: Readonly<{ icon: LucideIcon; title: string; text: string }>) { return <article className="border-l-2 border-accent px-4 py-2"><Icon className="size-4 text-accent" /><h2 className="mt-3 font-bold text-strong">{title}</h2><p className="mt-1 text-sm leading-6 text-muted">{text}</p></article>; }
+function MoneyPill({ icon: Icon, label, value, tone, help }: Readonly<{ icon: LucideIcon; label: string; value: string; tone: "positive" | "negative" | "neutral"; help: string }>) { const color = tone === "positive" ? "text-positive" : tone === "negative" ? "text-negative" : "text-neutral"; return <div className="flex shrink-0 items-center gap-2 rounded-lg border border-line bg-subtle px-2.5 py-2" title={help}><Icon className={`size-4 ${color}`} /><span><small className="block text-[9px] font-bold uppercase tracking-wider text-muted">{label}</small><strong className={`block font-mono text-xs ${color}`}>{value}</strong></span></div>; }
+function TimeLabel({ icon: Icon, label, value }: Readonly<{ icon: LucideIcon; label: string; value: string }>) { return <div className="hidden items-center gap-2 xl:flex"><Icon className="size-3.5" /><span><small className="block text-[9px] font-bold uppercase tracking-wider">{label}</small><strong suppressHydrationWarning={label === "Ahora"} className="block whitespace-nowrap font-medium text-default">{value}</strong></span></div>; }
+function TradeRow({ trade, position }: Readonly<{ trade: PaperTrade; position: PaperPosition | null }>) { const pnl = Number(position?.status === "settled" ? position.realized_pnl : position?.unrealized_pnl ?? 0); return <div className="grid gap-2 border-b border-line px-4 py-4 last:border-0 md:grid-cols-[minmax(240px,1fr)_90px_110px_110px_130px] md:items-center"><div><strong className="line-clamp-2 text-sm text-strong">{trade.market_title}</strong><small className="mt-1 block text-muted">{shortDate(trade.executed_at)}</small></div><span className="text-sm font-bold uppercase text-accent">{trade.side}</span><span className="font-mono text-sm text-strong">{money(Number(trade.net_cost))}</span><span className={`font-mono text-sm font-bold ${pnl > 0 ? "text-positive" : pnl < 0 ? "text-negative" : "text-neutral"}`}>{signedMoney(pnl)}</span><span className={`status ${position?.status === "settled" ? "status-good" : "status-neutral"}`}>{position?.status === "settled" ? "Finalizada" : "Esperando resultado"}</span></div>; }
+function Loading() { return <div className="space-y-4">{[1, 2, 3].map((item) => <div key={item} className="h-32 animate-pulse rounded-xl bg-subtle" />)}</div>; }
+function StatePanel({ title, text }: Readonly<{ title: string; text: string }>) { return <section className="panel grid min-h-64 place-items-center p-8 text-center"><div><ShieldAlert className="mx-auto size-7 text-muted" /><h1 className="mt-3 font-bold text-strong">{title}</h1><p className="mt-1 max-w-md text-sm text-muted">{text}</p></div></section>; }
+
+function preferredPortfolio(items: PaperPortfolio[]) { return items.find((item) => item.experiment_run_id === null && item.name.toLowerCase().includes("autonomous")) ?? items.find((item) => item.experiment_run_id === null && !item.name.toLowerCase().includes("manual")) ?? null; }
+function currentSection(value: string | undefined): Section { if (value === "predictions") return "predictions"; if (value === "trades" || value === "activity") return "activity"; return "overview"; }
+function operationalStatus(sources: SourceHealth[], latest: SyncRun | null, completed: SyncRun | null, automation: AutomationState | null) { if (automation?.paused) return { title: "Automatización pausada", description: "La recolección puede continuar, pero no se crearán nuevas predicciones ni operaciones hasta reanudarla." }; const sourceOk = sources.length > 0 && sources.every((item) => item.status !== "unhealthy"); const fresh = completed?.finished_at ? Date.now() - new Date(completed.finished_at).getTime() < 5 * 60_000 : false; if (sourceOk && fresh && latest?.status !== "failed") return { title: "El sistema está trabajando", description: "Los datos están actuales y la campaña automática está buscando oportunidades de corto plazo." }; return { title: "El sistema necesita atención", description: "Los procesos siguen activos, pero los datos están atrasados o la última actualización falló. Se reintentará automáticamente." }; }
+function evidenceLabel(value: string) { const labels: Record<string, string> = { insufficient_sample: "Muestra insuficiente: todavía no se puede afirmar que exista una ventaja.", preliminary_result: "Resultado preliminar: se necesitan más mercados resueltos.", under_observation: "Estrategia bajo observación; no cambiar parámetros durante la medición.", sufficient_to_expand_validation: "La muestra permite ampliar la validación, no usar dinero real." }; return labels[value] ?? labels.insufficient_sample; }
+function money(value: number) { return `${value.toFixed(2)} M`; }
+function signedMoney(value: number) { return `${value > 0 ? "+" : ""}${value.toFixed(2)} M`; }
+function percent(value: string | null) { return value === null ? "—" : `${Math.round(Number(value) * 100)}%`; }
+function shortDate(value: string | null) { return value ? new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: DISPLAY_TIME_ZONE }).format(new Date(value)) : "Sin datos"; }
+function fullDate(value: Date) { return new Intl.DateTimeFormat("es-AR", { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: DISPLAY_TIME_ZONE }).format(value); }
+function dayKey(value: Date) { return `${value.getFullYear()}-${value.getMonth()}-${value.getDate()}`; }
+function startOfDay(value: Date) { const result = new Date(value); result.setHours(0, 0, 0, 0); return result.toISOString(); }

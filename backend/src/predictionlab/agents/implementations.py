@@ -5,7 +5,7 @@ from predictionlab.agents.base import BackendPredictionAgent
 
 class ReasoningAgent(BackendPredictionAgent):
     name = "reasoning"
-    version = "1.0.0"
+    version = "2.0.0"
 
 
 class MarketAgent(BackendPredictionAgent):
@@ -15,7 +15,7 @@ class MarketAgent(BackendPredictionAgent):
 
 class SkepticAgent(BackendPredictionAgent):
     name = "skeptic"
-    version = "1.0.0"
+    version = "2.0.0"
 
 
 class ConsensusAgent(BackendPredictionAgent):

@@ -60,6 +60,13 @@ export type SourceHealth = {
   safe_error_type: string | null;
 };
 
+export type AutomationState = {
+  paused: boolean;
+  updated_at: string | null;
+  reason: string | null;
+  simulation_only: true;
+};
+
 export type SyncRun = {
   run_id: string;
   provider_code: string;
@@ -261,6 +268,31 @@ export type PredictionListPage = {
   total_items: number;
   total_pages: number;
   applied_filters: Record<string, string>;
+};
+
+export type PredictionMetricSummary = {
+  brier_score: string;
+  log_loss: string;
+  absolute_error: string;
+  directional_accuracy: string;
+};
+
+export type PredictionEvaluation = {
+  experiment_run_id: string | null;
+  resolved_count: number;
+  emitted_count: number;
+  abstained_count: number;
+  coverage: string;
+  system: PredictionMetricSummary | null;
+  market_baseline: PredictionMetricSummary | null;
+  constant_baseline: PredictionMetricSummary | null;
+  calibration: {
+    lower_bound: string;
+    upper_bound: string;
+    prediction_count: number;
+    mean_probability: string;
+    observed_frequency: string;
+  }[];
 };
 
 export type PaperPortfolio = {

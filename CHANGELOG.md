@@ -10,16 +10,33 @@ versionada.
 
 ### Changed
 
+- El pipeline pasa a ser híbrido: Reasoning y Skeptic usan Ollama; Market,
+  Consensus, riesgo, costes y contabilidad permanecen deterministas.
+- La selección live prioriza mercados con resolución entre cinco minutos y
+  catorce días, un candidato por ciclo y observaciones nuevas para la
+  configuración activa.
+- El dashboard se reduce a Resumen, Predicciones y Actividad, elimina operación
+  manual e idioma, y añade tema claro/oscuro y estado ejecutivo persistente.
 - El dashboard adopta una experiencia ejecutiva completamente rediseñada con
-  cuatro recorridos visibles, lenguaje no técnico, nueva paleta clara, iconos y
+  tres recorridos visibles, lenguaje no técnico, nueva paleta clara, iconos y
   feedback visual de cursor, foco y click.
 - Predicciones muestra sólo mercado, estimación, confianza y conveniencia en el
   listado; el detalle auditable se carga bajo demanda.
-- Actividad reúne operaciones paper automáticas y manuales sin mezclar trades
-  de replay histórico.
+- Actividad muestra exclusivamente operaciones paper automáticas y excluye
+  replay histórico y overrides anteriores.
 
 ### Fixed
 
+- Las recomendaciones YES/NO de cada agente vuelven a expresar el outcome y no
+  la dirección comercial relativa al precio del mercado.
+- La calificación semántica puede vetar el consenso, evitando que dos agentes
+  posteriores rehabiliten un mercado bait o no reproducible.
+- El primer ciclo de un portfolio ya no usa un settlement anterior a su
+  creación cuando el slot UTC fue redondeado.
+- La evaluación live incluye runs `predicted`, aplica barrera anti-lookahead y
+  evita inflar la muestra con múltiples predicciones del mismo mercado.
+- Manifold aísla payloads individuales incompatibles sin descartar la página
+  completa y su health check valida la misma forma usada por el collector.
 - Se actualizaron dependencias transitivas de desarrollo para resolver los
   avisos de seguridad de `brace-expansion`, `js-yaml` y `nanoid`.
 - La ingesta Manifold conserva resoluciones confirmadas ante correcciones
@@ -40,6 +57,11 @@ versionada.
 
 ### Added
 
+- Servicio Ollama en Compose con `qwen3:1.7b`, salida estructurada, timeout,
+  circuit breaker y fallback reproducible.
+- Filtro de mercados triviales, circulares, personales o sin resolución útil.
+- API durable de pausa/reanudación de automatización y evaluación live.
+- ADR-0011 y guía de operación híbrida de corto horizonte.
 - Comando `scripts/start.ps1` para iniciar Docker Desktop, levantar el stack
   autónomo completo y validar API, dashboard y procesos en segundo plano.
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -49,9 +50,9 @@ _CURSOR_PREFIX: Final = "manifold:created-time:"
 _USER_AGENT: Final = "AI-Polyphite/0.1 read-only-research"
 _BINARY_OUTCOME_TYPE: Final = "BINARY"
 _CANCELLED_RESOLUTION: Final = "CANCEL"
-_MARKET_LIST_ADAPTER = TypeAdapter(list[ManifoldMarketPayload])
 _MARKET_ADAPTER = TypeAdapter(ManifoldMarketPayload)
 _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
+logger = logging.getLogger(__name__)
 
 type Clock = Callable[[], datetime]
 
@@ -84,6 +85,7 @@ class ManifoldProvider(MarketDataProvider):
         self._listed_payloads: dict[str, ManifoldMarketPayload] = {}
         self._observation_signatures: dict[str, str] = {}
         self._observation_times: dict[str, datetime] = {}
+        self._invalid_payloads_last_batch = 0
         self._http_client = http_client or httpx.AsyncClient(
             headers={"User-Agent": _USER_AGENT},
             follow_redirects=False,
@@ -238,14 +240,18 @@ class ManifoldProvider(MarketDataProvider):
         raw = await self._get_json(
             _SEARCH_PATH,
             params={
-                "sort": "newest",
+                "sort": "last-updated" if self._sync_mode == "recent" else "newest",
                 "filter": "all",
                 "contractType": _BINARY_OUTCOME_TYPE,
-                "limit": 1,
+                "limit": 300 if self._sync_mode == "recent" else 100,
             },
         )
         self._validate_list(raw)
-        return ProviderHealthStatus.HEALTHY
+        return (
+            ProviderHealthStatus.DEGRADED
+            if self._invalid_payloads_last_batch
+            else ProviderHealthStatus.HEALTHY
+        )
 
     async def aclose(self) -> None:
         """Close the internally-created HTTP client."""
@@ -324,14 +330,48 @@ class ManifoldProvider(MarketDataProvider):
             seconds = max(0.0, (retry_at - self._now()).total_seconds())
         return seconds if isfinite(seconds) and seconds >= 0 else None
 
-    @staticmethod
-    def _validate_list(value: object | None) -> list[ManifoldMarketPayload]:
-        try:
-            return _MARKET_LIST_ADAPTER.validate_python(value)
-        except ValidationError as exc:
+    def _validate_list(self, value: object | None) -> list[ManifoldMarketPayload]:
+        if not isinstance(value, list):
             raise ProviderProtocolError(
                 "Manifold market-list response violated the expected schema."
-            ) from exc
+            )
+        payloads: list[ManifoldMarketPayload] = []
+        invalid_count = 0
+        for index, item in enumerate(value):
+            try:
+                payloads.append(_MARKET_ADAPTER.validate_python(item))
+            except ValidationError as exc:
+                invalid_count += 1
+                logger.warning(
+                    "manifold_market_payload_quarantined",
+                    extra={
+                        "provider_code": self.code,
+                        "payload_index": index,
+                        "validation_errors": tuple(
+                            {
+                                "location": ".".join(str(part) for part in error["loc"]),
+                                "type": error["type"],
+                            }
+                            for error in exc.errors(include_url=False, include_input=False)
+                        ),
+                    },
+                )
+        self._invalid_payloads_last_batch = invalid_count
+        if value and not payloads:
+            raise ProviderProtocolError(
+                "Every Manifold market payload violated the expected schema."
+            )
+        if invalid_count:
+            logger.warning(
+                "manifold_market_batch_degraded",
+                extra={
+                    "provider_code": self.code,
+                    "received_count": len(value),
+                    "accepted_count": len(payloads),
+                    "quarantined_count": invalid_count,
+                },
+            )
+        return payloads
 
     @staticmethod
     def _validate_market(value: object) -> ManifoldMarketPayload:

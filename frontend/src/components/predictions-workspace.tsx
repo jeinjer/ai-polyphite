@@ -1,629 +1,334 @@
 "use client";
 
-import {
-  keepPreviousData,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
   BrainCircuit,
-  Check,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  CircleDollarSign,
+  CircleHelp,
+  Clock3,
   Eye,
-  LoaderCircle,
-  ShieldCheck,
+  Gauge,
+  ShieldAlert,
   Sparkles,
-  Target,
-  X,
-  Zap,
+  type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import type { ReactNode } from "react";
 
-import { useI18n } from "@/i18n/i18n-provider";
 import { api } from "@/lib/api";
 import type {
+  AgentPrediction,
   CommercialLabel,
-  ManualPaperTradeResponse,
-  PositionSide,
+  EstimatedOutcome,
   PredictionListItem,
-  PredictionRun,
 } from "@/lib/api-types";
 
-type OpportunityFilter = "all" | "actionable" | "not_actionable";
+type DecisionFilter = "all" | CommercialLabel;
+type OutcomeFilter = "all" | EstimatedOutcome;
+const DISPLAY_TIME_ZONE = "Europe/Paris";
+type SortFilter =
+  | "newest"
+  | "oldest"
+  | "market_probability"
+  | "consensus_probability"
+  | "consensus_confidence";
 
 export function PredictionsWorkspace({
   predictionId,
 }: Readonly<{ predictionId: string | null }>) {
-  if (predictionId) return <PredictionDetail predictionId={predictionId} />;
-  return <PredictionList />;
+  return predictionId ? <PredictionDetail predictionId={predictionId} /> : <PredictionList />;
 }
 
 function PredictionList() {
-  const { t } = useI18n();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const page = positiveInt(searchParams.get("page"), 1);
-  const filter = opportunityFilter(searchParams.get("view"));
-  const query = useMemo(() => {
-    const params = new URLSearchParams({
-      page: String(page),
-      page_size: "25",
-      sort: "predicted_at",
-      direction: "desc",
-    });
-    if (filter !== "all") params.set("commercial_label", filter);
-    return params.toString();
-  }, [filter, page]);
-  const predictions = useQuery({
-    queryKey: ["prediction-list", query],
-    queryFn: () => api.predictions(query),
-    placeholderData: keepPreviousData,
+  const page = positiveInteger(searchParams.get("page"), 1);
+  const decision = decisionFilter(searchParams.get("decision"));
+  const outcome = outcomeFilter(searchParams.get("outcome"));
+  const sort = sortFilter(searchParams.get("sort"));
+  const queryString = predictionQuery({ page, decision, outcome, sort });
+  const query = useQuery({
+    queryKey: ["prediction-list", queryString],
+    queryFn: () => api.predictions(queryString),
+    placeholderData: (previous) => previous,
   });
-  const [manualTrade, setManualTrade] = useState<PredictionListItem | null>(null);
 
-  const changeFilter = (next: OpportunityFilter) => {
-    const params = new URLSearchParams();
-    if (next !== "all") params.set("view", next);
-    router.push(`/predictions${params.size ? `?${params.toString()}` : ""}`);
-  };
-  const changePage = (next: number) => {
-    const params = new URLSearchParams();
-    if (filter !== "all") params.set("view", filter);
-    params.set("page", String(next));
-    router.push(`/predictions?${params.toString()}`);
+  const update = (values: Record<string, string | null>) => {
+    const next = new URLSearchParams(searchParams.toString());
+    Object.entries(values).forEach(([key, value]) => {
+      if (!value || value === "all") next.delete(key);
+      else next.set(key, value);
+    });
+    router.push(`/predictions${next.size ? `?${next.toString()}` : ""}`);
   };
 
   return (
-    <div className="space-y-7 animate-page-in">
-      <header className="max-w-3xl">
-        <p className="text-xs font-black uppercase tracking-[0.18em] text-[#5b43f1]">
-          {t("opp.eyebrow")}
-        </p>
-        <h1 className="mt-2 text-3xl font-black tracking-[-0.04em] sm:text-4xl">
-          {t("opp.title")}
-        </h1>
-        <p className="mt-3 text-base leading-7 text-[#777b87]">
-          {t("opp.description")}
-        </p>
-      </header>
+    <div className="page-enter space-y-5">
+      <PageTitle
+        eyebrow="Decisiones automáticas"
+        title="Predicciones"
+        description="Qué estima el sistema, qué tan seguro está y si encontró una oportunidad operable."
+      />
 
-      <section className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-[#182033]/8 bg-white p-3 shadow-sm">
-        <div className="flex flex-wrap gap-2">
-          {(["all", "actionable", "not_actionable"] as const).map((value) => (
-            <button
-              key={value}
-              type="button"
-              className={`interactive-button cursor-pointer rounded-2xl px-4 py-2.5 text-sm font-black ${
-                filter === value
-                  ? "bg-[#182033] text-white shadow-lg"
-                  : "text-[#777b87] hover:bg-[#f5f2ea]"
-              }`}
-              onClick={() => changeFilter(value)}
-            >
-              {t(
-                value === "all"
-                  ? "opp.filter.all"
-                  : value === "actionable"
-                    ? "opp.filter.opportunities"
-                    : "opp.filter.discarded",
-              )}
-            </button>
-          ))}
+      <section className="panel flex flex-wrap items-center gap-3 p-3">
+        <FilterGroup label="Conveniencia">
+          <Select
+            value={decision}
+            onChange={(value) => update({ decision: value, page: null })}
+            options={[
+              ["all", "Todas"],
+              ["actionable", "Conviene"],
+              ["not_actionable", "No conviene"],
+              ["not_evaluable", "Sin evaluar"],
+            ]}
+          />
+        </FilterGroup>
+        <FilterGroup label="Resultado estimado">
+          <Select
+            value={outcome}
+            onChange={(value) => update({ outcome: value, page: null })}
+            options={[
+              ["all", "Todos"],
+              ["yes", "Sí"],
+              ["no", "No"],
+            ]}
+          />
+        </FilterGroup>
+        <FilterGroup label="Orden">
+          <Select
+            value={sort}
+            onChange={(value) => update({ sort: value, page: null })}
+            options={[
+              ["newest", "Más recientes"],
+              ["oldest", "Más antiguas"],
+              ["market_probability", "Mayor prob. mercado"],
+              ["consensus_probability", "Mayor prob. sistema"],
+              ["consensus_confidence", "Mayor confianza"],
+            ]}
+          />
+        </FilterGroup>
+        <div className="ml-auto text-sm text-muted">
+          {query.data ? `${query.data.total_items.toLocaleString("es-AR")} registros` : "Actualizando…"}
         </div>
-        <span className="px-3 text-xs font-bold text-[#9a9ca5]">
-          {t("opp.autoNote")}
-        </span>
       </section>
 
-      {predictions.isLoading ? (
-        <PredictionLoading />
-      ) : predictions.isError ? (
-        <PredictionError onRetry={() => void predictions.refetch()} />
-      ) : !predictions.data?.items.length ? (
-        <PredictionEmpty />
+      {query.isLoading ? (
+        <LoadingRows />
+      ) : query.isError ? (
+        <StatePanel icon={ShieldAlert} title="No pudimos cargar las predicciones" text="La API no respondió. El sistema volverá a intentarlo automáticamente." />
+      ) : !query.data?.items.length ? (
+        <StatePanel icon={Eye} title="No hay resultados para estos filtros" text="El sistema sigue escaneando mercados; probá una vista menos restrictiva." />
       ) : (
-        <div className="space-y-4">
-          {predictions.data.items.map((prediction) => (
-            <OpportunityCard
-              key={prediction.prediction_run_id}
-              prediction={prediction}
-              onManualTrade={() => setManualTrade(prediction)}
-            />
-          ))}
-        </div>
+        <section className="panel overflow-hidden">
+          <div className="hidden grid-cols-[minmax(260px,1fr)_110px_110px_100px_125px_44px] gap-3 border-b border-line px-4 py-2 text-[11px] font-bold uppercase tracking-[.12em] text-muted lg:grid">
+            <span>Predicción</span>
+            <Hint text="Probabilidad publicada por el mercado al momento de predecir.">Mercado</Hint>
+            <Hint text="Probabilidad final calculada por el consenso del sistema.">Sistema</Hint>
+            <Hint text="Consistencia y respaldo de la estimación, no garantía de acierto.">Confianza</Hint>
+            <span>Decisión</span>
+            <span />
+          </div>
+          {query.data.items.map((item) => <PredictionRow key={item.prediction_run_id} item={item} />)}
+        </section>
       )}
 
-      {predictions.data && predictions.data.total_pages > 1 && (
-        <nav className="flex items-center justify-center gap-3" aria-label={t("opp.pagination")}>
+      {query.data && query.data.total_pages > 1 && (
+        <nav className="flex items-center justify-between" aria-label="Paginación">
           <button
+            className="button-secondary"
             type="button"
-            className="interactive-button inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-[#182033]/10 bg-white px-4 py-3 text-sm font-black disabled:cursor-not-allowed disabled:opacity-40"
             disabled={page <= 1}
-            onClick={() => changePage(page - 1)}
+            onClick={() => update({ page: String(page - 1) })}
           >
-            <ChevronLeft className="size-4" /> {t("opp.previous")}
+            <ChevronLeft className="size-4" /> Anterior
           </button>
-          <span className="text-sm font-black text-[#777b87]">
-            {t("opp.page", { current: page, total: predictions.data.total_pages })}
-          </span>
+          <span className="text-sm font-semibold text-muted">Página {page} de {query.data.total_pages}</span>
           <button
+            className="button-secondary"
             type="button"
-            className="interactive-button inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-[#182033]/10 bg-white px-4 py-3 text-sm font-black disabled:cursor-not-allowed disabled:opacity-40"
-            disabled={page >= predictions.data.total_pages}
-            onClick={() => changePage(page + 1)}
+            disabled={page >= query.data.total_pages}
+            onClick={() => update({ page: String(page + 1) })}
           >
-            {t("opp.next")} <ChevronRight className="size-4" />
+            Siguiente <ChevronRight className="size-4" />
           </button>
         </nav>
-      )}
-
-      {manualTrade && (
-        <ManualTradeModal prediction={manualTrade} onClose={() => setManualTrade(null)} />
       )}
     </div>
   );
 }
 
-function OpportunityCard({
-  prediction,
-  onManualTrade,
-}: Readonly<{ prediction: PredictionListItem; onManualTrade: () => void }>) {
-  const { locale, t } = useI18n();
-  const actionable = prediction.is_actionable;
+function PredictionRow({ item }: Readonly<{ item: PredictionListItem }>) {
   return (
-    <article className="executive-card overflow-hidden rounded-[1.75rem] border border-[#182033]/8 bg-white shadow-sm">
-      <div className="grid gap-5 p-5 sm:p-7 lg:grid-cols-[1fr_auto] lg:items-center">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <OpportunityBadge label={prediction.commercial_label} />
-            <span className="text-xs font-bold text-[#9a9ca5]">
-              {new Date(prediction.predicted_at).toLocaleString(locale, {
-                day: "numeric",
-                month: "short",
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </span>
-          </div>
-          <h2 className="mt-4 max-w-3xl text-lg font-black leading-7 tracking-[-0.02em] sm:text-xl">
-            {prediction.market_title}
-          </h2>
-          <div className="mt-5 grid max-w-2xl grid-cols-3 gap-3">
-            <DecisionMetric
-              label={t("opp.marketThinks")}
-              value={probability(prediction.market_probability)}
-            />
-            <DecisionMetric
-              label={t("opp.systemThinks")}
-              value={probability(prediction.consensus_probability)}
-              highlighted
-            />
-            <DecisionMetric
-              label={t("opp.confidence")}
-              value={probability(prediction.consensus_confidence)}
-            />
-          </div>
-          <p className="mt-4 flex items-center gap-2 text-sm font-bold text-[#626777]">
-            <BrainCircuit className="size-4 text-[#5b43f1]" />
-            {prediction.estimated_outcome
-              ? t("opp.systemConclusion", {
-                  outcome: t(
-                    prediction.estimated_outcome === "yes"
-                      ? "opp.outcome.yes"
-                      : "opp.outcome.no",
-                  ),
-                })
-              : t("opp.noConclusion")}
-          </p>
+    <Link
+      href={`/predictions/${encodeURIComponent(item.prediction_run_id)}`}
+      className="group grid cursor-pointer gap-3 border-b border-line px-4 py-4 transition-colors last:border-0 hover:bg-hover lg:grid-cols-[minmax(260px,1fr)_110px_110px_100px_125px_44px] lg:items-center"
+    >
+      <div className="min-w-0">
+        <div className="mb-1.5 flex items-center gap-2 text-xs text-muted">
+          <Clock3 className="size-3.5" /> {dateTime(item.predicted_at)}
+          {item.estimated_outcome && <Outcome outcome={item.estimated_outcome} />}
         </div>
-
-        <div className="flex flex-wrap gap-2 lg:max-w-52 lg:flex-col">
-          <Link
-            href={`/predictions/${encodeURIComponent(prediction.prediction_run_id)}`}
-            className="interactive-button inline-flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-2xl bg-[#182033] px-4 py-3 text-sm font-black text-white"
-          >
-            <Eye className="size-4" /> {t("opp.understand")}
-          </Link>
-          <button
-            type="button"
-            className="interactive-button inline-flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-2xl border border-[#182033]/10 bg-white px-4 py-3 text-sm font-black text-[#626777]"
-            onClick={onManualTrade}
-          >
-            <CircleDollarSign className="size-4" /> {t("opp.manual")}
-          </button>
-          {actionable && (
-            <span className="flex items-center justify-center gap-2 px-2 py-1 text-center text-xs font-bold leading-5 text-[#16845f]">
-              <Zap className="size-3.5" /> {t("opp.automaticHandles")}
-            </span>
-          )}
-        </div>
+        <h2 className="line-clamp-2 font-semibold leading-5 text-strong group-hover:text-accent">{item.market_title}</h2>
       </div>
-    </article>
+      <Metric label="Mercado" value={percent(item.market_probability)} />
+      <Metric label="Sistema" value={percent(item.consensus_probability)} strong />
+      <Metric label="Confianza" value={percent(item.consensus_confidence)} />
+      <Decision label={item.commercial_label} />
+      <span className="grid size-9 place-items-center rounded-lg border border-line text-muted transition group-hover:translate-x-0.5 group-hover:border-accent group-hover:text-accent">
+        <ChevronRight className="size-4" />
+      </span>
+    </Link>
   );
 }
 
 function PredictionDetail({ predictionId }: Readonly<{ predictionId: string }>) {
-  const { locale, t } = useI18n();
-  const prediction = useQuery({
+  const query = useQuery({
     queryKey: ["prediction-detail", predictionId],
     queryFn: () => api.prediction(predictionId),
   });
-  const [manualTrade, setManualTrade] = useState<PredictionListItem | null>(null);
-  if (prediction.isLoading) return <PredictionLoading />;
-  if (prediction.isError || !prediction.data) {
-    return <PredictionError onRetry={() => void prediction.refetch()} />;
+  if (query.isLoading) return <LoadingRows />;
+  if (query.isError || !query.data) {
+    return <StatePanel icon={ShieldAlert} title="Predicción no disponible" text="No pudimos recuperar este análisis." />;
   }
-  const value = prediction.data;
-  const actionable = value.commercial_evaluation?.is_actionable ?? false;
-  const reasons = value.commercial_evaluation?.reasons ?? [];
-  const listItem = detailToListItem(value);
+  const value = query.data;
+  const evaluation = value.commercial_evaluation;
+  const reasoning = value.agent_predictions.find((agent) => agent.agent_name === "reasoning");
   return (
-    <div className="space-y-7 animate-page-in">
-      <Link
-        href="/predictions"
-        className="inline-flex cursor-pointer items-center gap-2 text-sm font-black text-[#5b43f1] transition hover:gap-3"
-      >
-        <ArrowLeft className="size-4" /> {t("opp.detail.back")}
+    <div className="page-enter space-y-5">
+      <Link href="/predictions" className="inline-flex items-center gap-2 text-sm font-semibold text-muted transition hover:text-accent">
+        <ArrowLeft className="size-4" /> Volver a predicciones
       </Link>
 
-      <section className="relative overflow-hidden rounded-[2rem] bg-[#182033] p-7 text-white shadow-xl sm:p-10">
-        <div className="pointer-events-none absolute -right-16 -top-20 size-72 rounded-full bg-[#5b43f1]/35 blur-3xl" />
-        <div className="relative">
-          <OpportunityBadge
-            label={value.commercial_evaluation?.commercial_label ?? "not_evaluable"}
-            dark
-          />
-          <h1 className="mt-5 max-w-4xl text-3xl font-black leading-tight tracking-[-0.04em] sm:text-4xl">
-            {value.market_title}
-          </h1>
-          <p className="mt-4 text-sm font-semibold text-white/50">
-            {new Date(value.predicted_at).toLocaleString(locale)}
-          </p>
-          <div className="mt-8 grid gap-3 sm:grid-cols-3">
-            <DetailMetric label={t("opp.marketThinks")} value={probability(value.market_probability)} />
-            <DetailMetric label={t("opp.systemThinks")} value={probability(value.consensus_probability)} featured />
-            <DetailMetric label={t("opp.confidence")} value={probability(value.consensus_confidence)} />
-          </div>
-        </div>
-      </section>
-
-      <div className="grid gap-6 lg:grid-cols-[1fr_.75fr]">
-        <section className="rounded-[2rem] border border-[#182033]/8 bg-white p-6 shadow-sm sm:p-8">
-          <div className="flex items-start gap-4">
-            <span className={`grid size-12 shrink-0 place-items-center rounded-2xl ${actionable ? "bg-[#e9fff4] text-[#16845f]" : "bg-[#fff3d6] text-[#9b6a00]"}`}>
-              {actionable ? <Zap className="size-5" /> : <ShieldCheck className="size-5" />}
-            </span>
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.15em] text-[#8b8e98]">
-                {t("opp.detail.inPlainWords")}
-              </p>
-              <h2 className="mt-2 text-2xl font-black tracking-[-0.03em]">
-                {actionable ? t("opp.detail.actionable") : t("opp.detail.notActionable")}
-              </h2>
-              <p className="mt-3 leading-7 text-[#777b87]">
-                {actionable
-                  ? t("opp.detail.actionableText")
-                  : t("opp.detail.notActionableText")}
-              </p>
+      <section className="panel p-5 md:p-7">
+        <div className="flex flex-wrap items-start justify-between gap-5">
+          <div className="max-w-3xl">
+            <div className="mb-3 flex flex-wrap gap-2">
+              <Decision label={evaluation?.commercial_label ?? "not_evaluable"} />
+              {value.estimated_outcome && <Outcome outcome={value.estimated_outcome} />}
             </div>
-          </div>
-          {reasons.length > 0 && (
-            <ul className="mt-6 space-y-2">
-              {reasons.slice(0, 4).map((reason) => (
-                <li key={reason} className="flex items-start gap-2 rounded-2xl bg-[#f7f5f0] px-4 py-3 text-sm font-semibold text-[#626777]">
-                  <Check className="mt-0.5 size-4 shrink-0 text-[#5b43f1]" />
-                  {humanReason(reason, t)}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
-        <section className="rounded-[2rem] border border-[#182033]/8 bg-[#eeeaff] p-6 sm:p-8">
-          <span className="grid size-12 place-items-center rounded-2xl bg-white text-[#5b43f1] shadow-sm">
-            <Sparkles className="size-5" />
-          </span>
-          <h2 className="mt-5 text-xl font-black">{t("opp.detail.yourChoice")}</h2>
-          <p className="mt-3 text-sm leading-6 text-[#626777]">
-            {t("opp.detail.manualText")}
-          </p>
-          <button
-            type="button"
-            className="interactive-button mt-5 inline-flex cursor-pointer items-center gap-2 rounded-2xl bg-[#5b43f1] px-5 py-3 text-sm font-black text-white shadow-lg"
-            onClick={() => setManualTrade(listItem)}
-          >
-            <CircleDollarSign className="size-4" /> {t("opp.manual")}
-          </button>
-        </section>
-      </div>
-
-      <section className="rounded-3xl border border-[#182033]/8 bg-white/60 p-5 text-sm font-semibold leading-6 text-[#777b87]">
-        <div className="flex items-start gap-3">
-          <ShieldCheck className="mt-0.5 size-5 shrink-0 text-[#5b43f1]" />
-          <p>{t("opp.detail.auditSaved")}</p>
-        </div>
-      </section>
-
-      {manualTrade && (
-        <ManualTradeModal prediction={manualTrade} onClose={() => setManualTrade(null)} />
-      )}
-    </div>
-  );
-}
-
-function ManualTradeModal({
-  prediction,
-  onClose,
-}: Readonly<{ prediction: PredictionListItem; onClose: () => void }>) {
-  const { t } = useI18n();
-  const queryClient = useQueryClient();
-  const [side, setSide] = useState<PositionSide>(
-    prediction.estimated_outcome === "no" ? "no" : "yes",
-  );
-  const [stake, setStake] = useState("1.00");
-  const [reason, setReason] = useState("");
-  const [result, setResult] = useState<ManualPaperTradeResponse | null>(null);
-  const mutation = useMutation({
-    mutationFn: () =>
-      api.manualPaperTrade({
-        prediction_run_id: prediction.prediction_run_id,
-        side,
-        requested_stake: stake,
-        override_reason: reason,
-        idempotency_key: crypto.randomUUID(),
-      }),
-    onSuccess: async (response) => {
-      setResult(response);
-      await queryClient.invalidateQueries({ queryKey: ["paper-trades"] });
-      await queryClient.invalidateQueries({ queryKey: ["all-paper-trades"] });
-    },
-  });
-  const canSubmit = reason.trim().length >= 5 && Number(stake) > 0;
-  return (
-    <div
-      className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-[#182033]/55 p-4 backdrop-blur-sm"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="manual-trade-title"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
-      <div className="animate-page-in w-full max-w-xl rounded-[2rem] bg-[#fdfcf9] p-6 shadow-2xl sm:p-8">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <span className="inline-flex items-center gap-2 rounded-full bg-[#fff3d6] px-3 py-1.5 text-xs font-black text-[#9b6a00]">
-              <CircleDollarSign className="size-3.5" /> {t("opp.modal.simulated")}
-            </span>
-            <h2 id="manual-trade-title" className="mt-4 text-2xl font-black tracking-[-0.03em]">
-              {t("opp.modal.title")}
-            </h2>
-          </div>
-          <button
-            type="button"
-            className="interactive-button grid size-10 cursor-pointer place-items-center rounded-full bg-[#f2efe8] text-[#626777]"
-            onClick={onClose}
-            aria-label={t("opp.modal.close")}
-          >
-            <X className="size-5" />
-          </button>
-        </div>
-        <p className="mt-3 line-clamp-2 text-sm font-bold leading-6 text-[#626777]">
-          {prediction.market_title}
-        </p>
-        <div className="mt-6 rounded-2xl border border-[#ff7759]/15 bg-[#fff0ec] p-4 text-sm leading-6 text-[#8a4939]">
-          {t("opp.modal.warning")}
-        </div>
-
-        {result ? (
-          <div className="mt-6 rounded-2xl bg-[#e9fff4] p-5 text-[#146b50]">
-            <p className="font-black">
-              {t(
-                result.status === "filled"
-                  ? "opp.modal.filled"
-                  : result.status === "duplicate"
-                    ? "opp.modal.duplicate"
-                    : "opp.modal.rejected",
-              )}
+            <h1 className="text-2xl font-bold tracking-[-.03em] text-strong md:text-3xl">{value.market_title}</h1>
+            <p className="mt-3 text-sm leading-6 text-muted">
+              {reasoning?.rationale_summary ?? value.abstention_reason ?? "El análisis no publicó una explicación."}
             </p>
-            <button type="button" className="interactive-button mt-5 cursor-pointer rounded-xl bg-[#182033] px-4 py-2.5 text-sm font-black text-white" onClick={onClose}>
-              {t("opp.modal.done")}
-            </button>
           </div>
-        ) : (
-          <form
-            className="mt-6 space-y-5"
-            onSubmit={(event) => {
-              event.preventDefault();
-              mutation.mutate();
-            }}
-          >
-            <fieldset>
-              <legend className="text-sm font-black">{t("opp.modal.choose")}</legend>
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                {(["yes", "no"] as const).map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    className={`interactive-button cursor-pointer rounded-2xl border px-4 py-3 text-sm font-black ${
-                      side === value
-                        ? "border-[#5b43f1] bg-[#eeeaff] text-[#5b43f1]"
-                        : "border-[#182033]/10 bg-white text-[#777b87]"
-                    }`}
-                    onClick={() => setSide(value)}
-                  >
-                    {t(value === "yes" ? "opp.outcome.yes" : "opp.outcome.no")}
-                  </button>
-                ))}
-              </div>
-            </fieldset>
-            <label className="block text-sm font-black">
-              {t("opp.modal.amount")}
-              <input
-                className="mt-2 w-full rounded-2xl border border-[#182033]/10 bg-white px-4 py-3 outline-none focus:border-[#5b43f1]/50 focus:ring-4 focus:ring-[#5b43f1]/10"
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={stake}
-                onChange={(event) => setStake(event.target.value)}
-              />
-            </label>
-            <label className="block text-sm font-black">
-              {t("opp.modal.reason")}
-              <textarea
-                className="mt-2 min-h-24 w-full resize-none rounded-2xl border border-[#182033]/10 bg-white px-4 py-3 outline-none focus:border-[#5b43f1]/50 focus:ring-4 focus:ring-[#5b43f1]/10"
-                value={reason}
-                placeholder={t("opp.modal.reasonPlaceholder")}
-                onChange={(event) => setReason(event.target.value)}
-              />
-            </label>
-            {mutation.isError && (
-              <p className="rounded-2xl bg-[#fff0ec] p-4 text-sm font-bold text-[#b84630]">
-                {t("opp.modal.error")}
-              </p>
-            )}
-            <div className="flex flex-wrap justify-end gap-2">
-              <button type="button" className="interactive-button cursor-pointer rounded-2xl px-5 py-3 text-sm font-black text-[#777b87]" onClick={onClose}>
-                {t("opp.modal.cancel")}
-              </button>
-              <button
-                type="submit"
-                disabled={!canSubmit || mutation.isPending}
-                className="interactive-button inline-flex cursor-pointer items-center gap-2 rounded-2xl bg-[#ff7759] px-5 py-3 text-sm font-black text-white shadow-lg disabled:cursor-not-allowed disabled:opacity-45"
-              >
-                {mutation.isPending && <LoaderCircle className="size-4 animate-spin" />}
-                {t("opp.modal.confirm")}
-              </button>
+          <div className="grid min-w-56 grid-cols-2 gap-3">
+            <DetailMetric label="Mercado" value={percent(value.market_probability)} />
+            <DetailMetric label="Sistema" value={percent(value.consensus_probability)} accent />
+            <DetailMetric label="Confianza" value={percent(value.consensus_confidence)} />
+            <DetailMetric label="Diferencia" value={points(value.edge)} />
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[1fr_320px]">
+        <div className="panel p-5 md:p-6">
+          <div className="mb-5 flex items-center gap-3">
+            <BrainCircuit className="size-5 text-accent" />
+            <div>
+              <h2 className="font-bold text-strong">Debate de agentes</h2>
+              <p className="text-sm text-muted">Primero opinan de forma independiente; después el escéptico cuestiona y el consenso agrega.</p>
             </div>
-          </form>
-        )}
+          </div>
+          <div className="space-y-3">
+            {value.agent_predictions.map((agent) => <AgentLine key={agent.agent_prediction_id} agent={agent} />)}
+          </div>
+        </div>
+        <aside className="panel p-5">
+          <h2 className="font-bold text-strong">Por qué se decidió esto</h2>
+          <p className="mt-2 text-sm leading-6 text-muted">{reasonLabel(evaluation?.reasons[0] ?? value.abstention_reason)}</p>
+          <dl className="mt-5 space-y-3 border-t border-line pt-4 text-sm">
+            <DataRow label="Datos" value={evaluation?.data_freshness_status === "fresh" ? "Actualizados" : "Revisar frescura"} />
+            <DataRow label="Costo estimado" value={evaluation ? points(evaluation.estimated_fees) : "—"} />
+            <DataRow label="Ventaja neta" value={evaluation ? points(evaluation.net_edge) : "—"} />
+            <DataRow label="Hora" value={dateTime(value.predicted_at)} />
+          </dl>
+        </aside>
+      </section>
+    </div>
+  );
+}
+
+function AgentLine({ agent }: Readonly<{ agent: AgentPrediction }>) {
+  const meta = agentMeta(agent.agent_name);
+  const Icon = meta.icon;
+  return (
+    <details className="group rounded-xl border border-line bg-subtle open:bg-panel">
+      <summary className="flex cursor-pointer list-none items-center gap-3 p-4">
+        <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent"><Icon className="size-4" /></span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-semibold text-strong">{meta.label}</span>
+          <span className="block truncate text-xs text-muted">{meta.role}</span>
+        </span>
+        <span className="text-right">
+          <span className="block font-mono text-sm font-bold text-strong">{percent(agent.predicted_probability)}</span>
+          <span className="block text-[11px] text-muted">conf. {percent(agent.confidence)}</span>
+        </span>
+        <ChevronRight className="size-4 text-muted transition group-open:rotate-90" />
+      </summary>
+      <div className="border-t border-line px-4 py-4 text-sm leading-6 text-muted">
+        <p>{agent.rationale_summary}</p>
+        {agent.warnings.length > 0 && <p className="mt-3 text-warning">{agent.warnings[0]}</p>}
       </div>
-    </div>
+    </details>
   );
 }
 
-function OpportunityBadge({ label, dark = false }: Readonly<{ label: CommercialLabel; dark?: boolean }>) {
-  const { t } = useI18n();
-  const actionable = label === "actionable";
-  const text = t(
-    actionable
-      ? "opp.badge.opportunity"
-      : label === "not_actionable"
-        ? "opp.badge.noAction"
-        : "opp.badge.waiting",
-  );
-  return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-black ${dark ? (actionable ? "bg-[#72e0b1]/15 text-[#72e0b1]" : "bg-white/10 text-white/65") : actionable ? "bg-[#e9fff4] text-[#16845f]" : "bg-[#f0f0f2] text-[#777b87]"}`}>
-      {actionable ? <Zap className="size-3.5" /> : <ShieldCheck className="size-3.5" />}
-      {text}
-    </span>
-  );
+function PageTitle({ eyebrow, title, description }: Readonly<{ eyebrow: string; title: string; description: string }>) {
+  return <header><p className="eyebrow">{eyebrow}</p><h1 className="mt-1 text-3xl font-bold tracking-[-.04em] text-strong">{title}</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-muted">{description}</p></header>;
 }
 
-function DecisionMetric({ label, value, highlighted = false }: Readonly<{ label: string; value: string; highlighted?: boolean }>) {
-  return (
-    <div className={`rounded-2xl p-3 sm:p-4 ${highlighted ? "bg-[#eeeaff]" : "bg-[#f7f5f0]"}`}>
-      <p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#92949d]">{label}</p>
-      <p className={`mt-1 text-xl font-black ${highlighted ? "text-[#5b43f1]" : "text-[#182033]"}`}>{value}</p>
-    </div>
-  );
+function FilterGroup({ label, children }: Readonly<{ label: string; children: ReactNode }>) {
+  return <label className="flex items-center gap-2 text-xs font-semibold text-muted"><span>{label}</span>{children}</label>;
 }
 
-function DetailMetric({ label, value, featured = false }: Readonly<{ label: string; value: string; featured?: boolean }>) {
-  return (
-    <div className={`rounded-3xl border p-5 ${featured ? "border-[#8d7cff]/40 bg-[#5b43f1]/35" : "border-white/10 bg-white/7"}`}>
-      <p className="text-xs font-black uppercase tracking-[0.12em] text-white/50">{label}</p>
-      <p className="mt-2 text-3xl font-black">{value}</p>
-    </div>
-  );
+function Select({ value, onChange, options }: Readonly<{ value: string; onChange: (value: string) => void; options: [string, string][] }>) {
+  return <select className="control" value={value} onChange={(event) => onChange(event.target.value)}>{options.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>;
 }
 
-function PredictionLoading() {
-  const { t } = useI18n();
-  return (
-    <div className="grid min-h-80 place-items-center" aria-label={t("loading.label")}>
-      <div className="text-center">
-        <span className="mx-auto grid size-14 place-items-center rounded-2xl bg-[#eeeaff] text-[#5b43f1]"><Target className="size-6 animate-pulse" /></span>
-        <p className="mt-4 text-sm font-black text-[#777b87]">{t("opp.loading")}</p>
-      </div>
-    </div>
-  );
+function Hint({ text, children }: Readonly<{ text: string; children: ReactNode }>) {
+  return <span className="inline-flex items-center gap-1" title={text}>{children}<CircleHelp className="size-3" /></span>;
 }
 
-function PredictionError({ onRetry }: Readonly<{ onRetry: () => void }>) {
-  const { t } = useI18n();
-  return (
-    <div className="rounded-[2rem] border border-[#ff7759]/20 bg-white p-8 text-center">
-      <h2 className="text-xl font-black">{t("opp.error")}</h2>
-      <button type="button" className="interactive-button mt-5 cursor-pointer rounded-2xl bg-[#182033] px-5 py-3 text-sm font-black text-white" onClick={onRetry}>{t("error.retry")}</button>
-    </div>
-  );
+function Metric({ label, value, strong = false }: Readonly<{ label: string; value: string; strong?: boolean }>) {
+  return <div><span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-muted lg:hidden">{label}</span><span className={`font-mono text-sm font-bold ${strong ? "text-accent" : "text-strong"}`}>{value}</span></div>;
 }
 
-function PredictionEmpty() {
-  const { t } = useI18n();
-  return (
-    <div className="grid min-h-72 place-items-center rounded-[2rem] border border-dashed border-[#182033]/15 bg-white/60 p-8 text-center">
-      <div>
-        <span className="mx-auto grid size-14 place-items-center rounded-2xl bg-[#eeeaff] text-[#5b43f1]"><Target className="size-6" /></span>
-        <h2 className="mt-5 text-xl font-black">{t("opp.empty")}</h2>
-        <p className="mt-2 text-sm text-[#777b87]">{t("opp.emptyText")}</p>
-      </div>
-    </div>
-  );
+function DetailMetric({ label, value, accent = false }: Readonly<{ label: string; value: string; accent?: boolean }>) {
+  return <div className="rounded-lg bg-subtle p-3"><dt className="text-[11px] font-semibold uppercase tracking-wider text-muted">{label}</dt><dd className={`mt-1 font-mono text-lg font-bold ${accent ? "text-accent" : "text-strong"}`}>{value}</dd></div>;
 }
 
-function detailToListItem(value: PredictionRun): PredictionListItem {
-  const evaluation = value.commercial_evaluation;
-  return {
-    prediction_run_id: value.prediction_run_id,
-    market_id: value.market_id,
-    market_title: value.market_title,
-    provider_code: value.provider_code ?? "unknown",
-    category: value.category,
-    predicted_at: value.predicted_at,
-    market_probability: value.market_probability,
-    consensus_probability: value.consensus_probability,
-    consensus_confidence: value.consensus_confidence,
-    estimated_outcome: value.estimated_outcome,
-    commercial_label: evaluation?.commercial_label ?? "not_evaluable",
-    potential_side: evaluation?.potential_side ?? "none",
-    gross_edge: evaluation?.gross_edge ?? null,
-    net_edge: evaluation?.net_edge ?? null,
-    is_actionable: evaluation?.is_actionable ?? false,
-    primary_reason: evaluation?.reasons[0] ?? "not_evaluable",
-    portfolio_has_open_position: evaluation?.portfolio_has_open_position ?? false,
-    data_freshness_status: evaluation?.data_freshness_status ?? "unavailable",
-    campaign_id: evaluation?.campaign_id ?? null,
-    portfolio_id: evaluation?.portfolio_id ?? null,
-  };
+function Decision({ label }: Readonly<{ label: CommercialLabel }>) {
+  const values = label === "actionable" ? ["Conviene", "good"] : label === "not_actionable" ? ["No conviene", "neutral"] : ["Sin evaluar", "warning"];
+  return <span className={`status status-${values[1]}`}>{values[0]}</span>;
 }
 
-function humanReason(value: string, t: ReturnType<typeof useI18n>["t"]): string {
-  const normalized = value.toLowerCase();
-  if (normalized.includes("confidence")) return t("opp.reason.confidence");
-  if (normalized.includes("edge")) return t("opp.reason.edge");
-  if (normalized.includes("fresh") || normalized.includes("stale")) return t("opp.reason.freshness");
-  if (normalized.includes("position")) return t("opp.reason.position");
-  if (normalized.includes("risk") || normalized.includes("exposure")) return t("opp.reason.risk");
-  return t("opp.reason.policy");
+function Outcome({ outcome }: Readonly<{ outcome: EstimatedOutcome }>) {
+  return <span className="rounded-md bg-subtle px-1.5 py-0.5 text-[10px] font-bold uppercase text-strong">Estima {outcome === "yes" ? "Sí" : "No"}</span>;
 }
 
-function probability(value: string | null): string {
-  return value === null ? "—" : `${(Number(value) * 100).toFixed(0)}%`;
+function agentMeta(name: string) {
+  if (name === "reasoning") return { label: "Análisis semántico", role: "Valida contrato, bait y plausibilidad", icon: Sparkles };
+  if (name === "market") return { label: "Señal de mercado", role: "Lee tendencia y volatilidad", icon: Gauge };
+  if (name === "skeptic") return { label: "Revisión escéptica", role: "Ataca supuestos y exceso de confianza", icon: ShieldAlert };
+  return { label: "Consenso", role: "Agrega probabilidades con reglas reproducibles", icon: CheckCircle2 };
 }
 
-function positiveInt(value: string | null, fallback: number): number {
-  const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
-}
+function DataRow({ label, value }: Readonly<{ label: string; value: string }>) { return <div className="flex items-start justify-between gap-3"><dt className="text-muted">{label}</dt><dd className="text-right font-semibold text-strong">{value}</dd></div>; }
 
-function opportunityFilter(value: string | null): OpportunityFilter {
-  return value === "actionable" || value === "not_actionable" ? value : "all";
-}
+function StatePanel({ icon: Icon, title, text }: Readonly<{ icon: LucideIcon; title: string; text: string }>) { return <section className="panel grid min-h-52 place-items-center p-8 text-center"><div><Icon className="mx-auto size-7 text-muted" /><h2 className="mt-3 font-bold text-strong">{title}</h2><p className="mt-1 max-w-md text-sm text-muted">{text}</p></div></section>; }
+
+function LoadingRows() { return <div className="panel space-y-1 p-2">{[1, 2, 3, 4, 5].map((item) => <div key={item} className="h-20 animate-pulse rounded-lg bg-subtle" />)}</div>; }
+
+function predictionQuery({ page, decision, outcome, sort }: { page: number; decision: DecisionFilter; outcome: OutcomeFilter; sort: SortFilter }) { const oldest = sort === "oldest"; const field = sort === "newest" || oldest ? "predicted_at" : sort; const params = new URLSearchParams({ page: String(page), page_size: "25", sort: field, direction: oldest ? "asc" : "desc" }); if (decision !== "all") params.set("commercial_label", decision); if (outcome !== "all") params.set("estimated_outcome", outcome); return params.toString(); }
+function decisionFilter(value: string | null): DecisionFilter { return value === "actionable" || value === "not_actionable" || value === "not_evaluable" ? value : "all"; }
+function outcomeFilter(value: string | null): OutcomeFilter { return value === "yes" || value === "no" ? value : "all"; }
+function sortFilter(value: string | null): SortFilter { return value === "oldest" || value === "market_probability" || value === "consensus_probability" || value === "consensus_confidence" ? value : "newest"; }
+function positiveInteger(value: string | null, fallback: number) { const parsed = Number(value); return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback; }
+function percent(value: string | null) { return value === null ? "—" : `${Math.round(Number(value) * 100)}%`; }
+function points(value: string | null) { if (value === null) return "—"; const number = Number(value) * 100; return `${number > 0 ? "+" : ""}${number.toFixed(1)} pp`; }
+function dateTime(value: string) { return new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: DISPLAY_TIME_ZONE }).format(new Date(value)); }
+function reasonLabel(value: string | null | undefined) { if (!value) return "No existe una evaluación comercial asociada."; const labels: Record<string, string> = { opportunity_level_not_allowed: "La diferencia frente al mercado todavía es demasiado pequeña.", insufficient_net_edge: "La ventaja desaparece después de considerar costos simulados.", insufficient_confidence: "La estimación todavía no tiene respaldo suficiente.", category_concentration: "La cartera ya tiene demasiada exposición relacionada.", incompatible_existing_position: "Ya existe una posición abierta en este mercado.", no_commercial_edge: "No se detectó una diferencia aprovechable frente al mercado." }; return labels[value] ?? value.replaceAll("_", " "); }

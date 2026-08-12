@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from typing import Protocol
 from uuid import uuid4
 
+from predictionlab.application.automation import AutomationState
 from predictionlab.application.paper_validation import (
     PaperValidationRunFailedError,
     PaperValidationRunResult,
@@ -28,6 +29,10 @@ class PaperValidationRunner(Protocol):
     ) -> PaperValidationRunResult: ...
 
 
+class AutomationControlReader(Protocol):
+    async def status(self) -> AutomationState: ...
+
+
 class PaperValidationWorker:
     def __init__(
         self,
@@ -36,6 +41,7 @@ class PaperValidationWorker:
         interval_seconds: int,
         run_immediately: bool,
         clock: Clock | None = None,
+        automation_control: AutomationControlReader | None = None,
     ) -> None:
         if interval_seconds <= 0:
             raise ValueError("paper validation interval must be positive")
@@ -43,6 +49,7 @@ class PaperValidationWorker:
         self._interval_seconds = interval_seconds
         self._run_immediately = run_immediately
         self._clock = clock or SystemClock()
+        self._automation_control = automation_control
         self._stop_event = asyncio.Event()
 
     async def run(self) -> None:
@@ -102,6 +109,18 @@ class PaperValidationWorker:
         *,
         causation_id: str,
     ) -> None:
+        if self._automation_control is not None:
+            state = await self._automation_control.status()
+            if state.paused:
+                logger.warning(
+                    "paper_validation_worker_paused",
+                    extra={
+                        "scheduled_for": scheduled_for.isoformat(),
+                        "pause_reason": state.reason,
+                        "simulation_only": True,
+                    },
+                )
+                return
         try:
             await self._runner.run_cycle(
                 scheduled_for=scheduled_for,

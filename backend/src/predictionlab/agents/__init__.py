@@ -1,6 +1,10 @@
 """Initial deterministic prediction-agent implementations."""
 
-from predictionlab.agents.backends import MockModelBackend, RuleBasedModelBackend
+from predictionlab.agents.backends import (
+    HybridModelBackend,
+    MockModelBackend,
+    RuleBasedModelBackend,
+)
 from predictionlab.agents.implementations import (
     ConsensusAgent,
     MarketAgent,
@@ -10,6 +14,7 @@ from predictionlab.agents.implementations import (
 
 __all__ = [
     "ConsensusAgent",
+    "HybridModelBackend",
     "MarketAgent",
     "MockModelBackend",
     "ReasoningAgent",

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import func, or_, select
@@ -99,6 +99,11 @@ class SqlAlchemyPredictionMarketRepository:
         *,
         provider_codes: tuple[str, ...] = (),
         only_with_new_observations: bool = False,
+        require_resolution_at: bool = False,
+        minimum_resolution_horizon_seconds: int = 0,
+        maximum_resolution_horizon_seconds: int | None = None,
+        agent_configuration_hash: str | None = None,
+        limit: int | None = None,
     ) -> tuple[UUID, ...]:
         latest_status = (
             select(MarketStateChangeModel.status)
@@ -118,6 +123,18 @@ class SqlAlchemyPredictionMarketRepository:
             MarketModel.ingested_at <= predicted_at,
             latest_status == MarketStatus.OPEN.value,
         )
+        if require_resolution_at:
+            statement = statement.where(MarketModel.resolution_at.is_not(None))
+        if minimum_resolution_horizon_seconds:
+            statement = statement.where(
+                MarketModel.resolution_at
+                > predicted_at + timedelta(seconds=minimum_resolution_horizon_seconds)
+            )
+        if maximum_resolution_horizon_seconds is not None:
+            statement = statement.where(
+                MarketModel.resolution_at
+                <= predicted_at + timedelta(seconds=maximum_resolution_horizon_seconds)
+            )
         if provider_codes:
             statement = statement.join(
                 ProviderModel,
@@ -139,6 +156,14 @@ class SqlAlchemyPredictionMarketRepository:
                     PredictionRunModel.market_id == MarketModel.market_id,
                     PredictionRunModel.experiment_run_id.is_(None),
                     PredictionRunModel.predicted_at <= predicted_at,
+                    *(
+                        (
+                            PredictionRunModel.agent_configuration_hash
+                            == agent_configuration_hash,
+                        )
+                        if agent_configuration_hash is not None
+                        else ()
+                    ),
                 )
                 .correlate(MarketModel)
                 .scalar_subquery()
@@ -150,10 +175,14 @@ class SqlAlchemyPredictionMarketRepository:
                     latest_observation > latest_live_prediction,
                 ),
             )
+        statement = statement.order_by(
+            MarketModel.resolution_at.asc().nulls_last(),
+            MarketModel.market_id,
+        )
+        if limit is not None:
+            statement = statement.limit(limit)
         async with self._session_factory() as session:
             ids = (
-                await session.scalars(
-                    statement.order_by(MarketModel.market_id)
-                )
+                await session.scalars(statement)
             ).all()
         return tuple(ids)

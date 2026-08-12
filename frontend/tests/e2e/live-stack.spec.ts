@@ -5,10 +5,11 @@ const API_ORIGIN = new URL(
   process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000",
 ).origin;
 const DASHBOARD_ENDPOINTS = [
-  "/markets",
   "/sources",
   "/collector-runs",
   "/paper-portfolios",
+  "/automation",
+  "/prediction-evaluation",
 ] as const;
 
 test.describe("live Docker stack", () => {
@@ -38,25 +39,10 @@ test.describe("live Docker stack", () => {
       );
     }
 
-    const marketsResponse = completed[DASHBOARD_ENDPOINTS.indexOf("/markets")];
-    const markets = (await marketsResponse.json()) as {
-      items: { title: string }[];
-    };
-
     await expect(
-      page.getByRole("heading", {
-        name: "No pudimos cargar la información",
-      }),
+      page.getByRole("heading", { name: "No se pudo cargar el tablero" }),
     ).toHaveCount(0);
-    if (markets.items[0]) {
-      await page.goto("/markets");
-      await expect(page.getByText(markets.items[0].title).first()).toBeVisible();
-    } else {
-      await page.goto("/markets");
-      await expect(
-        page.getByText("Todavía no hay mercados disponibles."),
-      ).toBeVisible();
-    }
+    await expect(page.getByText("Estado general")).toBeVisible();
 
     const predictionResponse = page.waitForResponse((response) => {
       const url = new URL(response.url());

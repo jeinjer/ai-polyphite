@@ -293,16 +293,40 @@ class SqlAlchemyPredictionReadRepository:
         filters: list[ColumnElement[bool]] = [
             MarketModel.resolution_outcome.in_(
                 [ResolutionOutcome.YES.value, ResolutionOutcome.NO.value]
-            )
+            ),
+            MarketModel.resolved_at.is_not(None),
+            PredictionRunModel.predicted_at <= MarketModel.resolved_at,
         ]
         if experiment_run_id is not None:
             filters.append(PredictionRunModel.experiment_run_id == experiment_run_id)
+        ranked = (
+            select(
+                PredictionRunModel.prediction_run_id.label("prediction_run_id"),
+                func.row_number()
+                .over(
+                    partition_by=PredictionRunModel.market_id,
+                    order_by=(
+                        PredictionRunModel.predicted_at.desc(),
+                        PredictionRunModel.prediction_run_id.desc(),
+                    ),
+                )
+                .label("prediction_rank"),
+            )
+            .join(MarketModel)
+            .where(*filters)
+            .subquery()
+        )
         async with self._session_factory() as session:
             rows = (
                 await session.execute(
                     select(PredictionRunModel, MarketModel)
                     .join(MarketModel)
-                    .where(*filters)
+                    .join(
+                        ranked,
+                        ranked.c.prediction_run_id
+                        == PredictionRunModel.prediction_run_id,
+                    )
+                    .where(ranked.c.prediction_rank == 1)
                     .order_by(PredictionRunModel.predicted_at)
                 )
             ).all()

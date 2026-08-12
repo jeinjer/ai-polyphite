@@ -4,182 +4,103 @@
 
 ## Estado general
 
-**Fase:** estabilización del MVP con predicciones v2 y validación paper continua
+**Fase:** MVP autónomo de investigación y paper trading con razonamiento híbrido.
 
-**Estado:** campaña autónoma read-only/paper preparada para ejecución continua
-**Dinero real:** prohibido y no implementado
+**Estado:** operativo en Docker Compose con datos públicos reales de Manifold,
+predicciones locales y capital exclusivamente simulado.
 
-## Flujos disponibles
+**Dinero real:** prohibido y no implementado.
+
+## Flujo operativo actual
 
 ```text
-MockProvider o ManifoldProvider
-  → MarketDataCollector
-  → Application Services
+Manifold público (read-only, cada 60 s)
+  → Collector idempotente
   → PostgreSQL
-  → API read-only
-  → dashboard es-ES / en-US
-
-JSONL versionado
-  → ReplayClock
-  → ReplayProvider
-  → MarketDataCollector
-  → PostgreSQL
-  → ExperimentRun
-  → API / dashboard avanzado
-
-Mercado visible as-of
-  → Reasoning / Market / Skeptic / Consensus
-  → PredictionRun durable
-  → CommercialEvaluation por campaña
-  → API / dashboard Predicciones y Agentes
-  → evaluación posterior contra baselines y costes
-
-PredictionRun durable
-  → campañas automáticas separadas
-  → políticas de entrada, sizing, riesgo y costes
-  → decisión, orden, trade y posición simulados
-  → settlement oficial y ledger
-  → métricas, baselines y dashboard
-
-Mercados abiertos visibles por slot UTC
-  → predicciones y decisiones idempotentes
-  → settlement / mark-to-market
-  → reconciliación ledger ↔ portfolio
-  → auditoría PaperValidationRun
-
-Intervención humana opcional
-  → lado, stake y motivo explícitos
-  → revalidación actual y RiskPolicy
-  → portfolio manual separado
-  → TradeDecision(source=manual_override)
+  → filtro semántico y temporal (5 min–14 días)
+  → ReasoningAgent + SkepticAgent en Ollama
+  → MarketAgent + ConsensusAgent deterministas
+  → evaluación comercial y riesgo deterministas
+  → paper trading y settlement
+  → dashboard ejecutivo con refresco cada 30 s
 ```
 
-## Implementado
+El lote local procesa como máximo un mercado nuevo por ciclo para no solapar
+inferencias en una máquina sin GPU dedicada. Una observación sólo vuelve a
+analizarse si es nueva para la versión configurada del pipeline.
 
-- Market Domain, observaciones nullable, resolución y auditoría de estados.
-- Provider SDK con Mock, Manifold read-only y Replay.
-- Collector incremental, worker periódico y auditoría `CollectorRun`.
-- `Clock`, `SystemClock` y `ReplayClock` monotónico.
-- Barrera anti-lookahead dentro de `ReplayProvider`.
-- JSONL con metadata, schema, rangos, contadores y validación SHA-256.
-- Dataset sintético con 20 mercados y 80 observaciones.
-- Modos `step`, `accelerated`, `until` y `reset`.
-- `ExperimentRun` durable con configuración y resultado hasheados.
-- Reejecución idempotente con persistencia semánticamente idéntica.
-- API:
-  - mercados, observaciones e historial;
-  - sincronizaciones y fuentes;
-  - `GET /replay-datasets`;
-  - `GET /experiment-runs`;
-  - `GET /experiment-runs/{run_id}`.
-- Dashboard ejecutivo bilingüe, responsive y accesible con sólo cuatro
-  recorridos visibles: Resumen, Oportunidades, Actividad y Mercados.
-- Presentación en lenguaje no técnico, detalle lazy de oportunidades y
-  separación visual entre automatización y simulaciones manuales.
-- Contratos `PredictionAgent` y `ModelBackend`.
-- Backends deterministas RuleBased y Mock sin I/O externo.
-- ReasoningAgent, MarketAgent, SkepticAgent y ConsensusAgent versionados.
-- `ConsensusAgent` 2.0 publica estimación aun con confianza o edge comercial
-  bajos y conserva warnings.
-- `PredictionRun.predicted` con `estimated_outcome` YES/NO para runs nuevos.
-- `CommercialEvaluation` durable con edge bruto/neto, costes, frescura,
-  motivos y etiqueta por campaña/portfolio.
-- Orquestador transaccional, observable e idempotente.
-- `PredictionRun` y cuatro `AgentPrediction` reconstruibles.
-- Edge YES/NO, niveles configurables y abstención explícita.
-- Lecturas PostgreSQL as-of con barrera contra observaciones futuras.
-- `make replay-predict` con cadencia o timestamps explícitos.
-- API de predicciones por mercado y experimento.
-- `GET /predictions` liviano, paginado, filtrable y ordenable sin N+1.
-- Detalle lazy `/predictions/{id}` con agentes, evaluación y artefactos paper.
-- `GET /agent-predictions` separado para el monitor técnico.
-- Brier, log loss, error absoluto, accuracy, cobertura y calibración.
-- MarketBaseline y ConstantBaseline.
-- Vistas Predicciones y Agentes sin ROI ficticio.
-- Portfolio y ledger virtual en `USD_SIMULATED` o `MANA_SIMULATED`.
-- Decisiones idempotentes derivadas exclusivamente de `PredictionRun`.
-- Posiciones YES/NO long-only, sin leverage y una por mercado.
-- Políticas versionadas de entrada, sizing, riesgo y costes.
-- Apertura y liquidación transaccionales con procedencia completa.
-- Mark-to-market explícitamente informativo.
-- Liquidación YES, NO y CANCELLED; OTHER queda pendiente con alerta.
-- Replay trade determinista integrado al mismo reloj histórico.
-- Métricas simuladas, evidencia, alertas y baselines comparables.
-- API read-only de portfolios, decisiones, trades, posiciones y settlements.
-- Vistas bilingües Cartera, Operaciones, Posiciones y Rendimiento.
-- Hosts locales unificados en `127.0.0.1` y CORS validado para ambos origins
-  de desarrollo mediante tests y Playwright contra Docker.
-- Docker Compose para migración, API, frontend, PostgreSQL, Redis y worker.
-- Runtime `once`/`worker` para validación paper continua por slots UTC.
-- Configuración congelada mediante hash y portfolio estable por estrategia.
-- Advisory lock y retries sin duplicar predicciones, decisiones ni operaciones.
-- Auditoría durable `PaperValidationRun` para cada intento.
-- Reconciliación automática de ledger, balances, P&L, equity y exposición.
-- Runbook operativo para validación paper continua.
-- Campañas conservadora y `experimental-v1` automáticas, con portfolios,
-  hashes y métricas separados y un único batch predictivo por slot.
-- Override manual exclusivamente simulado, con lado/stake libres, motivo,
-  idempotencia y límites de riesgo; no reemplaza la automatización.
-- Rutas URL para todas las secciones y detalle enlazable de mercado.
-- Refresco automático del dashboard cada 60 segundos.
-- Manifold read-only como fuente autónoma de Compose, con catálogo reciente
-  acotado a 1.000 mercados y una consulta HTTP por ciclo.
-- Predicciones live limitadas a Manifold y a observaciones nuevas.
-- Collector y validador paper cada hora con recuperación tras reinicio.
-- Backups PostgreSQL diarios verificados y con retención de 7 días.
-- Rotación de logs Docker acotada a 50 MB por servicio.
-- Reinicio `unless-stopped` para API, frontend, collector, validador y backup.
-- CI del backend valida Mypy con el plugin de Pydantic, la cadena completa de
-  migraciones sobre PostgreSQL limpio y tests aislados del entorno del runner.
-- Conflictos externos que intentan reescribir una resolución confirmada se
-  aíslan por mercado sin bloquear el checkpoint del catálogo.
-- Contabilidad paper normalizada a 8 decimales y proyección de P&L no realizado
-  reconstruida desde posiciones durables antes de reconciliar.
-- Campañas conservadora y experimental aisladas ante fallos de la otra.
-- Esperas de workers segmentadas en 60 segundos para reaccionar al despertar
-  del host y a señales de parada.
-- Selector explícito de cartera paper; la autónoma es el default y las
-  operaciones muestran origen automático o manual.
-- Inicio cotidiano con `scripts/start.ps1`, incluyendo arranque de Docker
-  Desktop, health checks y verificación de todos los procesos autónomos.
+## Implementado y activo
+
+- Provider SDK neutral con Mock, Replay y Manifold read-only.
+- Ingesta incremental observable, tolerante a payloads incompatibles y con
+  cuarentena por elemento.
+- Predicciones limitadas a mercados binarios abiertos con resolución objetiva
+  entre cinco minutos y catorce días.
+- Rechazo previo de preguntas triviales, bait, circulares, personales o no
+  reproducibles; el rechazo semántico bloquea el consenso.
+- Arquitectura híbrida:
+  - Ollama/Qwen para interpretación semántica y crítica adversarial;
+  - reglas deterministas para señales de mercado, consenso, costes, riesgo y
+    contabilidad;
+  - circuit breaker y fallback reproducible si Ollama no responde.
+- Probabilidades YES/NO con semántica uniforme entre agentes y consenso.
+- Predicciones, evidencia, hashes, decisiones y operaciones reconstruibles.
+- Evaluación live contra resultados oficiales usando una única predicción por
+  mercado resuelto y barrera anti-lookahead.
+- Dos campañas paper aisladas, reconciliación contable y portfolios versionados
+  por configuración.
+- Automatización pausable y reanudable; la interfaz no ofrece operaciones
+  manuales.
+- Dashboard ejecutivo con tres recorridos: Resumen, Predicciones y Actividad.
+- Capital invertido, reserva, diferencia, fecha actual, última ingesta y última
+  predicción visibles en el encabezado.
+- Tema claro/oscuro, navegación lateral, detalle lazy y listado paginado.
+- PostgreSQL, Redis, FastAPI, Next.js, workers, Ollama y backup en Compose.
+- Inicio cotidiano con `INICIAR_AI_POLYPHITE.cmd` o `scripts/start.ps1`.
+
+## Qué significan “datos reales” y “autónomo”
+
+- Los mercados, probabilidades y resoluciones provienen de la API pública de
+  Manifold.
+- Las probabilidades de los agentes son estimaciones del laboratorio; no son
+  hechos ni señales financieras verificadas externamente.
+- Todo el capital, las órdenes, los trades y el P&L son simulados.
+- Mientras Docker y la computadora permanezcan activos, collector y validador
+  trabajan sin intervención. Tras suspensión o reinicio, `INICIAR_AI_POLYPHITE.cmd`
+  reanuda el stack sin duplicar los ciclos completados.
+
+## Limitaciones conocidas
+
+- Sólo hay un proveedor real activo.
+- No existe NewsAgent, búsqueda web, RAG ni conocimiento externo en tiempo real.
+- La inferencia local depende del rendimiento de CPU/GPU del host; por eso el
+  lote está acotado.
+- “Sin operación” puede ser una salida correcta por falta de edge neto, riesgo,
+  mercado no evaluable o desacuerdo. El dashboard expone el motivo.
+- La evidencia estadística seguirá siendo insuficiente hasta acumular una
+  cantidad material de mercados resueltos; la UI no presenta ROI ficticio.
+- No se evita la suspensión del sistema operativo desde la aplicación.
 
 ## Decisiones vigentes
 
-Diez ADR aceptados:
+Once ADR aceptados. ADR-0011 reemplaza la postura temporal de ADR-0008 y adopta
+razonamiento generativo local bajo controles deterministas.
 
-1. Monolito modular.
-2. Sistema de eventos durable como arquitectura futura.
-3. Límites de paper trading.
-4. Frontera neutral del Provider SDK.
-5. Ingesta at-least-once con checkpoints.
-6. Observaciones separadas de cotizaciones ejecutables.
-7. Reloj simulado y barrera contra lookahead.
-8. Agentes deterministas antes de integrar LLM.
-9. Frontera estructural de simulación y evaluación.
-10. Separación entre predicción, evaluación comercial y ejecución simulada.
+## Fuera de alcance
 
-## No implementado
+- Ejecución con dinero real, wallets, brokers o credenciales de trading.
+- Event Bus durable, microservicios, scheduler distribuido o WebSockets.
+- Noticias, proveedores LLM cloud y optimización automática de estrategias.
+- HistoricalProvider, Metaculus y Polymarket.
 
-- Noticias, backend LLM u Ollama.
-- Event Bus, outbox/inbox o Redis Streams funcional.
-- Ejecución real, wallets, brokers o credenciales de trading.
-- HistoricalProvider, Metaculus o Polymarket.
-- Scheduler distribuido, WebSockets o autenticación.
+## Siguiente validación
 
-## Siguiente etapa recomendada
-
-Congelar el MVP y estabilizarlo mediante validación paper continua:
-
-1. ejecutar datasets históricos más extensos sin cambiar parámetros;
-2. observar errores, staleness, concentración y drawdown;
-3. comparar periodos y categorías contra los mismos baselines;
-4. ejecutar la ventana paper continua preparada durante 30 días;
-5. revisar evidencia antes de añadir NewsAgent o LLM.
-
-No añadir ejecución real, optimización automática ni nuevos agentes durante la
-estabilización.
+Mantener la configuración congelada durante 30 días, observar disponibilidad,
+latencia, cobertura, Brier score, edge neto, concentración y drawdown, y publicar
+un informe sin optimización retrospectiva. No agregar NewsAgent hasta comprobar
+si el sistema aprende algo útil con datos estructurados.
 
 ## Fuente de verdad
 
 Este archivo describe el código actual. [`TASKS.md`](TASKS.md) contiene el
-backlog y [`docs/`](docs/) explica contratos y decisiones.
+backlog y [`docs/`](docs/) explica los contratos y decisiones.

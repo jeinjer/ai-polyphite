@@ -67,6 +67,20 @@ class Settings(BaseSettings):
     )
     redis_url: RedisDsn = RedisDsn("redis://127.0.0.1:6379/0")
     ollama_base_url: AnyHttpUrl = AnyHttpUrl("http://localhost:11434")
+    prediction_model_backend: Literal["rule_based", "hybrid"] = "rule_based"
+    ollama_model: str = Field(default="qwen3:1.7b", min_length=1, max_length=200)
+    ollama_timeout_seconds: float = Field(default=45, gt=0, le=300)
+    ollama_reasoning_temperature: Decimal = Field(
+        default=Decimal("0.30"),
+        ge=0,
+        le=1,
+    )
+    ollama_skeptic_temperature: Decimal = Field(
+        default=Decimal("0.45"),
+        ge=0,
+        le=1,
+    )
+    ollama_circuit_breaker_seconds: float = Field(default=300, ge=10, le=3_600)
 
     cors_allowed_origins: Annotated[tuple[AnyHttpUrl, ...], NoDecode] = (
         AnyHttpUrl("http://127.0.0.1:3000"),
@@ -181,6 +195,18 @@ class Settings(BaseSettings):
         le=1,
     )
     prediction_strong_edge: Decimal = Field(default=Decimal("0.15"), ge=0, le=1)
+    prediction_require_resolution_at: bool = True
+    prediction_minimum_resolution_horizon_seconds: int = Field(
+        default=300,
+        ge=0,
+        le=86_400,
+    )
+    prediction_maximum_resolution_horizon_seconds: int = Field(
+        default=1_209_600,
+        ge=60,
+        le=31_536_000,
+    )
+    prediction_maximum_candidates_per_batch: int = Field(default=100, ge=1, le=1_000)
     enable_manual_paper_trading: bool = Field(
         default=False,
         validation_alias=AliasChoices(
@@ -436,6 +462,11 @@ class Settings(BaseSettings):
             raise ValueError("Prediction edge thresholds must be strictly increasing.")
         if self.paper_minimum_stake > self.paper_maximum_stake:
             raise ValueError("Paper minimum stake cannot exceed maximum stake.")
+        if (
+            self.prediction_maximum_resolution_horizon_seconds
+            <= self.prediction_minimum_resolution_horizon_seconds
+        ):
+            raise ValueError("Prediction resolution horizon bounds are invalid.")
         if not (
             self.paper_evidence_preliminary_trades
             < self.paper_evidence_observation_trades
@@ -468,6 +499,11 @@ class Settings(BaseSettings):
             "log_level": self.log_level.value,
             "backend_host": self.backend_host,
             "backend_port": self.backend_port,
+            "prediction_model_backend": self.prediction_model_backend,
+            "ollama_model": self.ollama_model,
+            "ollama_timeout_seconds": self.ollama_timeout_seconds,
+            "ollama_reasoning_temperature": str(self.ollama_reasoning_temperature),
+            "ollama_skeptic_temperature": str(self.ollama_skeptic_temperature),
             "cors_allowed_origins": self.cors_origins,
             "cors_allow_credentials": self.cors_allow_credentials,
             "readiness_timeout_seconds": self.readiness_timeout_seconds,
@@ -479,6 +515,16 @@ class Settings(BaseSettings):
             "collector_max_pages_per_run": self.collector_max_pages_per_run,
             "manifold_sync_mode": self.manifold_sync_mode,
             "enable_manual_prediction_runs": self.enable_manual_prediction_runs,
+            "prediction_require_resolution_at": self.prediction_require_resolution_at,
+            "prediction_minimum_resolution_horizon_seconds": (
+                self.prediction_minimum_resolution_horizon_seconds
+            ),
+            "prediction_maximum_resolution_horizon_seconds": (
+                self.prediction_maximum_resolution_horizon_seconds
+            ),
+            "prediction_maximum_candidates_per_batch": (
+                self.prediction_maximum_candidates_per_batch
+            ),
             "enable_manual_paper_trading": self.enable_manual_paper_trading,
             "enable_manual_paper_overrides": (self.enable_manual_paper_overrides),
             "replay_prediction_interval_hours": self.replay_prediction_interval_hours,

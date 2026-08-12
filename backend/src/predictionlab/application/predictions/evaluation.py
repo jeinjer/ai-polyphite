@@ -37,7 +37,8 @@ class PredictionEvaluationService:
         emitted = [
             sample
             for sample in samples
-            if sample.status is PredictionRunStatus.COMPLETED
+            if sample.status
+            in {PredictionRunStatus.PREDICTED, PredictionRunStatus.COMPLETED}
             and sample.system_probability is not None
         ]
         abstained_count = sum(

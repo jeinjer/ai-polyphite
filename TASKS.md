@@ -5,9 +5,19 @@ completada hasta que su código, tests y documentación hayan sido validados.
 
 ## Completed
 
+- [x] Adoptar razonamiento híbrido local para ReasoningAgent y SkepticAgent.
+- [x] Mantener consenso, evaluación comercial, riesgo y contabilidad deterministas.
+- [x] Rechazar bait, triviales, personales, circulares y horizontes fuera de 14 días.
+- [x] Ejecutar collector y validación paper cada 60 segundos sobre Manifold real.
+- [x] Hacer idempotente la selección de observaciones por versión de configuración.
+- [x] Corregir semántica YES/NO y el primer settlement de un portfolio nuevo.
+- [x] Evaluar live sin lookahead y con una sola predicción por mercado resuelto.
+- [x] Añadir pausa/reanudación de la automatización y retirar controles manuales de UI.
+- [x] Reducir el dashboard a Resumen, Predicciones y Actividad con tema claro/oscuro.
+- [x] Integrar Ollama y descarga del modelo local en Docker Compose.
 - [x] Añadir un comando único para iniciar y verificar el stack autónomo.
 - [x] Rediseñar el dashboard para una audiencia ejecutiva no técnica.
-- [x] Reducir la navegación visible a Resumen, Oportunidades, Actividad y Mercados.
+- [x] Reducir la navegación visible a Resumen, Predicciones y Actividad.
 - [x] Añadir feedback visual de hover, foco y click con movimiento reducido accesible.
 - [x] Simplificar predicciones y operaciones sin alterar la lógica automática.
 - [x] Leer y analizar la documentación inicial.

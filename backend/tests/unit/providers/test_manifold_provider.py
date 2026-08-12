@@ -347,6 +347,54 @@ async def test_malformed_json_is_a_protocol_error() -> None:
 
 
 @pytest.mark.asyncio
+async def test_one_malformed_market_is_quarantined_without_stalling_batch() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        valid = (FIXTURES / "market_binary-open.json").read_text(encoding="utf-8")
+        return httpx.Response(
+            200,
+            content=f'[{valid}, {{"id": "broken-without-question"}}]'.encode(),
+            request=request,
+        )
+
+    provider, client = _provider(handler)
+    try:
+        batch = await provider.fetch_markets(FetchMarketsRequest(limit=2))
+    finally:
+        await client.aclose()
+
+    assert [market.provider_market_id for market in batch.markets] == ["binary-open"]
+
+
+@pytest.mark.asyncio
+async def test_health_check_exercises_real_batch_shape_and_reports_degraded() -> None:
+    seen_limits: list[str | None] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen_limits.append(request.url.params.get("limit"))
+        valid = (FIXTURES / "market_binary-open.json").read_text(encoding="utf-8")
+        return httpx.Response(
+            200,
+            content=f'[{valid}, {{"id": "broken-without-question"}}]'.encode(),
+            request=request,
+        )
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    provider = ManifoldProvider(
+        http_client=client,
+        clock=lambda: NOW,
+        sleep=_no_sleep,
+        sync_mode="recent",
+    )
+    try:
+        health = await provider.health_check()
+    finally:
+        await client.aclose()
+
+    assert health.status is ProviderHealthStatus.DEGRADED
+    assert seen_limits == ["300"]
+
+
+@pytest.mark.asyncio
 async def test_rate_limiter_spaces_requests() -> None:
     current = [0.0]
     delays: list[float] = []

@@ -119,7 +119,7 @@ try {
         }
     }
 
-    foreach ($service in @("postgres", "redis", "backend", "frontend")) {
+    foreach ($service in @("postgres", "redis", "ollama", "backend", "frontend")) {
         Wait-Until -Description "the $service health check" -Condition {
             Test-ComposeServiceHealthy -Service $service
         }
@@ -128,6 +128,7 @@ try {
     $requiredServices = @(
         "postgres",
         "redis",
+        "ollama",
         "backend",
         "worker",
         "paper-validator",

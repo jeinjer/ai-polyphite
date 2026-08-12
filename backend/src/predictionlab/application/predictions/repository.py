@@ -32,6 +32,11 @@ class PredictionMarketRepository(Protocol):
         *,
         provider_codes: tuple[str, ...] = (),
         only_with_new_observations: bool = False,
+        require_resolution_at: bool = False,
+        minimum_resolution_horizon_seconds: int = 0,
+        maximum_resolution_horizon_seconds: int | None = None,
+        agent_configuration_hash: str | None = None,
+        limit: int | None = None,
     ) -> tuple[UUID, ...]: ...
 
 

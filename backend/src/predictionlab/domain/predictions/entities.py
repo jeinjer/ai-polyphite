@@ -71,6 +71,10 @@ class PredictionPolicy:
     extreme_probability_floor: Decimal = Decimal("0.02")
     extreme_probability_ceiling: Decimal = Decimal("0.98")
     minimum_extreme_observations: int = 3
+    require_resolution_at: bool = True
+    minimum_resolution_horizon_seconds: int = 300
+    maximum_resolution_horizon_seconds: int = 1_209_600
+    maximum_candidates_per_batch: int = 100
 
     def __post_init__(self) -> None:
         _probability(self.minimum_confidence, "minimum_confidence")
@@ -83,6 +87,15 @@ class PredictionPolicy:
             raise PredictionInvariantError("maximum observation age must be positive")
         if self.minimum_extreme_observations < 1:
             raise PredictionInvariantError("minimum extreme observations must be positive")
+        if self.minimum_resolution_horizon_seconds < 0:
+            raise PredictionInvariantError("minimum resolution horizon cannot be negative")
+        if (
+            self.maximum_resolution_horizon_seconds
+            <= self.minimum_resolution_horizon_seconds
+        ):
+            raise PredictionInvariantError("resolution horizon bounds are invalid")
+        if self.maximum_candidates_per_batch < 1:
+            raise PredictionInvariantError("maximum candidates per batch must be positive")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

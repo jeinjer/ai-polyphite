@@ -10,11 +10,11 @@ mediante simulación.
 
 ## Estado
 
-El repositorio ya ejecuta ingesta, replay histórico determinista y cuatro
-agentes reproducibles, persiste predicciones y simula portfolios, operaciones y
-liquidaciones auditables. Los resultados y baselines se muestran en un dashboard
-bilingüe. El entorno Python aislado conserva `MockProvider` como default seguro;
-Docker Compose inicia la campaña autónoma read-only con Manifold.
+El repositorio ejecuta ingesta pública, razonamiento híbrido local, predicciones,
+evaluación y paper trading auditable. Docker Compose inicia Manifold read-only,
+Ollama, los workers autónomos y un dashboard ejecutivo. Las reglas de mercado,
+consenso, riesgo y contabilidad siguen siendo deterministas; sólo ReasoningAgent
+y SkepticAgent usan el modelo local.
 
 Consulta:
 
@@ -31,6 +31,8 @@ Consulta:
   para el cierre verificable del MVP simulado.
 - [`CONTINUOUS_PAPER_VALIDATION_IMPLEMENTATION_REPORT.md`](CONTINUOUS_PAPER_VALIDATION_IMPLEMENTATION_REPORT.md)
   para el cierre verificable del runtime de estabilización.
+- [`HYBRID_REALTIME_OPERATION_IMPLEMENTATION_REPORT.md`](HYBRID_REALTIME_OPERATION_IMPLEMENTATION_REPORT.md)
+  para el filtro semántico, Ollama, operación corta y rediseño ejecutivo.
 - [`AUTONOMOUS_OPERATION_IMPLEMENTATION_REPORT.md`](AUTONOMOUS_OPERATION_IMPLEMENTATION_REPORT.md)
   para rutas, datos públicos, operación continua y verificación de arranque.
 - [`docs/`](docs/) para la especificación completa.
@@ -66,6 +68,8 @@ Consulta:
   liquidación, métricas, API y replay.
 - [`docs/39_CONTINUOUS_PAPER_VALIDATION.md`](docs/39_CONTINUOUS_PAPER_VALIDATION.md)
   para ciclos periódicos, auditoría, reconciliación y operación de 30 días.
+- [`docs/42_HYBRID_REALTIME_OPERATION.md`](docs/42_HYBRID_REALTIME_OPERATION.md)
+  para la operación híbrida y de corto horizonte.
 
 ## Arquitectura
 
@@ -126,7 +130,8 @@ pero no como registro histórico único.
 - Docker Compose 2.30 o superior.
 - Python 3.13 para desarrollo local del backend.
 - Node.js 22 y npm 10 para desarrollo local del frontend.
-- Ollama en el host, opcional en esta etapa.
+- Al menos 8 GB de RAM disponibles para Docker es recomendable. Compose incluye
+  Ollama; no hace falta instalarlo en el host.
 
 ## Inicio rápido con Docker
 
@@ -145,17 +150,19 @@ pero no como registro histórico único.
    docker compose up --build
    ```
 
-   Con los defaults versionados, Compose ejecuta automáticamente y sin dinero
-   real:
+   El primer inicio descarga el modelo local `qwen3:1.7b` y puede tardar varios
+   minutos. Con los defaults versionados, Compose ejecuta automáticamente y sin
+   dinero real:
 
    ```text
-   Manifold público → collector (60 min) → predicciones nuevas
-   → evaluación comercial → campañas paper automáticas
+   Manifold público → collector (60 s) → filtro 5 min–14 días
+   → razonamiento híbrido → evaluación comercial → campañas paper automáticas
    → liquidación/reconciliación
    ```
 
    Sólo se predice un mercado cuando existe una observación pública posterior a
-   su última predicción live. PostgreSQL se respalda cada 24 horas en
+   su última predicción live para la configuración activa. El lote local procesa
+   un mercado por ciclo para no saturar la CPU. PostgreSQL se respalda cada 24 horas en
    `backups/`, con validación del archivo y retención de 7 días. Los logs de
    cada contenedor rotan a 5 archivos de 10 MB.
 
@@ -170,14 +177,14 @@ pero no como registro histórico único.
    - Datasets: <http://127.0.0.1:8000/replay-datasets>
    - Experimentos: <http://127.0.0.1:8000/experiment-runs>
    - Predicciones: <http://127.0.0.1:8000/predictions>
+   - Evaluación live: <http://127.0.0.1:8000/prediction-evaluation>
+   - Automatización: <http://127.0.0.1:8000/automation>
    - Portfolios simulados: <http://127.0.0.1:8000/paper-portfolios>
    - Operaciones simuladas: <http://127.0.0.1:8000/paper-trades>
    - OpenAPI: <http://127.0.0.1:8000/docs>
 
-   Todas las secciones del dashboard tienen URL propia: `/markets`,
-   `/predictions`, `/agents`, `/portfolio`, `/trades`, `/positions`,
-   `/performance`, `/experiments`, `/sources`, `/system` y `/settings`.
-   Los detalles usan `/markets/{market_id}` y
+   La navegación visible se limita a Resumen (`/`), Predicciones
+   (`/predictions`) y Actividad (`/trades`). El detalle lazy usa
    `/predictions/{prediction_id}`.
 
 PostgreSQL y Redis solo publican puertos en `127.0.0.1`.
@@ -212,12 +219,16 @@ Fuentes y worker:
 
 ```env
 AI_POLYPHITE_ENABLED_PROVIDERS=manifold
-AI_POLYPHITE_COLLECTOR_INTERVAL_SECONDS=3600
-AI_POLYPHITE_PROVIDER_INTERVALS_SECONDS=manifold=3600
+AI_POLYPHITE_COLLECTOR_INTERVAL_SECONDS=60
+AI_POLYPHITE_PROVIDER_INTERVALS_SECONDS=manifold=60
 AI_POLYPHITE_COLLECTOR_RUN_IMMEDIATELY=true
-AI_POLYPHITE_COLLECTOR_PAGE_SIZE=1000
+AI_POLYPHITE_COLLECTOR_PAGE_SIZE=300
 AI_POLYPHITE_COLLECTOR_MAX_PAGES_PER_RUN=1
 AI_POLYPHITE_MANIFOLD_SYNC_MODE=recent
+PREDICTION_MODEL_BACKEND=hybrid
+OLLAMA_MODEL=qwen3:1.7b
+PREDICTION_MAXIMUM_RESOLUTION_HORIZON_SECONDS=1209600
+PREDICTION_MAXIMUM_CANDIDATES_PER_BATCH=1
 ```
 
 Para desarrollo aislado sin red se puede volver al proveedor mock:
@@ -271,13 +282,9 @@ configuración hasheada, registra su auditoría y verifica ledger y balances ant
 de declararse completo. La campaña conservadora prevalece por defecto y una
 campaña experimental usa un portfolio separado con edge neto mínimo de 0,015.
 
-El botón `Operar` de `/predictions` crea un override exclusivamente simulado:
-permite elegir YES/NO y stake aunque la evaluación no recomiende entrar, pero
-no pausa ni reemplaza la automatización. Mantiene revalidación de mercado,
-límites de riesgo, motivo e idempotencia.
-
-La arquitectura y sus contratos están documentados en
-[`docs/40_PREDICTIONS_V2_AND_MANUAL_OVERRIDES.md`](docs/40_PREDICTIONS_V2_AND_MANUAL_OVERRIDES.md).
+La UI no permite crear predicciones ni operaciones manuales. El único control
+del espectador es pausar o reanudar nuevas decisiones automáticas; el historial
+y las posiciones abiertas permanecen auditables.
 
 ## Desarrollo local
 

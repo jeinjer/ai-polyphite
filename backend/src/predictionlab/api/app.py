@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.types import Lifespan
 
 from predictionlab.api.middleware.request_context import RequestContextMiddleware
+from predictionlab.api.routes.automation import router as automation_router
 from predictionlab.api.routes.collector_runs import router as collector_runs_router
 from predictionlab.api.routes.experiments import router as experiments_router
 from predictionlab.api.routes.health import router as health_router
@@ -16,6 +17,7 @@ from predictionlab.api.routes.markets import router as markets_router
 from predictionlab.api.routes.paper_trading import router as paper_trading_router
 from predictionlab.api.routes.predictions import router as predictions_router
 from predictionlab.api.routes.sources import router as sources_router
+from predictionlab.application.automation import AutomationControlService
 from predictionlab.application.collectors.service import CollectorRunQueryService
 from predictionlab.application.experiments import (
     ExperimentRunQueryService,
@@ -33,6 +35,7 @@ from predictionlab.application.predictions import (
 from predictionlab.application.sources import SourceHealthQueryService
 from predictionlab.core.logging import configure_logging
 from predictionlab.core.settings import Settings, get_settings
+from predictionlab.infrastructure.cache.automation import RedisAutomationControlRepository
 from predictionlab.infrastructure.database.queries import (
     SqlAlchemyCollectorRunReadRepository,
     SqlAlchemyExperimentRunReadRepository,
@@ -92,6 +95,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(experiments_router)
     application.include_router(predictions_router)
     application.include_router(paper_trading_router)
+    application.include_router(automation_router)
     return application
 
 
@@ -101,6 +105,9 @@ def _build_lifespan(settings: Settings) -> Lifespan[FastAPI]:
         resources = create_resources(settings)
         application.state.resources = resources
         application.state.readiness_checker = resources.readiness
+        application.state.automation_control_service = AutomationControlService(
+            RedisAutomationControlRepository(resources.redis_client)
+        )
         application.state.market_query_service = MarketQueryService(
             SqlAlchemyMarketReadRepository(resources.session_factory)
         )

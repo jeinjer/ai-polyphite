@@ -24,6 +24,7 @@ from predictionlab.infrastructure.database.models import (
     ProviderModel,
 )
 from predictionlab.infrastructure.database.queries import (
+    SqlAlchemyPredictionMarketRepository,
     SqlAlchemyPredictionReadRepository,
 )
 from predictionlab.runtime.predictions import create_prediction_orchestrator
@@ -136,6 +137,22 @@ async def test_prediction_pipeline_is_as_of_idempotent_persisted_and_queryable()
         assert first.prediction_run_id == second.prediction_run_id
         assert first.market_probability == Decimal("0.55")
         assert len(first.agent_predictions) == 4
+
+        market_repository = SqlAlchemyPredictionMarketRepository(session_factory)
+        same_configuration = await market_repository.list_open_ids_as_of(
+            NOW,
+            provider_codes=(provider_code,),
+            only_with_new_observations=True,
+            agent_configuration_hash=first.agent_configuration_hash,
+        )
+        new_configuration = await market_repository.list_open_ids_as_of(
+            NOW,
+            provider_codes=(provider_code,),
+            only_with_new_observations=True,
+            agent_configuration_hash="f" * 64,
+        )
+        assert market_id not in same_configuration
+        assert market_id in new_configuration
         with pytest.raises(PredictionIdempotencyConflictError):
             await orchestrator.run(
                 RunPrediction(

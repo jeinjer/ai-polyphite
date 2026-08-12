@@ -8,6 +8,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
+from predictionlab.application.automation import AutomationControlService
 from predictionlab.application.paper_validation import (
     PaperValidationService,
     validation_configuration_hash,
@@ -20,6 +21,7 @@ from predictionlab.core.settings import Settings
 from predictionlab.domain.agents import JsonScalar
 from predictionlab.domain.paper_trading import CurrencyUnit
 from predictionlab.domain.predictions import PredictionRun
+from predictionlab.infrastructure.cache.automation import RedisAutomationControlRepository
 from predictionlab.infrastructure.database.paper_validation import (
     PostgresPaperValidationLock,
     SqlAlchemyPaperValidationRunStore,
@@ -132,6 +134,10 @@ def create_paper_validation_runtime(
 ) -> PaperValidationRuntime:
     resolved_clock = clock or SystemClock()
     resources = create_resources(settings)
+    automation_control = AutomationControlService(
+        RedisAutomationControlRepository(resources.redis_client),
+        clock=resolved_clock,
+    )
     prediction_orchestrator = _CachingPredictionBatchRunner(
         create_prediction_orchestrator(
             session_factory=resources.session_factory,
@@ -146,6 +152,14 @@ def create_paper_validation_runtime(
     )
     configuration_hash = validation_configuration_hash(
         prediction_configuration={
+            "model_backend": settings.prediction_model_backend,
+            "ollama_model": settings.ollama_model,
+            "reasoning_agent_version": "2.0.0",
+            "skeptic_agent_version": "2.0.0",
+            "reasoning_prompt_version": "2.1.0",
+            "skeptic_prompt_version": "2.1.0",
+            "reasoning_temperature": settings.ollama_reasoning_temperature,
+            "skeptic_temperature": settings.ollama_skeptic_temperature,
             "minimum_confidence": settings.prediction_minimum_confidence,
             "maximum_disagreement": settings.prediction_maximum_disagreement,
             "maximum_observation_age_seconds": (
@@ -154,6 +168,16 @@ def create_paper_validation_runtime(
             "weak_edge": settings.prediction_weak_edge,
             "moderate_edge": settings.prediction_moderate_edge,
             "strong_edge": settings.prediction_strong_edge,
+            "require_resolution_at": settings.prediction_require_resolution_at,
+            "minimum_resolution_horizon_seconds": (
+                settings.prediction_minimum_resolution_horizon_seconds
+            ),
+            "maximum_resolution_horizon_seconds": (
+                settings.prediction_maximum_resolution_horizon_seconds
+            ),
+            "maximum_candidates_per_batch": (
+                settings.prediction_maximum_candidates_per_batch
+            ),
         },
         paper_configuration_hash=paper_orchestrator.configuration_hash,
         random_seed=settings.paper_validation_random_seed,
@@ -193,12 +217,30 @@ def create_paper_validation_runtime(
         )
         experimental_hash = validation_configuration_hash(
             prediction_configuration={
+                "model_backend": settings.prediction_model_backend,
+                "ollama_model": settings.ollama_model,
+                "reasoning_agent_version": "2.0.0",
+                "skeptic_agent_version": "2.0.0",
+                "reasoning_prompt_version": "2.1.0",
+                "skeptic_prompt_version": "2.1.0",
+                "reasoning_temperature": settings.ollama_reasoning_temperature,
+                "skeptic_temperature": settings.ollama_skeptic_temperature,
                 "minimum_confidence": settings.prediction_minimum_confidence,
                 "maximum_disagreement": settings.prediction_maximum_disagreement,
                 "maximum_observation_age_seconds": (
                     settings.prediction_maximum_observation_age_seconds
                 ),
                 "consensus_version": "2.0.0",
+                "require_resolution_at": settings.prediction_require_resolution_at,
+                "minimum_resolution_horizon_seconds": (
+                    settings.prediction_minimum_resolution_horizon_seconds
+                ),
+                "maximum_resolution_horizon_seconds": (
+                    settings.prediction_maximum_resolution_horizon_seconds
+                ),
+                "maximum_candidates_per_batch": (
+                    settings.prediction_maximum_candidates_per_batch
+                ),
             },
             paper_configuration_hash=(experimental_orchestrator.configuration_hash),
             random_seed=settings.paper_validation_random_seed,
@@ -240,5 +282,6 @@ def create_paper_validation_runtime(
             interval_seconds=settings.paper_validation_interval_seconds,
             run_immediately=settings.paper_validation_run_immediately,
             clock=resolved_clock,
+            automation_control=automation_control,
         ),
     )

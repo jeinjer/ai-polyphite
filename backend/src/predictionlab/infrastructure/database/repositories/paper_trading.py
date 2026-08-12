@@ -330,12 +330,15 @@ class SqlAlchemyPaperTradingRepository:
         )
         total = await self._session.scalar(base)
         market = await self._session.scalar(base.where(PaperPositionModel.market_id == market_id))
-        category_value = await self._session.scalar(
-            base.where(
-                PaperPositionModel.category == category
-                if category is not None
-                else PaperPositionModel.category.is_(None)
+        # Manifold does not currently expose a durable category in its public
+        # market payload. Treat unknown as market-local instead of combining
+        # every uncategorized position into one fictitious correlated sector.
+        category_value = (
+            await self._session.scalar(
+                base.where(PaperPositionModel.category == category)
             )
+            if category is not None
+            else market
         )
         return PortfolioExposure(
             total=Decimal(total or 0),

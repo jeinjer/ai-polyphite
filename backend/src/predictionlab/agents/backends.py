@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import replace
 from decimal import Decimal
 from itertools import pairwise
+from time import monotonic
 
+from predictionlab.agents.ollama import ModelBackendUnavailableError, OllamaModelBackend
 from predictionlab.application.agents import ModelAssessment
 from predictionlab.domain.agents import (
     AgentEvidence,
@@ -46,6 +49,9 @@ class RuleBasedModelBackend:
         unavailable = _basic_unavailability(data)
         if unavailable is not None:
             return unavailable
+        semantic_rejection = _semantic_rejection(data)
+        if semantic_rejection is not None:
+            return semantic_rejection
         assert data.market_probability is not None
         probabilities = _probabilities(data)
         trend = probabilities[-1] - probabilities[0] if len(probabilities) > 1 else _ZERO
@@ -115,7 +121,7 @@ class RuleBasedModelBackend:
         return ModelAssessment(
             predicted_probability=predicted,
             confidence=min(confidence, Decimal("0.75")),
-            recommendation=_recommend(predicted, data.market_probability),
+            recommendation=_outcome_recommendation(predicted),
             rationale_summary=(
                 "Estimación conservadora anclada al mercado, al contexto explícito "
                 "y al historial disponible."
@@ -156,7 +162,7 @@ class RuleBasedModelBackend:
         return ModelAssessment(
             predicted_probability=predicted,
             confidence=_clamp(confidence),
-            recommendation=_recommend(predicted, data.market_probability),
+            recommendation=_outcome_recommendation(predicted),
             rationale_summary=(
                 "Lectura cuantitativa de tendencia y volatilidad usando sólo "
                 "observaciones visibles del mercado."
@@ -208,7 +214,7 @@ class RuleBasedModelBackend:
         return ModelAssessment(
             predicted_probability=predicted,
             confidence=confidence,
-            recommendation=_recommend(predicted, data.market_probability),
+            recommendation=_outcome_recommendation(predicted),
             rationale_summary=(
                 "Revisión adversarial que modera señales grandes y penaliza "
                 "desacuerdo o datos incompletos."
@@ -242,6 +248,11 @@ class RuleBasedModelBackend:
             return _abstain("Falta la probabilidad visible del mercado.")
         if not data.observations:
             return _abstain("No hay observaciones disponibles.")
+        reasoning = required.get("reasoning")
+        if reasoning is None or reasoning.recommendation is Recommendation.ABSTAIN:
+            return _abstain(
+                "El analisis semantico no habilito este mercado para prediccion."
+            )
         maximum_age = _config_int(
             data,
             "maximum_observation_age_seconds",
@@ -383,6 +394,88 @@ class MockModelBackend:
             raise ValueError(f"no mock assessment for {agent_name}") from exc
 
 
+class HybridModelBackend:
+    """Generative interpretation with deterministic quantitative controls."""
+
+    backend_name = "hybrid_ollama_rule_based"
+    backend_version = "1.0.0"
+
+    def __init__(
+        self,
+        *,
+        ollama: OllamaModelBackend,
+        fallback: RuleBasedModelBackend | None = None,
+        circuit_breaker_seconds: float = 300,
+    ) -> None:
+        self._ollama = ollama
+        self._fallback = fallback or RuleBasedModelBackend()
+        self._circuit_breaker_seconds = circuit_breaker_seconds
+        self._unavailable_until = 0.0
+
+    async def assess(
+        self,
+        *,
+        agent_name: str,
+        agent_input: PredictionAgentInput,
+    ) -> ModelAssessment:
+        if agent_name not in {"reasoning", "skeptic"}:
+            return await self._fallback.assess(
+                agent_name=agent_name,
+                agent_input=agent_input,
+            )
+        if agent_name == "reasoning":
+            unavailable = _basic_unavailability(agent_input)
+            if unavailable is not None:
+                return unavailable
+            semantic_rejection = _semantic_rejection(agent_input)
+            if semantic_rejection is not None:
+                return semantic_rejection
+        if agent_name == "skeptic":
+            reasoning = _named_predictions(
+                agent_input.prior_predictions,
+                {"reasoning"},
+            ).get("reasoning")
+            if reasoning is None or reasoning.recommendation is Recommendation.ABSTAIN:
+                return await self._fallback.assess(
+                    agent_name=agent_name,
+                    agent_input=agent_input,
+                )
+        if monotonic() < self._unavailable_until:
+            return await self._fallback_assessment(agent_name, agent_input)
+        try:
+            return await self._ollama.assess(
+                agent_name=agent_name,
+                agent_input=agent_input,
+            )
+        except ModelBackendUnavailableError:
+            self._unavailable_until = monotonic() + self._circuit_breaker_seconds
+            return await self._fallback_assessment(agent_name, agent_input)
+
+    async def _fallback_assessment(
+        self,
+        agent_name: str,
+        agent_input: PredictionAgentInput,
+    ) -> ModelAssessment:
+        assessment = await self._fallback.assess(
+            agent_name=agent_name,
+            agent_input=agent_input,
+        )
+        return replace(
+            assessment,
+            warnings=tuple(
+                dict.fromkeys(
+                    (
+                        *assessment.warnings,
+                        (
+                            "El modelo semantico local no estuvo disponible; "
+                            "se uso el baseline reproducible."
+                        ),
+                    )
+                )
+            ),
+        )
+
+
 def _basic_unavailability(data: PredictionAgentInput) -> ModelAssessment | None:
     if data.status is not MarketStatus.OPEN:
         return _abstain("El mercado no está abierto.")
@@ -448,8 +541,55 @@ def _direction(value: Decimal) -> EvidenceDirection:
     return EvidenceDirection.NEUTRAL
 
 
-def _recommend(probability: Decimal, market_probability: Decimal) -> Recommendation:
-    return Recommendation.YES if probability >= market_probability else Recommendation.NO
+def _outcome_recommendation(probability: Decimal) -> Recommendation:
+    """YES/NO always describes the event outcome, never a trade direction."""
+
+    return Recommendation.YES if probability >= Decimal("0.5") else Recommendation.NO
+
+
+def _semantic_rejection(data: PredictionAgentInput) -> ModelAssessment | None:
+    if data.resolution_at is None:
+        return _abstain("El mercado no informa una fecha objetiva de resolucion.")
+    horizon_seconds = (data.resolution_at - data.predicted_at).total_seconds()
+    maximum_horizon = _config_int(
+        data,
+        "maximum_resolution_horizon_seconds",
+        1_209_600,
+    )
+    minimum_horizon = _config_int(
+        data,
+        "minimum_resolution_horizon_seconds",
+        300,
+    )
+    if horizon_seconds <= minimum_horizon:
+        return _abstain("El mercado cierra demasiado pronto para una evaluacion util.")
+    if horizon_seconds > maximum_horizon:
+        return _abstain("El mercado excede el horizonte maximo de catorce dias.")
+    normalized = " ".join(data.title.casefold().split())
+    compact = normalized.replace(" ", "").replace("?", "").replace("*", "")
+    if "1+1=2" in compact or "1+1is2" in compact:
+        return _abstain("Pregunta trivial o bait: no aporta evidencia predictiva util.")
+    personal_markers = (
+        "will i ",
+        "am i going to ",
+        "conseguire ",
+        "conseguiré ",
+        "me contrataran ",
+        "me contratarán ",
+        "voy a conseguir ",
+    )
+    if any(marker in normalized for marker in personal_markers):
+        return _abstain(
+            "Mercado personal o dependiente de informacion privada; no es reproducible."
+        )
+    circular_markers = (
+        "will this market resolve yes",
+        "resolvera este mercado si",
+        "resolverá este mercado sí",
+    )
+    if any(marker in normalized for marker in circular_markers):
+        return _abstain("Pregunta circular o manipulable; no es apta para investigacion.")
+    return None
 
 
 def _clamp(value: Decimal) -> Decimal:

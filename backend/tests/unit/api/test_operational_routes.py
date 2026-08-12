@@ -7,6 +7,7 @@ import httpx
 import pytest
 
 from predictionlab.api.app import create_app
+from predictionlab.application.automation import AutomationControlService, AutomationState
 from predictionlab.application.collectors.queries import (
     CollectorRunDetail,
     CollectorRunPage,
@@ -79,6 +80,17 @@ class StubSourceHealthService:
         )
 
 
+class MemoryAutomationRepository:
+    def __init__(self) -> None:
+        self.state = AutomationState(paused=False, updated_at=None, reason=None)
+
+    async def get(self) -> AutomationState:
+        return self.state
+
+    async def set(self, state: AutomationState) -> None:
+        self.state = state
+
+
 def create_test_app():
     return create_app(
         Settings(
@@ -143,6 +155,30 @@ async def test_source_health_route_exposes_only_configured_source_status() -> No
     ]
 
 
+@pytest.mark.asyncio
+async def test_operator_can_pause_and_resume_automation_through_api() -> None:
+    application = create_test_app()
+    application.state.automation_control_service = AutomationControlService(
+        MemoryAutomationRepository()
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=application),
+        base_url="http://testserver",
+    ) as client:
+        initial = await client.get("/automation")
+        paused = await client.post(
+            "/automation/pause",
+            json={"reason": "operator test"},
+        )
+        resumed = await client.post("/automation/resume")
+
+    assert initial.json()["paused"] is False
+    assert paused.json()["paused"] is True
+    assert paused.json()["reason"] == "operator test"
+    assert resumed.json()["paused"] is False
+
+
 def test_openapi_documents_historical_and_operational_routes() -> None:
     schema = create_test_app().openapi()
 
@@ -151,3 +187,6 @@ def test_openapi_documents_historical_and_operational_routes() -> None:
     assert "/collector-runs" in schema["paths"]
     assert "/collector-runs/{run_id}" in schema["paths"]
     assert "/sources" in schema["paths"]
+    assert "/automation" in schema["paths"]
+    assert "/automation/pause" in schema["paths"]
+    assert "/automation/resume" in schema["paths"]

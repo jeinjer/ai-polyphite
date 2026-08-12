@@ -397,6 +397,21 @@ async def list_experiment_predictions(
 
 
 @router.get(
+    "/prediction-evaluation",
+    response_model=PredictionEvaluationResponse,
+    summary="Evaluate the latest live prediction per resolved market",
+    operation_id="evaluate_live_predictions",
+)
+async def evaluate_live_predictions(
+    service: Annotated[
+        PredictionEvaluationService,
+        Depends(get_prediction_evaluation_service),
+    ],
+) -> PredictionEvaluationResponse:
+    return _evaluation_response(await service.evaluate(experiment_run_id=None))
+
+
+@router.get(
     "/experiment-runs/{experiment_id}/prediction-evaluation",
     response_model=PredictionEvaluationResponse,
     summary="Evaluate predictions after binary market resolution",

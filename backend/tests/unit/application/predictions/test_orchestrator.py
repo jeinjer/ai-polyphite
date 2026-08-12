@@ -71,8 +71,22 @@ class MemoryMarketRepository:
         *,
         provider_codes: tuple[str, ...] = (),
         only_with_new_observations: bool = False,
+        require_resolution_at: bool = False,
+        minimum_resolution_horizon_seconds: int = 0,
+        maximum_resolution_horizon_seconds: int | None = None,
+        agent_configuration_hash: str | None = None,
+        limit: int | None = None,
     ) -> tuple[UUID, ...]:
-        del predicted_at, provider_codes, only_with_new_observations
+        del (
+            predicted_at,
+            provider_codes,
+            only_with_new_observations,
+            require_resolution_at,
+            minimum_resolution_horizon_seconds,
+            maximum_resolution_horizon_seconds,
+            agent_configuration_hash,
+            limit,
+        )
         return (MARKET_ID,)
 
 

@@ -49,6 +49,7 @@ class PredictionOrchestrator:
         skeptic_agent: PredictionAgent,
         consensus_agent: PredictionAgent,
         policy: PredictionPolicy | None = None,
+        model_configuration_defaults: Mapping[str, JsonScalar] | None = None,
         clock: Clock | None = None,
         id_factory: Callable[[], UUID] = uuid4,
     ) -> None:
@@ -61,6 +62,7 @@ class PredictionOrchestrator:
             consensus_agent,
         )
         self._policy = policy or PredictionPolicy()
+        self._model_configuration_defaults = dict(model_configuration_defaults or {})
         self._clock = clock or SystemClock()
         self._id_factory = id_factory
 
@@ -76,14 +78,9 @@ class PredictionOrchestrator:
             raise PredictionMarketNotFoundError(str(command.market_id))
         correlation_id = command.correlation_id or str(self._id_factory())
         configuration = self._configuration(command.model_configuration)
-        configuration_hash = canonical_sha256(
-            {
-                "agents": tuple(
-                    {"name": agent.name, "version": agent.version} for agent in self._agents
-                ),
-                "model_configuration": configuration,
-                "random_seed": command.random_seed,
-            }
+        configuration_hash = self._configuration_hash(
+            configuration,
+            random_seed=command.random_seed,
         )
         agent_input = PredictionAgentInput(
             market_id=snapshot.market_id,
@@ -182,10 +179,24 @@ class PredictionOrchestrator:
         correlation_id: str | None = None,
         causation_id: str | None = None,
     ) -> tuple[PredictionRun, ...]:
+        resolved_model_configuration = self._configuration(model_configuration or {})
+        configuration_hash = self._configuration_hash(
+            resolved_model_configuration,
+            random_seed=random_seed,
+        )
         market_ids = await self._markets.list_open_ids_as_of(
             predicted_at,
             provider_codes=provider_codes,
             only_with_new_observations=only_with_new_observations,
+            require_resolution_at=self._policy.require_resolution_at,
+            minimum_resolution_horizon_seconds=(
+                self._policy.minimum_resolution_horizon_seconds
+            ),
+            maximum_resolution_horizon_seconds=(
+                self._policy.maximum_resolution_horizon_seconds
+            ),
+            agent_configuration_hash=configuration_hash,
+            limit=self._policy.maximum_candidates_per_batch,
         )
         return tuple(
             [
@@ -220,9 +231,33 @@ class PredictionOrchestrator:
             "extreme_probability_floor": str(self._policy.extreme_probability_floor),
             "extreme_probability_ceiling": str(self._policy.extreme_probability_ceiling),
             "minimum_extreme_observations": (self._policy.minimum_extreme_observations),
+            "minimum_resolution_horizon_seconds": (
+                self._policy.minimum_resolution_horizon_seconds
+            ),
+            "maximum_resolution_horizon_seconds": (
+                self._policy.maximum_resolution_horizon_seconds
+            ),
         }
+        configuration.update(self._model_configuration_defaults)
         configuration.update(overrides)
         return configuration
+
+    def _configuration_hash(
+        self,
+        configuration: Mapping[str, JsonScalar],
+        *,
+        random_seed: int,
+    ) -> str:
+        return canonical_sha256(
+            {
+                "agents": tuple(
+                    {"name": agent.name, "version": agent.version}
+                    for agent in self._agents
+                ),
+                "model_configuration": configuration,
+                "random_seed": random_seed,
+            }
+        )
 
     def _successful_run(
         self,

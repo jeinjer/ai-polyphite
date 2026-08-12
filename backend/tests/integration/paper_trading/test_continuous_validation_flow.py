@@ -292,7 +292,7 @@ async def _seed_market(
                 title="Will the continuous validation cycle remain reproducible?",
                 description="Isolated integration fixture.",
                 category="testing",
-                resolution_at=NOW + timedelta(days=30),
+                resolution_at=NOW + timedelta(days=7),
                 source_created_at=NOW - timedelta(days=1),
                 status="open",
                 resolution_outcome="unresolved",

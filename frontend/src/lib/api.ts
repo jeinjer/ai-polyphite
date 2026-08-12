@@ -11,12 +11,13 @@ import type {
   Page,
   PredictionRun,
   PredictionListPage,
-  ManualPaperTradeResponse,
   ReplayDataset,
   SourceHealth,
   SyncRun,
   TradeDecision,
   EquityCurvePoint,
+  AutomationState,
+  PredictionEvaluation,
 } from "./api-types";
 import { API_BASE_URL } from "./runtime-config";
 
@@ -56,17 +57,16 @@ export const api = {
     request<PredictionListPage>(`/predictions?${query}`),
   prediction: (predictionId: string) =>
     request<PredictionRun>(`/predictions/${encodeURIComponent(predictionId)}`),
-  manualPaperTrade: (payload: {
-    prediction_run_id: string;
-    side: "yes" | "no";
-    requested_stake: string;
-    override_reason: string;
-    idempotency_key: string;
-  }) =>
-    request<ManualPaperTradeResponse>("/paper-trading/manual-trades", {
+  automation: () => request<AutomationState>("/automation"),
+  predictionEvaluation: () =>
+    request<PredictionEvaluation>("/prediction-evaluation"),
+  pauseAutomation: () =>
+    request<AutomationState>("/automation/pause", {
       method: "POST",
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ reason: "Pausa solicitada desde el dashboard." }),
     }),
+  resumeAutomation: () =>
+    request<AutomationState>("/automation/resume", { method: "POST" }),
   paperPortfolios: () =>
     request<Page<PaperPortfolio>>("/paper-portfolios?page=1&page_size=100"),
   tradeDecisions: (portfolioId: string) =>

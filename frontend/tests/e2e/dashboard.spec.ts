@@ -1,83 +1,20 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 
 const now = new Date().toISOString();
-const marketId = "00000000-0000-4000-8000-000000000001";
-const predictionId = "00000000-0000-4000-8000-000000000010";
-const portfolioId = "00000000-0000-4000-8000-000000000020";
-
-const market = {
-  market_id: marketId,
-  provider_market_id: "market-public-1",
-  title: "¿Ocurrirá el evento de ejemplo?",
-  description: "Un mercado público usado para explicar la experiencia.",
-  category: "Ejemplos",
-  resolution_at: null,
-  source_created_at: now,
-  status: "open",
-  ingested_at: now,
-  updated_at: now,
-  provider: {
-    provider_id: "00000000-0000-4000-8000-000000000002",
-    code: "manifold",
-    name: "Manifold Markets",
-    enabled: true,
-  },
-  resolution_outcome: "unresolved",
-  resolved_at: null,
-  resolution_source: null,
-  latest_observation: {
-    observation_id: "00000000-0000-4000-8000-000000000003",
-    observed_at: now,
-    probability: "0.42",
-    volume: "100",
-    liquidity: "50",
-    source_updated_at: now,
-    ingested_at: now,
-    provider_code: "manifold",
-  },
-  probability_change: "0.03",
-};
-
-const source = {
-  code: "manifold",
-  name: "Manifold Markets",
-  status: "healthy",
-  checked_at: now,
-  latency_ms: 31,
-  safe_error_type: null,
-};
-
-const syncRun = {
-  run_id: "00000000-0000-4000-8000-000000000004",
-  provider_code: "manifold",
-  started_at: now,
-  finished_at: now,
-  status: "completed",
-  markets_fetched: 1000,
-  markets_created: 0,
-  markets_updated: 8,
-  markets_unchanged: 992,
-  observations_fetched: 997,
-  observations_created: 12,
-  observations_duplicated: 985,
-  observations_skipped: 0,
-  retry_count: 0,
-  duration_ms: 4200,
-  safe_error_type: null,
-  correlation_id: "collector-correlation",
-};
+const portfolioId = "00000000-0000-4000-8000-000000000100";
+const predictionId = "00000000-0000-4000-8000-000000000200";
 
 const portfolio = {
   portfolio_id: portfolioId,
-  name: "Autonomous Manifold paper validation [abc12345]",
+  name: "Autonomous Manifold paper validation [test]",
   currency_unit: "MANA_SIMULATED",
   initial_balance: "100.00",
-  cash_balance: "98.00",
-  reserved_balance: "2.00",
-  realized_pnl: "1.50",
-  unrealized_pnl: "1.00",
-  equity: "102.50",
-  total_exposure: "2.00",
+  cash_balance: "84.50",
+  reserved_balance: "15.50",
+  realized_pnl: "1.20",
+  unrealized_pnl: "-0.30",
+  equity: "100.90",
+  total_exposure: "15.50",
   status: "active",
   strategy_configuration_hash: "a".repeat(64),
   experiment_run_id: null,
@@ -86,29 +23,52 @@ const portfolio = {
   simulation_only: true,
 };
 
-const automaticTrade = {
-  trade_id: "00000000-0000-4000-8000-000000000030",
-  order_id: "00000000-0000-4000-8000-000000000031",
-  decision_id: "00000000-0000-4000-8000-000000000032",
+const prediction = {
+  prediction_run_id: predictionId,
+  market_id: "00000000-0000-4000-8000-000000000300",
+  market_title: "Will the public event happen this week?",
+  provider_code: "manifold",
+  category: null,
+  predicted_at: now,
+  market_probability: "0.5400000000",
+  consensus_probability: "0.6300000000",
+  consensus_confidence: "0.6800000000",
+  estimated_outcome: "yes",
+  commercial_label: "actionable",
+  potential_side: "buy_yes",
+  gross_edge: "0.0900000000",
+  net_edge: "0.0750000000",
+  is_actionable: true,
+  primary_reason: "commercial_edge_available",
+  portfolio_has_open_position: false,
+  data_freshness_status: "fresh",
+  campaign_id: "conservative-v1",
+  portfolio_id: portfolioId,
+};
+
+const trade = {
+  trade_id: "00000000-0000-4000-8000-000000000400",
+  order_id: "00000000-0000-4000-8000-000000000401",
+  decision_id: "00000000-0000-4000-8000-000000000402",
   portfolio_id: portfolioId,
   prediction_run_id: predictionId,
-  market_id: marketId,
-  market_title: market.title,
-  category: "Ejemplos",
+  market_id: prediction.market_id,
+  market_title: prediction.market_title,
+  category: null,
   executed_at: now,
   side: "yes",
-  entry_probability: "0.42",
-  effective_probability: "0.43",
-  units: "4.6",
-  gross_cost: "1.95",
+  entry_probability: "0.54",
+  effective_probability: "0.55",
+  units: "1.8",
+  gross_cost: "1.00",
   fees: "0.01",
-  slippage_cost: "0.04",
-  net_cost: "2.00",
-  maximum_loss: "2.00",
-  potential_payout: "4.60",
-  execution_model: "simulated",
+  slippage_cost: "0.01",
+  net_cost: "1.02",
+  maximum_loss: "1.02",
+  potential_payout: "1.80",
+  execution_model: "informative_probability",
   result_hash: "b".repeat(64),
-  decision_reasons: ["risk:passed"],
+  decision_reasons: [],
   prediction_result_hash: "c".repeat(64),
   experiment_run_id: null,
   decision_source: "automatic",
@@ -116,351 +76,115 @@ const automaticTrade = {
   probability_is_informative: true,
 };
 
-const manualTrade = {
-  ...automaticTrade,
-  trade_id: "00000000-0000-4000-8000-000000000033",
-  decision_id: "00000000-0000-4000-8000-000000000034",
-  decision_source: "manual_override",
-  side: "no",
-};
-
 const position = {
-  position_id: "00000000-0000-4000-8000-000000000040",
+  position_id: "00000000-0000-4000-8000-000000000500",
   portfolio_id: portfolioId,
-  market_id: marketId,
-  market_title: market.title,
-  category: "Ejemplos",
+  market_id: prediction.market_id,
+  market_title: prediction.market_title,
+  category: null,
   side: "yes",
   opened_at: now,
   closed_at: null,
   status: "open",
-  units: "4.6",
-  average_entry_probability: "0.43",
-  invested_amount: "2.00",
-  current_mark_probability: "0.50",
-  unrealized_pnl: "1.00",
-  realized_pnl: "0.00",
+  units: "1.8",
+  average_entry_probability: "0.55",
+  invested_amount: "1.02",
+  current_mark_probability: "0.56",
+  unrealized_pnl: "0.02",
+  realized_pnl: "0",
   settlement_outcome: null,
   prediction_run_id: predictionId,
-  trade_id: automaticTrade.trade_id,
-  opportunity_level: "strong",
-  entry_edge: "0.18",
-  entry_confidence: "0.78",
+  trade_id: trade.trade_id,
+  opportunity_level: "weak",
+  entry_edge: "0.09",
+  entry_confidence: "0.68",
   experiment_run_id: null,
   simulation_only: true,
   mark_is_informative: true,
 };
 
-const predictionListItem = {
-  prediction_run_id: predictionId,
-  market_id: marketId,
-  market_title: market.title,
-  provider_code: "manifold",
-  category: "Ejemplos",
-  predicted_at: now,
-  market_probability: "0.42",
-  consensus_probability: "0.67",
-  consensus_confidence: "0.78",
-  estimated_outcome: "yes",
-  commercial_label: "actionable",
-  potential_side: "buy_yes",
-  gross_edge: "0.25",
-  net_edge: "0.22",
-  is_actionable: true,
-  primary_reason: "commercial_thresholds_passed",
-  portfolio_has_open_position: false,
-  data_freshness_status: "fresh",
-  campaign_id: "conservative-v1",
-  portfolio_id: portfolioId,
-};
+function pageData<T>(items: T[]) {
+  return { items, page: 1, page_size: 100, total: items.length, pages: 1 };
+}
 
-const predictionDetail = {
-  prediction_run_id: predictionId,
-  experiment_run_id: null,
-  market_id: marketId,
-  market_title: market.title,
-  category: "Ejemplos",
-  predicted_at: now,
-  market_probability: "0.42",
-  consensus_probability: "0.67",
-  consensus_confidence: "0.78",
-  recommendation: "yes",
-  edge: "0.25",
-  no_edge: "-0.25",
-  opportunity_level: "strong",
-  disagreement_score: "0.05",
-  status: "predicted",
-  agent_configuration_hash: "d".repeat(64),
-  input_hash: "e".repeat(64),
-  result_hash: "f".repeat(64),
-  duration_ms: "8",
-  safe_error_type: null,
-  abstention_reason: null,
-  correlation_id: "prediction-correlation",
-  causation_id: "paper-validation",
-  created_at: now,
-  agent_weights: {},
-  agent_predictions: [],
-  estimated_outcome: "yes",
-  market_status: "open",
-  provider_code: "manifold",
-  commercial_evaluation: {
-    evaluation_id: "00000000-0000-4000-8000-000000000050",
-    portfolio_id: portfolioId,
-    campaign_id: "conservative-v1",
-    evaluated_at: now,
-    estimated_outcome: "yes",
-    potential_side: "buy_yes",
-    market_probability: "0.42",
-    consensus_probability: "0.67",
-    gross_edge: "0.25",
-    estimated_fees: "0.01",
-    estimated_slippage: "0.02",
-    estimated_other_costs: "0",
-    net_edge: "0.22",
-    confidence: "0.78",
-    commercial_label: "actionable",
-    is_actionable: true,
-    reasons: ["commercial_thresholds_passed"],
-    warnings: [],
-    data_freshness_status: "fresh",
-    portfolio_has_open_position: false,
-  },
-  related_executions: [],
-};
-
-type ApiFixture = {
-  delayMs?: number;
-  status?: number;
-  markets?: object[];
-  trades?: object[];
-  predictions?: object[];
-};
-
-async function installApi(page: Page, fixture: ApiFixture = {}) {
-  await page.route(/127\.0\.0\.1:8000\//, async (route) => {
-    if (fixture.delayMs) {
-      await new Promise((resolve) => setTimeout(resolve, fixture.delayMs));
+async function mockApi(page: Page) {
+  let paused = false;
+  await page.route("http://127.0.0.1:8000/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const path = url.pathname;
+    if (path === "/sources") return json(route, [{ code: "manifold", name: "Manifold Markets", status: "healthy", checked_at: now, latency_ms: 12, safe_error_type: null }]);
+    if (path === "/collector-runs") return json(route, pageData([{ run_id: "run-1", provider_code: "manifold", started_at: now, finished_at: now, status: "completed", markets_fetched: 300, markets_created: 2, markets_updated: 18, markets_unchanged: 280, observations_fetched: 300, observations_created: 20, observations_duplicated: 280, observations_skipped: 0, retry_count: 0, duration_ms: 900, safe_error_type: null, correlation_id: "test" }]));
+    if (path === "/paper-portfolios") return json(route, pageData([portfolio]));
+    if (path === `/paper-portfolios/${portfolioId}/performance`) return json(route, { portfolio, metrics: { evidence_state: "insufficient_sample", net_profit: "0.90", open_trade_count: 1 }, baselines: [], alerts: [], strategy_configuration_hash: "a".repeat(64), simulation_only: true, disclaimer: "paper" });
+    if (path === `/paper-portfolios/${portfolioId}/equity-curve`) return json(route, [{ recorded_at: "2026-08-11T14:30:00Z", equity: "100.00", drawdown: "0", exposure: "0", realized_pnl: "0", unrealized_pnl: "0", cumulative_costs: "0", result_hash: "a".repeat(64), valuation_is_simulated: true }, { recorded_at: now, equity: "100.90", drawdown: "0", exposure: "15.5", realized_pnl: "1.2", unrealized_pnl: "-0.3", cumulative_costs: "0.1", result_hash: "b".repeat(64), valuation_is_simulated: true }]);
+    if (path === "/paper-trades") return json(route, pageData([trade]));
+    if (path === "/paper-positions") return json(route, pageData([position]));
+    if (path === "/prediction-evaluation") return json(route, { experiment_run_id: null, resolved_count: 24, emitted_count: 24, abstained_count: 0, coverage: "1", system: { brier_score: "0.18", log_loss: "0.5", absolute_error: "0.3", directional_accuracy: "0.7" }, market_baseline: { brier_score: "0.17", log_loss: "0.49", absolute_error: "0.29", directional_accuracy: "0.7" }, constant_baseline: null, calibration: [] });
+    if (path === "/automation") {
+      if (request.method() === "GET") return json(route, { paused, updated_at: null, reason: null, simulation_only: true });
     }
-    if (fixture.status) {
-      await route.fulfill({
-        status: fixture.status,
-        contentType: "application/json",
-        body: JSON.stringify({ detail: "Unavailable" }),
-      });
-      return;
+    if (path === "/automation/pause") { paused = true; return json(route, { paused, updated_at: now, reason: "Pausa solicitada desde el dashboard.", simulation_only: true }); }
+    if (path === "/automation/resume") { paused = false; return json(route, { paused, updated_at: now, reason: null, simulation_only: true }); }
+    if (path === `/predictions/${predictionId}`) return json(route, { ...prediction, experiment_run_id: null, status: "predicted", recommendation: "yes", edge: "0.09", no_edge: "-0.09", opportunity_level: "moderate", disagreement_score: "0.05", agent_configuration_hash: "a".repeat(64), input_hash: "b".repeat(64), result_hash: "c".repeat(64), duration_ms: "1200", safe_error_type: null, abstention_reason: null, correlation_id: "test", causation_id: null, created_at: now, agent_weights: {}, market_status: "open", agent_predictions: [{ agent_prediction_id: "agent-1", agent_name: "reasoning", agent_version: "2.0.0", predicted_probability: "0.66", confidence: "0.7", recommendation: "yes", rationale_summary: "Contrato público, verificable y de corto plazo.", evidence: [], warnings: [], input_hash: "a".repeat(64), output_hash: "b".repeat(64), duration_ms: "900", disagreement_score: null, agent_weights: {} }, { agent_prediction_id: "agent-2", agent_name: "market", agent_version: "1.0.0", predicted_probability: "0.60", confidence: "0.6", recommendation: "yes", rationale_summary: "Tendencia reciente moderada.", evidence: [], warnings: [], input_hash: "a".repeat(64), output_hash: "c".repeat(64), duration_ms: "1", disagreement_score: null, agent_weights: {} }], commercial_evaluation: { evaluation_id: "eval-1", portfolio_id: portfolioId, campaign_id: "conservative-v1", evaluated_at: now, estimated_outcome: "yes", potential_side: "buy_yes", market_probability: "0.54", consensus_probability: "0.63", gross_edge: "0.09", estimated_fees: "0.005", estimated_slippage: "0.01", estimated_other_costs: "0", net_edge: "0.075", confidence: "0.68", commercial_label: "actionable", is_actionable: true, reasons: ["commercial_edge_available"], warnings: [], data_freshness_status: "fresh", portfolio_has_open_position: false }, related_executions: [] });
+    if (path === "/predictions") {
+      const actionable = url.searchParams.get("commercial_label") === "actionable";
+      return json(route, { items: [prediction], page: 1, page_size: 25, total_items: actionable ? 1 : 4, total_pages: 1, applied_filters: {} });
     }
-    await fulfillApiRoute(route, fixture);
+    return route.abort("failed");
   });
 }
 
-async function fulfillApiRoute(route: Route, fixture: ApiFixture) {
-  const url = new URL(route.request().url());
-  const path = url.pathname;
-  if (path === "/markets") {
-    await route.fulfill({ json: pageData(fixture.markets ?? [market]) });
-    return;
-  }
-  if (path.endsWith("/observations")) {
-    await route.fulfill({
-      json: pageData([
-        { ...market.latest_observation, observed_at: "2026-07-29T10:00:00Z", probability: "0.35" },
-        { ...market.latest_observation, observed_at: now, probability: "0.42" },
-      ]),
-    });
-    return;
-  }
-  if (path === "/sources") {
-    await route.fulfill({ json: [source] });
-    return;
-  }
-  if (path === "/collector-runs") {
-    await route.fulfill({ json: pageData([syncRun]) });
-    return;
-  }
-  if (path === "/paper-portfolios") {
-    await route.fulfill({ json: pageData([portfolio]) });
-    return;
-  }
-  if (path.endsWith("/performance")) {
-    await route.fulfill({
-      json: {
-        portfolio,
-        metrics: { net_profit: "2.50" },
-        baselines: [],
-        alerts: [],
-        strategy_configuration_hash: portfolio.strategy_configuration_hash,
-        simulation_only: true,
-        disclaimer: "Simulado",
-      },
-    });
-    return;
-  }
-  if (path.endsWith("/equity-curve")) {
-    await route.fulfill({
-      json: [
-        { recorded_at: "2026-07-29T10:00:00Z", equity: "100.00" },
-        { recorded_at: now, equity: "102.50" },
-      ],
-    });
-    return;
-  }
-  if (path === "/paper-trades") {
-    await route.fulfill({
-      json: pageData(fixture.trades ?? [automaticTrade, manualTrade]),
-    });
-    return;
-  }
-  if (path === "/paper-positions") {
-    await route.fulfill({ json: pageData([position]) });
-    return;
-  }
-  if (path === "/predictions" && route.request().method() === "GET") {
-    const items = fixture.predictions ?? [predictionListItem];
-    await route.fulfill({
-      json: {
-        items,
-        page: 1,
-        page_size: 25,
-        total_items: items.length,
-        total_pages: 1,
-        applied_filters: {},
-      },
-    });
-    return;
-  }
-  if (path === `/predictions/${predictionId}`) {
-    await route.fulfill({ json: predictionDetail });
-    return;
-  }
-  if (path === "/paper-trading/manual-trades") {
-    await route.fulfill({
-      json: {
-        status: "filled",
-        trade_decision_id: "00000000-0000-4000-8000-000000000060",
-        paper_order_id: "00000000-0000-4000-8000-000000000061",
-        paper_trade_id: "00000000-0000-4000-8000-000000000062",
-        position_id: "00000000-0000-4000-8000-000000000063",
-        portfolio_id: portfolioId,
-        side: "yes",
-        rejection_reasons: [],
-        decision_source: "manual_override",
-        simulation_only: true,
-        disclaimer: "Simulado",
-      },
-    });
-    return;
-  }
-  await route.fulfill({ json: pageData([]) });
+async function json(route: Route, body: unknown) {
+  await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
 }
 
-function pageData(items: object[]) {
-  return { items, page: 1, page_size: 100, total: items.length, pages: items.length ? 1 : 0 };
-}
+test.beforeEach(async ({ page }) => {
+  await mockApi(page);
+});
 
-test("shows a simple executive overview with only four navigation choices", async ({ page }) => {
-  await installApi(page, { trades: [automaticTrade] });
+test("shows a compact executive overview and only three navigation choices", async ({ page }) => {
   await page.goto("/");
-
-  await expect(
-    page.getByRole("heading", { name: "El laboratorio está trabajando por vos" }),
-  ).toBeVisible();
-  await expect(page.getByText("+2,50").first()).toBeVisible();
-  await expect(page.getByText("Operaciones automáticas")).toBeVisible();
-  await expect(page.getByText("Mercados observados")).toBeVisible();
-  await expect(page.locator("header nav").getByRole("link")).toHaveCount(4);
-
-  const visible = await page.locator("main").innerText();
-  expect(visible).not.toMatch(/hash|correlation|collector|snapshot|drawdown|edge/i);
-  expect(visible).toContain("100% simulado");
+  await expect(page.locator("aside nav").getByRole("link")).toHaveCount(3);
+  await expect(page.getByText("El sistema está trabajando")).toBeVisible();
+  await expect(page.getByText("Invertido")).toBeVisible();
+  await expect(page.getByText("Reserva")).toBeVisible();
+  await expect(page.getByText("Diferencia")).toBeVisible();
+  await expect(page.getByText("Mercados resueltos")).toBeVisible();
+  await expect(page.getByText("Todavía no hay evidencia suficiente")).toBeVisible();
 });
 
-test("keeps the executive overview inside a mobile viewport", async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await installApi(page, { trades: [automaticTrade] });
-  await page.goto("/");
-
-  await expect(page.getByText("+2,50").first()).toBeVisible();
-  const viewport = await page.evaluate(() => ({
-    width: document.documentElement.clientWidth,
-    contentWidth: document.documentElement.scrollWidth,
-  }));
-  expect(viewport.contentWidth).toBeLessThanOrEqual(viewport.width);
-
-  await page.getByRole("button", { name: "Abrir menú" }).click();
-  await expect(page.locator("header nav").getByRole("link")).toHaveCount(4);
-});
-
-test("explains automatic and manual activity without technical details", async ({ page }) => {
-  await installApi(page);
-  await page.goto("/trades");
-
-  await expect(page.getByRole("heading", { name: "Qué hizo el sistema" })).toBeVisible();
-  await expect(page.locator("article").getByText("Automática", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Manual", exact: true }).click();
-  await expect(page.getByText("Manual", { exact: true }).last()).toBeVisible();
-  await expect(page.getByText("Capital usado")).toBeVisible();
-});
-
-test("shows opportunities, lazy detail and the optional manual simulation", async ({ page }) => {
-  await installApi(page);
+test("lists predictions without manual controls and loads debate only on detail", async ({ page }) => {
   await page.goto("/predictions");
-
-  await expect(
-    page.getByRole("heading", { name: "Oportunidades que encontró el sistema" }),
-  ).toBeVisible();
-  await expect(page.getByText("El mercado dice")).toBeVisible();
-  await expect(page.getByText("El sistema estima")).toBeVisible();
-  await expect(page.getByText("Hay oportunidad")).toBeVisible();
-
-  await page.getByRole("link", { name: "Entender" }).click();
+  await expect(page.getByText(prediction.market_title)).toBeVisible();
+  await expect(page.locator(".status-good").filter({ hasText: "Conviene" })).toBeVisible();
+  await expect(page.getByText("Simular manualmente")).toHaveCount(0);
+  await page.getByLabel("Orden").selectOption("consensus_probability");
+  await expect(page).toHaveURL(/sort=consensus_probability/);
+  await page.getByText(prediction.market_title).click();
   await expect(page).toHaveURL(new RegExp(`/predictions/${predictionId}$`));
-  await expect(page.getByText("En palabras simples")).toBeVisible();
-  await expect(page.getByText("El sistema detectó una oportunidad")).toBeVisible();
-
-  await page.getByRole("button", { name: "Simular manualmente" }).click();
-  await expect(page.getByRole("heading", { name: "Probá tu propia decisión" })).toBeVisible();
-  await page.getByLabel("¿Por qué querés probarlo?").fill("Quiero comparar mi hipótesis.");
-  await page.getByRole("button", { name: "Confirmar simulación" }).click();
-  await expect(page.getByText("La prueba simulada fue creada.")).toBeVisible();
+  await expect(page.getByText("Debate de agentes")).toBeVisible();
+  await expect(page.getByText("Análisis semántico")).toBeVisible();
 });
 
-test("lets an executive search markets and open a plain-language detail", async ({ page }) => {
-  await installApi(page);
-  await page.goto("/markets");
-
-  await expect(page.getByRole("heading", { name: "Mercados observados" })).toBeVisible();
-  await page.getByPlaceholder("Buscar un mercado").fill("evento de ejemplo");
-  await page.getByText(market.title).click();
-  await expect(page).toHaveURL(new RegExp(`/markets/${marketId}$`));
-  await expect(page.getByText("Cómo cambió la opinión del mercado")).toBeVisible();
-  await expect(page.getByText("42%").first()).toBeVisible();
+test("shows only automatic paper activity", async ({ page }) => {
+  await page.goto("/trades");
+  await expect(page.getByText("Registro automático")).toBeVisible();
+  await expect(page.getByText(prediction.market_title)).toBeVisible();
+  await expect(page.getByText("Esperando resultado")).toBeVisible();
+  await expect(page.getByRole("button", { name: /manual/i })).toHaveCount(0);
 });
 
-test("switches the redesigned experience to English", async ({ page }) => {
-  await installApi(page, { trades: [automaticTrade] });
+test("can pause future automatic operations after confirmation", async ({ page }) => {
   await page.goto("/");
-
-  await page.getByRole("button", { name: "Idioma" }).click();
-
-  await expect(
-    page.getByRole("heading", { name: "The laboratory is working for you" }),
-  ).toBeVisible();
-  await expect(page.getByRole("link", { name: "Opportunities", exact: true })).toBeVisible();
-  await expect(page.getByText("100% simulated")).toBeVisible();
+  await page.getByRole("button", { name: "Pausar automatización" }).click();
+  await expect(page.getByText("¿Pausar nuevas operaciones?")).toBeVisible();
+  await page.getByRole("button", { name: "Pausar", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Reanudar automatización" })).toBeVisible();
 });
 
-test("uses clear loading, empty and error states", async ({ page }) => {
-  await installApi(page, { delayMs: 700 });
+test("switches between light and dark theme", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByLabel("Cargando información")).toBeVisible();
-});
-
-test("shows a recoverable executive error", async ({ page }) => {
-  await installApi(page, { status: 503 });
-  await page.goto("/");
-  await expect(
-    page.getByRole("heading", { name: "No pudimos actualizar el resumen" }),
-  ).toBeVisible();
-  await expect(page.getByRole("button", { name: "Reintentar" })).toBeVisible();
+  await page.getByRole("button", { name: "Cambiar tema" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
 });
