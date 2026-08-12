@@ -263,6 +263,8 @@ Para iniciar toda la operación cotidiana con un solo comando en Windows:
 
 El script inicia Docker Desktop si está cerrado, levanta todos los servicios,
 espera los health checks y muestra las URLs del dashboard y de la API.
+También se puede hacer doble clic en `INICIAR_AI_POLYPHITE.cmd`; al terminar,
+el lanzador abre el dashboard automáticamente en el navegador.
 
 Compose mantiene el servicio activo por defecto. Cada ciclo usa una
 configuración hasheada, registra su auditoría y verifica ledger y balances antes
