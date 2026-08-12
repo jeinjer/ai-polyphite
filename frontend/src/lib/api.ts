@@ -73,9 +73,9 @@ export const api = {
     request<Page<TradeDecision>>(
       `/trade-decisions?page=1&page_size=100&portfolio_id=${encodeURIComponent(portfolioId)}`,
     ),
-  paperTrades: (portfolioId: string) =>
+  paperTrades: (portfolioId: string, query = "") =>
     request<Page<PaperTrade>>(
-      `/paper-trades?page=1&page_size=100&portfolio_id=${encodeURIComponent(portfolioId)}`,
+      `/paper-trades?page=1&page_size=100&portfolio_id=${encodeURIComponent(portfolioId)}${query ? `&${query}` : ""}`,
     ),
   allPaperTrades: () =>
     request<Page<PaperTrade>>("/paper-trades?page=1&page_size=100"),

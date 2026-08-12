@@ -5,6 +5,9 @@ completada hasta que su código, tests y documentación hayan sido validados.
 
 ## Completed
 
+- [x] Unificar KPI y embudo en el portfolio live vigente.
+- [x] Adoptar un perfil paper balanceado y retirar la campaña paralela por defecto.
+- [x] Corregir hora local, contraste y explicación contable del encabezado.
 - [x] Corregir el reloj del dashboard y expresar el saldo como créditos simulados.
 - [x] Adoptar razonamiento híbrido local para ReasoningAgent y SkepticAgent.
 - [x] Mantener consenso, evaluación comercial, riesgo y contabilidad deterministas.

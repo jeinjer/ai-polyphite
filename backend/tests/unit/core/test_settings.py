@@ -229,3 +229,11 @@ def test_paper_validation_runtime_configuration_is_typed() -> None:
 
     with pytest.raises(ValidationError):
         Settings(_env_file=None, paper_validation_interval_seconds=30)
+
+
+def test_live_paper_defaults_use_one_balanced_campaign() -> None:
+    settings = Settings(_env_file=None)
+
+    assert settings.paper_entry_minimum_edge == Decimal("0.02")
+    assert settings.paper_entry_minimum_confidence == Decimal("0.40")
+    assert settings.experimental_campaign_enabled is False

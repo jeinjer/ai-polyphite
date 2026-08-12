@@ -10,6 +10,11 @@ versionada.
 
 ### Changed
 
+- La campaña principal adopta un perfil balanceado (edge bruto mínimo de 2
+  puntos y confianza mínima de 40%) y la campaña experimental duplicada queda
+  desactivada por defecto.
+- Todos los KPI y el embudo del dashboard se limitan al portfolio vigente; las
+  configuraciones anteriores permanecen como historia auditable.
 - El pipeline pasa a ser híbrido: Reasoning y Skeptic usan Ollama; Market,
   Consensus, riesgo, costes y contabilidad permanecen deterministas.
 - La selección live prioriza mercados con resolución entre cinco minutos y
@@ -27,6 +32,11 @@ versionada.
 
 ### Fixed
 
+- El reloj usa la zona local del navegador, avanza cada segundo y diferencia
+  explícitamente hora actual, última ingesta y último análisis.
+- Se corrige el contraste del logo y del aviso de simulación, y el encabezado
+  explica disponible, invertido, total y ganancia/pérdida sin confundir stake
+  con pérdida.
 - El reloj "Ahora" se sincroniza al montar el dashboard y continúa avanzando;
   los saldos ya no usan la abreviatura ambigua `M`, sino "créditos" simulados.
 - Las recomendaciones YES/NO de cada agente vuelven a expresar el outcome y no

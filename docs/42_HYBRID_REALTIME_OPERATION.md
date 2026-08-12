@@ -13,6 +13,7 @@ queden observables.
 - Validador paper: 60 segundos.
 - Lote generativo: un mercado nuevo por ciclo en la configuración local.
 - Dashboard: refresco de lecturas cada 30 segundos.
+- Reloj visible: hora local del navegador actualizada cada segundo.
 
 El límite de un mercado evita que dos llamadas secuenciales a Ollama por mercado
 generen ciclos permanentemente atrasados en CPU. Puede aumentarse mediante
@@ -51,6 +52,23 @@ y constant baseline sin lookahead.
 `POST /automation/resume` detienen o reanudan nuevas predicciones/operaciones.
 Las posiciones ya abiertas continúan registradas y se liquidan según el outcome
 oficial; no se ofrece operación manual en la UI.
+
+## Perfil operativo balanceado
+
+La campaña live visible usa un único portfolio vigente. Exige como mínimo 2
+puntos porcentuales de diferencia bruta y 40% de confianza, conserva el modelo
+de costos, una sola posición por mercado y todos los límites de exposición. La
+campaña experimental paralela está desactivada por defecto para no duplicar
+métricas ni decisiones.
+
+Este cambio aumenta la obtención de feedback sin convertir cada predicción en
+una operación. Los portfolios anteriores permanecen en PostgreSQL como historia
+auditable, pero el dashboard no los mezcla con el vigente.
+
+El embudo visible usa el mismo portfolio y período en todas sus etapas:
+analizadas, sin estimación, descartadas y operadas. `Invertido` es capital aún
+propio comprometido en posiciones; `Ganancia / pérdida` es la variación contra
+el capital inicial y no el importe invertido.
 
 ## Seguridad
 

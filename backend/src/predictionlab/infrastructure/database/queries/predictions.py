@@ -375,6 +375,8 @@ def _summary_filters(
     evaluation: type[CommercialEvaluationModel],
 ) -> tuple[ColumnElement[bool], ...]:
     filters = list(_filters(query))
+    if query.portfolio_id is not None or query.campaign_id is not None:
+        filters.append(evaluation.evaluation_id.is_not(None))
     if query.provider is not None:
         filters.append(ProviderModel.code == query.provider.strip())
     if query.commercial_label is CommercialLabel.NOT_EVALUABLE:

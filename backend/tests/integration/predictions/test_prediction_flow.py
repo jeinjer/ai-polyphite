@@ -190,6 +190,13 @@ async def test_prediction_pipeline_is_as_of_idempotent_persisted_and_queryable()
                     "direction": "desc",
                 },
             )
+            scoped_summaries = await client.get(
+                "/predictions",
+                params={
+                    "portfolio_id": str(uuid4()),
+                    "page_size": 25,
+                },
+            )
 
         assert listing.status_code == 200
         assert listing.json()["total"] == 1
@@ -199,6 +206,8 @@ async def test_prediction_pipeline_is_as_of_idempotent_persisted_and_queryable()
         assert summaries.status_code == 200
         assert summaries.json()["total_items"] == 1
         assert summaries.json()["items"][0]["commercial_label"] == "not_evaluable"
+        assert scoped_summaries.status_code == 200
+        assert scoped_summaries.json()["total_items"] == 0
         assert "agent_predictions" not in summaries.json()["items"][0]
     finally:
         async with session_factory.begin() as session:

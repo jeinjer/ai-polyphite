@@ -29,7 +29,6 @@ import type {
 
 type DecisionFilter = "all" | CommercialLabel;
 type OutcomeFilter = "all" | EstimatedOutcome;
-const DISPLAY_TIME_ZONE = "Europe/Paris";
 type SortFilter =
   | "newest"
   | "oldest"
@@ -39,21 +38,23 @@ type SortFilter =
 
 export function PredictionsWorkspace({
   predictionId,
-}: Readonly<{ predictionId: string | null }>) {
-  return predictionId ? <PredictionDetail predictionId={predictionId} /> : <PredictionList />;
+  portfolioId,
+}: Readonly<{ predictionId: string | null; portfolioId: string | null }>) {
+  return predictionId ? <PredictionDetail predictionId={predictionId} /> : <PredictionList portfolioId={portfolioId} />;
 }
 
-function PredictionList() {
+function PredictionList({ portfolioId }: Readonly<{ portfolioId: string | null }>) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const page = positiveInteger(searchParams.get("page"), 1);
   const decision = decisionFilter(searchParams.get("decision"));
   const outcome = outcomeFilter(searchParams.get("outcome"));
   const sort = sortFilter(searchParams.get("sort"));
-  const queryString = predictionQuery({ page, decision, outcome, sort });
+  const queryString = predictionQuery({ page, decision, outcome, sort, portfolioId });
   const query = useQuery({
     queryKey: ["prediction-list", queryString],
     queryFn: () => api.predictions(queryString),
+    enabled: portfolioId !== null,
     placeholderData: (previous) => previous,
   });
 
@@ -71,7 +72,7 @@ function PredictionList() {
       <PageTitle
         eyebrow="Decisiones automáticas"
         title="Predicciones"
-        description="Qué estima el sistema, qué tan seguro está y si encontró una oportunidad operable."
+        description="Análisis del portfolio automático vigente, sin mezclar configuraciones anteriores."
       />
 
       <section className="panel flex flex-wrap items-center gap-3 p-3">
@@ -323,12 +324,12 @@ function StatePanel({ icon: Icon, title, text }: Readonly<{ icon: LucideIcon; ti
 
 function LoadingRows() { return <div className="panel space-y-1 p-2">{[1, 2, 3, 4, 5].map((item) => <div key={item} className="h-20 animate-pulse rounded-lg bg-subtle" />)}</div>; }
 
-function predictionQuery({ page, decision, outcome, sort }: { page: number; decision: DecisionFilter; outcome: OutcomeFilter; sort: SortFilter }) { const oldest = sort === "oldest"; const field = sort === "newest" || oldest ? "predicted_at" : sort; const params = new URLSearchParams({ page: String(page), page_size: "25", sort: field, direction: oldest ? "asc" : "desc" }); if (decision !== "all") params.set("commercial_label", decision); if (outcome !== "all") params.set("estimated_outcome", outcome); return params.toString(); }
+function predictionQuery({ page, decision, outcome, sort, portfolioId }: { page: number; decision: DecisionFilter; outcome: OutcomeFilter; sort: SortFilter; portfolioId: string | null }) { const oldest = sort === "oldest"; const field = sort === "newest" || oldest ? "predicted_at" : sort; const params = new URLSearchParams({ page: String(page), page_size: "25", sort: field, direction: oldest ? "asc" : "desc" }); if (portfolioId) params.set("portfolio_id", portfolioId); if (decision !== "all") params.set("commercial_label", decision); if (outcome !== "all") params.set("estimated_outcome", outcome); return params.toString(); }
 function decisionFilter(value: string | null): DecisionFilter { return value === "actionable" || value === "not_actionable" || value === "not_evaluable" ? value : "all"; }
 function outcomeFilter(value: string | null): OutcomeFilter { return value === "yes" || value === "no" ? value : "all"; }
 function sortFilter(value: string | null): SortFilter { return value === "oldest" || value === "market_probability" || value === "consensus_probability" || value === "consensus_confidence" ? value : "newest"; }
 function positiveInteger(value: string | null, fallback: number) { const parsed = Number(value); return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback; }
 function percent(value: string | null) { return value === null ? "—" : `${Math.round(Number(value) * 100)}%`; }
 function points(value: string | null) { if (value === null) return "—"; const number = Number(value) * 100; return `${number > 0 ? "+" : ""}${number.toFixed(1)} pp`; }
-function dateTime(value: string) { return new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: DISPLAY_TIME_ZONE }).format(new Date(value)); }
+function dateTime(value: string) { return new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value)); }
 function reasonLabel(value: string | null | undefined) { if (!value) return "No existe una evaluación comercial asociada."; const labels: Record<string, string> = { opportunity_level_not_allowed: "La diferencia frente al mercado todavía es demasiado pequeña.", insufficient_net_edge: "La ventaja desaparece después de considerar costos simulados.", insufficient_confidence: "La estimación todavía no tiene respaldo suficiente.", category_concentration: "La cartera ya tiene demasiada exposición relacionada.", incompatible_existing_position: "Ya existe una posición abierta en este mercado.", no_commercial_edge: "No se detectó una diferencia aprovechable frente al mercado." }; return labels[value] ?? value.replaceAll("_", " "); }

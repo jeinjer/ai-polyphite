@@ -147,11 +147,17 @@ test("shows a compact executive overview and only three navigation choices", asy
   await page.goto("/");
   await expect(page.locator("aside nav").getByRole("link")).toHaveCount(3);
   await expect(page.getByText("El sistema está trabajando")).toBeVisible();
-  await expect(page.getByText("Invertido")).toBeVisible();
-  await expect(page.getByText("Reserva")).toBeVisible();
-  await expect(page.getByText("Diferencia")).toBeVisible();
-  await expect(page.getByText("15,50 créditos")).toBeVisible();
-  await expect(page.getByText("84,50 créditos")).toBeVisible();
+  await expect(page.getByText("Invertido", { exact: true })).toBeVisible();
+  await expect(page.getByText("Disponible", { exact: true })).toBeVisible();
+  await expect(page.getByText("Ganancia / pérdida", { exact: true })).toBeVisible();
+  await expect(page.getByText("Total actual", { exact: true })).toBeVisible();
+  await expect(page.getByText("15,50 créditos", { exact: true })).toBeVisible();
+  await expect(page.getByText("84,50 créditos", { exact: true })).toBeVisible();
+  await expect(page.getByText("100,90 créditos", { exact: true })).toBeVisible();
+  await expect(page.getByText("Analizadas", { exact: true })).toBeVisible();
+  await expect(page.getByText("Sin estimación", { exact: true })).toBeVisible();
+  await expect(page.getByText("Descartadas", { exact: true })).toBeVisible();
+  await expect(page.getByText("Operadas", { exact: true })).toBeVisible();
   await expect(page.getByText("Mercados resueltos")).toBeVisible();
   await expect(page.getByText("Todavía no hay evidencia suficiente")).toBeVisible();
 });
@@ -160,10 +166,10 @@ test("updates the current time after hydration and keeps it live", async ({ page
   await page.goto("/");
   await page.clock.install({ time: new Date("2030-01-01T12:34:00Z") });
   await page.clock.fastForward(30_000);
-  const currentTime = page.getByText("Ahora").locator("..").locator("strong");
-  await expect(currentTime).toContainText("01:34 p. m.");
-  await page.clock.fastForward(60_000);
-  await expect(currentTime).toContainText("01:35 p. m.");
+  const currentTime = page.getByText(/Ahora · hora del equipo/).locator("..").locator("strong");
+  await expect(currentTime).toContainText("01:34:30 p. m.");
+  await page.clock.fastForward(1_000);
+  await expect(currentTime).toContainText("01:34:31 p. m.");
 });
 
 test("lists predictions without manual controls and loads debate only on detail", async ({ page }) => {

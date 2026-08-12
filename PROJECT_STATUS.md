@@ -47,13 +47,16 @@ analizarse si es nueva para la versión configurada del pipeline.
 - Predicciones, evidencia, hashes, decisiones y operaciones reconstruibles.
 - Evaluación live contra resultados oficiales usando una única predicción por
   mercado resuelto y barrera anti-lookahead.
-- Dos campañas paper aisladas, reconciliación contable y portfolios versionados
-  por configuración.
+- Una campaña paper live balanceada, reconciliación contable y portfolios
+  históricos versionados por configuración. La campaña experimental paralela
+  está desactivada por defecto.
 - Automatización pausable y reanudable; la interfaz no ofrece operaciones
   manuales.
 - Dashboard ejecutivo con tres recorridos: Resumen, Predicciones y Actividad.
-- Capital invertido, reserva, diferencia, fecha actual, última ingesta y última
-  predicción visibles en el encabezado.
+- Capital invertido, disponible, total, ganancia/pérdida, hora local, última
+  ingesta y último análisis visibles en el encabezado.
+- Embudo diario limitado al portfolio vigente, sin mezclar campañas ni
+  configuraciones antiguas.
 - Tema claro/oscuro, navegación lateral, detalle lazy y listado paginado.
 - PostgreSQL, Redis, FastAPI, Next.js, workers, Ollama y backup en Compose.
 - Inicio cotidiano con `INICIAR_AI_POLYPHITE.cmd` o `scripts/start.ps1`.
@@ -75,7 +78,8 @@ analizarse si es nueva para la versión configurada del pipeline.
 - No existe NewsAgent, búsqueda web, RAG ni conocimiento externo en tiempo real.
 - La inferencia local depende del rendimiento de CPU/GPU del host; por eso el
   lote está acotado.
-- “Sin operación” puede ser una salida correcta por falta de edge neto, riesgo,
+- El perfil live exige 2 puntos de edge bruto y 40% de confianza; “sin
+  operación” puede seguir siendo correcto por falta de edge neto, riesgo,
   mercado no evaluable o desacuerdo. El dashboard expone el motivo.
 - La evidencia estadística seguirá siendo insuficiente hasta acumular una
   cantidad material de mercados resueltos; la UI no presenta ROI ficticio.

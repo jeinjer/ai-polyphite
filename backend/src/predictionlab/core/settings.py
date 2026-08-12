@@ -224,12 +224,12 @@ class Settings(BaseSettings):
     paper_currency_unit: Literal["USD_SIMULATED", "MANA_SIMULATED"] = "USD_SIMULATED"
     paper_initial_balance: Decimal = Field(default=Decimal("100"), gt=0)
     paper_entry_minimum_edge: Decimal = Field(
-        default=Decimal("0.03"),
+        default=Decimal("0.02"),
         ge=0,
         le=1,
     )
     paper_entry_minimum_confidence: Decimal = Field(
-        default=Decimal("0.45"),
+        default=Decimal("0.40"),
         ge=0,
         le=1,
     )
@@ -363,7 +363,7 @@ class Settings(BaseSettings):
         ),
     )
     experimental_campaign_enabled: bool = Field(
-        default=True,
+        default=False,
         validation_alias=AliasChoices(
             "experimental_campaign_enabled",
             "AI_POLYPHITE_EXPERIMENTAL_CAMPAIGN_ENABLED",

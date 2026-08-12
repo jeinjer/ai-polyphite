@@ -156,7 +156,7 @@ pero no como registro histórico único.
 
    ```text
    Manifold público → collector (60 s) → filtro 5 min–14 días
-   → razonamiento híbrido → evaluación comercial → campañas paper automáticas
+   → razonamiento híbrido → evaluación comercial → campaña paper automática
    → liquidación/reconciliación
    ```
 
@@ -186,6 +186,11 @@ pero no como registro histórico único.
    La navegación visible se limita a Resumen (`/`), Predicciones
    (`/predictions`) y Actividad (`/trades`). El detalle lazy usa
    `/predictions/{prediction_id}`.
+
+   El dashboard muestra sólo el portfolio live vigente. Su perfil balanceado
+   usa 2 puntos porcentuales de edge bruto y 40% de confianza como mínimos;
+   conserva costos, límites de exposición y una posición por mercado. Los
+   portfolios de configuraciones previas continúan auditables en PostgreSQL.
 
 PostgreSQL y Redis solo publican puertos en `127.0.0.1`.
 

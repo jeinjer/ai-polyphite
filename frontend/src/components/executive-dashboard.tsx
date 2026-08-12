@@ -8,6 +8,7 @@ import {
   BriefcaseBusiness,
   CalendarDays,
   ChartNoAxesCombined,
+  CircleDollarSign,
   CircleHelp,
   DatabaseZap,
   FlaskConical,
@@ -56,7 +57,6 @@ import type {
 } from "@/lib/api-types";
 
 type Section = "overview" | "predictions" | "activity";
-const DISPLAY_TIME_ZONE = "Europe/Paris";
 
 const navigation: { section: Section; href: string; label: string; icon: LucideIcon }[] = [
   { section: "overview", href: "/", label: "Resumen", icon: Gauge },
@@ -70,7 +70,7 @@ export function ExecutiveDashboard() {
   const section = currentSection(parts[0]);
   const predictionId = section === "predictions" ? parts[1] ?? null : null;
   const [dark, setDark] = useState(false);
-  const [now, setNow] = useState(() => new Date());
+  const [now, setNow] = useState<Date | null>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem("ai-polyphite-theme");
@@ -80,7 +80,7 @@ export function ExecutiveDashboard() {
     const frame = window.requestAnimationFrame(() => {
       setDark(stored ? stored === "dark" : preferred);
     });
-    const timer = window.setInterval(updateClock, 30_000);
+    const timer = window.setInterval(updateClock, 1_000);
     return () => {
       window.cancelAnimationFrame(frame);
       window.clearInterval(timer);
@@ -95,13 +95,20 @@ export function ExecutiveDashboard() {
   const runs = useQuery({ queryKey: ["sync-runs"], queryFn: api.syncRuns });
   const portfolios = useQuery({ queryKey: ["paper-portfolios"], queryFn: api.paperPortfolios });
   const portfolio = useMemo(() => preferredPortfolio(portfolios.data?.items ?? []), [portfolios.data?.items]);
+  const portfolioId = portfolio?.portfolio_id ?? null;
+  const localDay = now ? startOfDay(now) : null;
+  const predictionScope = portfolioId ? `portfolio_id=${encodeURIComponent(portfolioId)}` : "";
+  const todayScope = portfolioId && localDay ? `${predictionScope}&date_from=${encodeURIComponent(localDay)}` : "";
   const performance = useQuery({ queryKey: ["paper-performance", portfolio?.portfolio_id], queryFn: () => api.paperPerformance(portfolio?.portfolio_id ?? ""), enabled: portfolio !== null });
   const trades = useQuery({ queryKey: ["paper-trades", portfolio?.portfolio_id], queryFn: () => api.paperTrades(portfolio?.portfolio_id ?? ""), enabled: portfolio !== null });
+  const todayTrades = useQuery({ queryKey: ["paper-trades-today", portfolioId, localDay], queryFn: () => api.paperTrades(portfolioId ?? "", `from=${encodeURIComponent(localDay ?? "")}`), enabled: portfolioId !== null && localDay !== null });
   const positions = useQuery({ queryKey: ["paper-positions", portfolio?.portfolio_id], queryFn: () => api.paperPositions(portfolio?.portfolio_id ?? ""), enabled: portfolio !== null });
   const equity = useQuery({ queryKey: ["paper-equity", portfolio?.portfolio_id], queryFn: () => api.paperEquityCurve(portfolio?.portfolio_id ?? ""), enabled: portfolio !== null });
-  const latestPredictions = useQuery({ queryKey: ["latest-predictions"], queryFn: () => api.predictions("page=1&page_size=25&sort=predicted_at&direction=desc") });
-  const todayPredictions = useQuery({ queryKey: ["today-predictions", dayKey(now)], queryFn: () => api.predictions(`page=1&page_size=25&sort=predicted_at&direction=desc&date_from=${encodeURIComponent(startOfDay(now))}`) });
-  const actionableToday = useQuery({ queryKey: ["actionable-today", dayKey(now)], queryFn: () => api.predictions(`page=1&page_size=25&sort=predicted_at&direction=desc&commercial_label=actionable&date_from=${encodeURIComponent(startOfDay(now))}`) });
+  const latestPredictions = useQuery({ queryKey: ["latest-predictions", portfolioId], queryFn: () => api.predictions(`page=1&page_size=25&sort=predicted_at&direction=desc&${predictionScope}`), enabled: portfolioId !== null });
+  const todayPredictions = useQuery({ queryKey: ["today-predictions", portfolioId, localDay], queryFn: () => api.predictions(`page=1&page_size=25&sort=predicted_at&direction=desc&${todayScope}`), enabled: todayScope.length > 0 });
+  const notEvaluableToday = useQuery({ queryKey: ["not-evaluable-today", portfolioId, localDay], queryFn: () => api.predictions(`page=1&page_size=25&commercial_label=not_evaluable&${todayScope}`), enabled: todayScope.length > 0 });
+  const rejectedToday = useQuery({ queryKey: ["rejected-today", portfolioId, localDay], queryFn: () => api.predictions(`page=1&page_size=25&commercial_label=not_actionable&${todayScope}`), enabled: todayScope.length > 0 });
+  const actionableToday = useQuery({ queryKey: ["actionable-today", portfolioId, localDay], queryFn: () => api.predictions(`page=1&page_size=25&commercial_label=actionable&${todayScope}`), enabled: todayScope.length > 0 });
   const automation = useQuery({ queryKey: ["automation"], queryFn: api.automation });
   const evaluation = useQuery({
     queryKey: ["prediction-evaluation"],
@@ -110,7 +117,9 @@ export function ExecutiveDashboard() {
 
   const loading = sources.isLoading || runs.isLoading || portfolios.isLoading;
   const error = sources.isError || runs.isError || portfolios.isError;
-  const latestCompletedRun = runs.data?.items.find((run) => run.status === "completed") ?? null;
+  const latestCompletedRun = runs.data?.items
+    .filter((run) => run.status === "completed")
+    .toSorted((left, right) => eventTime(right) - eventTime(left))[0] ?? null;
   const latestRun = runs.data?.items[0] ?? null;
   const lastPrediction = latestPredictions.data?.items[0]?.predicted_at ?? null;
 
@@ -128,7 +137,7 @@ export function ExecutiveDashboard() {
         />
         <main className="mx-auto min-h-[calc(100vh-72px)] max-w-[1320px] px-4 py-6 sm:px-6 lg:px-8">
           {section === "predictions" ? (
-            <PredictionsWorkspace predictionId={predictionId} />
+            <PredictionsWorkspace predictionId={predictionId} portfolioId={portfolioId} />
           ) : loading ? (
             <Loading />
           ) : error ? (
@@ -144,8 +153,10 @@ export function ExecutiveDashboard() {
               performance={performance.data ?? null}
               predictions={latestPredictions.data?.items ?? []}
               predictionsToday={todayPredictions.data?.total_items ?? 0}
+              notEvaluableToday={notEvaluableToday.data?.total_items ?? 0}
+              rejectedToday={rejectedToday.data?.total_items ?? 0}
               actionableToday={actionableToday.data?.total_items ?? 0}
-              trades={trades.data?.items ?? []}
+              tradesToday={todayTrades.data?.total ?? 0}
               positions={positions.data?.items ?? []}
               equity={equity.data ?? []}
               automation={automation.data ?? null}
@@ -161,7 +172,7 @@ export function ExecutiveDashboard() {
 
 function Sidebar({ section, automation }: Readonly<{ section: Section; automation: AutomationState | null }>) {
   return (
-    <aside className="fixed inset-y-0 left-0 z-40 hidden w-[224px] flex-col border-r border-sidebar-line bg-sidebar text-sidebar lg:flex">
+    <aside className="fixed inset-y-0 left-0 z-40 hidden w-[224px] flex-col border-r border-sidebar-line bg-sidebar text-white lg:flex">
       <Link href="/" className="flex h-[72px] items-center gap-3 border-b border-sidebar-line px-5">
         <span className="grid size-9 place-items-center rounded-lg bg-accent text-white"><Sparkles className="size-4" /></span>
         <span><strong className="block text-sm tracking-[-.02em]">AI-Polyphite</strong><small className="block text-[10px] uppercase tracking-[.14em] text-sidebar-muted">Paper research</small></span>
@@ -171,7 +182,7 @@ function Sidebar({ section, automation }: Readonly<{ section: Section; automatio
       </nav>
       <div className="mt-auto p-4">
         <div className="rounded-xl border border-sidebar-line bg-sidebar-soft p-3 text-xs leading-5 text-sidebar-muted">
-          <div className="mb-1.5 flex items-center gap-2 font-semibold text-sidebar"><FlaskConical className="size-3.5 text-accent" /> 100% simulado</div>
+          <div className="mb-1.5 flex items-center gap-2 font-semibold text-white"><FlaskConical className="size-3.5 text-accent" /> 100% simulado</div>
           No hay dinero real, wallets ni ejecución externa.
         </div>
         <div className={`mt-3 flex items-center gap-2 text-xs font-semibold ${automation?.paused ? "text-warning" : "text-positive"}`}>
@@ -192,21 +203,23 @@ function MobileNavigation({ section }: Readonly<{ section: Section }>) {
   return <nav className="fixed inset-x-3 bottom-3 z-50 flex justify-around rounded-2xl border border-line bg-panel/95 p-1.5 shadow-2xl backdrop-blur lg:hidden">{navigation.map((item) => { const Icon = item.icon; const active = item.section === section; return <Link key={item.section} href={item.href} className={`flex min-w-20 flex-col items-center gap-1 rounded-xl px-3 py-2 text-[10px] font-semibold ${active ? "bg-accent text-white" : "text-muted"}`}><Icon className="size-4" />{item.label}</Link>; })}</nav>;
 }
 
-function TopBar({ portfolio, now, latestData, latestPrediction, dark, onTheme }: Readonly<{ portfolio: PaperPortfolio | null; now: Date; latestData: string | null; latestPrediction: string | null; dark: boolean; onTheme: () => void }>) {
+function TopBar({ portfolio, now, latestData, latestPrediction, dark, onTheme }: Readonly<{ portfolio: PaperPortfolio | null; now: Date | null; latestData: string | null; latestPrediction: string | null; dark: boolean; onTheme: () => void }>) {
   const invested = Number(portfolio?.reserved_balance ?? 0);
   const reserve = Number(portfolio?.cash_balance ?? 0);
+  const total = Number(portfolio?.equity ?? 0);
   const delta = Number(portfolio?.equity ?? 0) - Number(portfolio?.initial_balance ?? 0);
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-panel/92 backdrop-blur-xl">
       <div className="flex min-h-[72px] items-center gap-3 overflow-x-auto px-4 sm:px-6 lg:px-8">
         <Link href="/" className="mr-2 flex shrink-0 items-center gap-2 lg:hidden"><span className="grid size-8 place-items-center rounded-lg bg-accent text-white"><Sparkles className="size-4" /></span><strong className="text-sm">AI-Polyphite</strong></Link>
-        <MoneyPill icon={BriefcaseBusiness} label="Invertido" value={money(invested)} tone="neutral" help="Capital virtual actualmente comprometido en posiciones abiertas." />
-        <MoneyPill icon={WalletCards} label="Reserva" value={money(reserve)} tone="neutral" help="Capital virtual disponible para futuras operaciones." />
-        <MoneyPill icon={delta >= 0 ? TrendingUp : TrendingDown} label="Diferencia" value={signedMoney(delta)} tone={delta > 0 ? "positive" : delta < 0 ? "negative" : "neutral"} help="Diferencia entre el capital virtual actual y el inicial." />
+        <MoneyPill icon={BriefcaseBusiness} label="Invertido" value={money(invested)} tone="neutral" help="Capital virtual comprometido. No es una pérdida: sigue formando parte del total mientras la posición esté abierta." />
+        <MoneyPill icon={WalletCards} label="Disponible" value={money(reserve)} tone="neutral" help="Capital virtual libre para nuevas operaciones." />
+        <MoneyPill icon={delta >= 0 ? TrendingUp : TrendingDown} label="Ganancia / pérdida" value={signedMoney(delta)} tone={delta > 0 ? "positive" : delta < 0 ? "negative" : "neutral"} help="Resultado acumulado: cuánto subió o bajó el capital inicial, incluyendo costos y posiciones abiertas." />
+        <MoneyPill icon={CircleDollarSign} label="Total actual" value={money(total)} tone={delta > 0 ? "positive" : delta < 0 ? "negative" : "neutral"} help="Disponible + invertido + ganancia o pérdida no realizada." />
         <div className="ml-auto flex shrink-0 items-center gap-4 border-l border-line pl-4 text-[11px] text-muted">
-          <TimeLabel icon={CalendarDays} label="Ahora" value={fullDate(now)} />
-          <TimeLabel icon={DatabaseZap} label="Últimos datos" value={shortDate(latestData)} />
-          <TimeLabel icon={Bot} label="Última predicción" value={shortDate(latestPrediction)} />
+          <TimeLabel icon={CalendarDays} label="Ahora · hora del equipo" value={fullDate(now)} detail={now ? localTimeZone() : undefined} />
+          <TimeLabel icon={DatabaseZap} label="Últimos datos" value={shortDate(latestData)} detail={relativeAge(latestData, now)} />
+          <TimeLabel icon={Bot} label="Último análisis" value={shortDate(latestPrediction)} detail={relativeAge(latestPrediction, now)} />
           <button type="button" className="icon-button" onClick={onTheme} aria-label="Cambiar tema" title="Cambiar entre tema claro y oscuro">{dark ? <Sun className="size-4" /> : <Moon className="size-4" />}</button>
         </div>
       </div>
@@ -214,10 +227,9 @@ function TopBar({ portfolio, now, latestData, latestPrediction, dark, onTheme }:
   );
 }
 
-function Overview({ sources, latestRun, latestCompletedRun, portfolio, performance, predictions, predictionsToday, actionableToday, trades, positions, equity, automation, evaluation }: Readonly<{ sources: SourceHealth[]; latestRun: SyncRun | null; latestCompletedRun: SyncRun | null; portfolio: PaperPortfolio | null; performance: PaperPerformance | null; predictions: PredictionListItem[]; predictionsToday: number; actionableToday: number; trades: PaperTrade[]; positions: PaperPosition[]; equity: EquityCurvePoint[]; automation: AutomationState | null; evaluation: PredictionEvaluation | null }>) {
+function Overview({ sources, latestRun, latestCompletedRun, portfolio, performance, predictions, predictionsToday, notEvaluableToday, rejectedToday, actionableToday, tradesToday, positions, equity, automation, evaluation }: Readonly<{ sources: SourceHealth[]; latestRun: SyncRun | null; latestCompletedRun: SyncRun | null; portfolio: PaperPortfolio | null; performance: PaperPerformance | null; predictions: PredictionListItem[]; predictionsToday: number; notEvaluableToday: number; rejectedToday: number; actionableToday: number; tradesToday: number; positions: PaperPosition[]; equity: EquityCurvePoint[]; automation: AutomationState | null; evaluation: PredictionEvaluation | null }>) {
   const status = operationalStatus(sources, latestRun, latestCompletedRun, automation);
   const openPositions = positions.filter((item) => item.status === "open");
-  const automaticTrades = trades.filter((item) => item.decision_source === "automatic" && item.experiment_run_id === null);
   return (
     <div className="page-enter space-y-6">
       <section className="flex flex-col gap-4 border-b border-line pb-6 md:flex-row md:items-end md:justify-between">
@@ -225,23 +237,26 @@ function Overview({ sources, latestRun, latestCompletedRun, portfolio, performan
         <AutomationControl state={automation} />
       </section>
 
+      <CapitalExplanation portfolio={portfolio} />
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Kpi icon={ChartNoAxesCombined} label="Resultado" value={signedMoney(Number(portfolio?.equity ?? 0) - Number(portfolio?.initial_balance ?? 0))} help="Ganancia o pérdida virtual total, incluyendo posiciones abiertas." />
         <Kpi icon={BriefcaseBusiness} label="Posiciones abiertas" value={String(openPositions.length)} help="Operaciones automáticas esperando un resultado oficial." />
-        <Kpi icon={Bot} label="Predicciones hoy" value={String(predictionsToday)} help="Análisis nuevos creados desde el inicio del día local." />
-        <Kpi icon={Target} label="Oportunidades hoy" value={String(actionableToday)} help="Predicciones que superaron costos, confianza y reglas comerciales." />
+        <Kpi icon={Bot} label="Analizadas hoy" value={String(predictionsToday)} help="Sólo decisiones procesadas por el portfolio automático vigente." />
+        <Kpi icon={Target} label="Operadas hoy" value={String(tradesToday)} help="Operaciones paper realmente ejecutadas hoy por el portfolio vigente." />
       </div>
 
       <LearningStrip evaluation={evaluation} />
 
       <section className="panel p-5 md:p-6">
-        <SectionTitle icon={RefreshCw} title="Qué está haciendo ahora" subtitle="Cada etapa muestra trabajo real del último ciclo, no actividad inventada." />
+        <SectionTitle icon={RefreshCw} title="Decisiones de hoy" subtitle="Un único alcance: portfolio automático y configuración vigentes." />
         <div className="mt-5 grid gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-4">
-          <FunnelStep number="1" label="Mercados leídos" value={latestCompletedRun?.markets_fetched ?? 0} detail="Última consulta pública" />
-          <FunnelStep number="2" label="Datos nuevos" value={(latestCompletedRun?.markets_created ?? 0) + (latestCompletedRun?.markets_updated ?? 0)} detail="Creados o actualizados" />
-          <FunnelStep number="3" label="Predichos hoy" value={predictionsToday} detail="Solo corto plazo" />
-          <FunnelStep number="4" label="Operados" value={automaticTrades.length} detail="Campaña automática" />
+          <FunnelStep number="1" label="Analizadas" value={predictionsToday} detail="Portfolio vigente" />
+          <FunnelStep number="2" label="Sin estimación" value={notEvaluableToday} detail="Abstención o datos incompletos" />
+          <FunnelStep number="3" label="Descartadas" value={rejectedToday} detail="Sin ventaja neta suficiente" />
+          <FunnelStep number="4" label="Operadas" value={tradesToday} detail={`${actionableToday} aprobadas por las reglas`} />
         </div>
+        <p className="mt-3 text-xs text-muted">La ingesta sigue leyendo {latestCompletedRun?.markets_fetched ?? 0} mercados por ciclo. Esos mercados no se cuentan como predicciones hasta que el portfolio los evalúa.</p>
         {latestRun?.status === "failed" && <div className="mt-4 flex items-start gap-3 rounded-lg border border-warning/25 bg-warning-soft p-3 text-sm text-warning"><ShieldAlert className="mt-0.5 size-4 shrink-0" /><span>La última ingesta falló ({latestRun.safe_error_type ?? "error de proveedor"}). El worker seguirá reintentando.</span></div>}
       </section>
 
@@ -279,6 +294,8 @@ function LearningStrip({ evaluation }: Readonly<{ evaluation: PredictionEvaluati
 
 function LearningMetric({ label, value }: Readonly<{ label: string; value: string }>) { return <div className="bg-panel p-4 md:text-center"><strong className="block font-mono text-xl text-strong">{value}</strong><span className="mt-1 block text-[11px] font-semibold text-muted">{label}</span></div>; }
 
+function CapitalExplanation({ portfolio }: Readonly<{ portfolio: PaperPortfolio | null }>) { const available = Number(portfolio?.cash_balance ?? 0); const invested = Number(portfolio?.reserved_balance ?? 0); const openResult = Number(portfolio?.unrealized_pnl ?? 0); const total = Number(portfolio?.equity ?? 0); const delta = total - Number(portfolio?.initial_balance ?? 0); return <section className="panel flex flex-wrap items-center gap-2 px-4 py-3 text-xs text-muted"><CircleDollarSign className="size-4 shrink-0 text-accent" /><strong className="text-strong">Cómo leer el saldo:</strong><span>{money(total)} totales = {money(available)} disponibles + {money(invested)} invertidos {openResult < 0 ? "−" : "+"} {money(Math.abs(openResult))} de variación abierta.</span><span>Resultado acumulado frente al capital inicial: {signedMoney(delta)}.</span></section>; }
+
 function AutomationControl({ state }: Readonly<{ state: AutomationState | null }>) {
   const client = useQueryClient();
   const [confirming, setConfirming] = useState(false);
@@ -290,7 +307,7 @@ function AutomationControl({ state }: Readonly<{ state: AutomationState | null }
 function EquityPanel({ equity, performance }: Readonly<{ equity: EquityCurvePoint[]; performance: PaperPerformance | null }>) {
   const chart = equity.slice(-50).map((item) => ({ date: new Date(item.recorded_at).getTime(), value: Number(item.equity) }));
   const evidence = performance?.metrics.evidence_state ?? "insufficient_sample";
-  return <section className="panel min-w-0 p-5"><SectionTitle icon={TrendingUp} title="Evolución del capital" subtitle="Capital virtual, costos y posiciones abiertas." /><div className="mt-4 h-56">{chart.length > 1 ? <ResponsiveContainer width="100%" height="100%"><LineChart data={chart} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}><CartesianGrid stroke="var(--line)" vertical={false} /><XAxis dataKey="date" type="number" domain={["dataMin", "dataMax"]} tickFormatter={(value) => new Date(value).toLocaleDateString("es-AR", { day: "2-digit", month: "short", timeZone: DISPLAY_TIME_ZONE })} tick={{ fill: "var(--muted)", fontSize: 11 }} axisLine={false} tickLine={false} /><YAxis tick={{ fill: "var(--muted)", fontSize: 11 }} axisLine={false} tickLine={false} /><Tooltip contentStyle={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 8, color: "var(--strong)" }} formatter={(value) => money(Number(value))} labelFormatter={(value) => shortDate(new Date(Number(value)).toISOString())} /><Line type="monotone" dataKey="value" stroke="var(--accent)" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} /></LineChart></ResponsiveContainer> : <div className="grid h-full place-items-center text-center text-sm text-muted"><div><ChartNoAxesCombined className="mx-auto mb-2 size-6" />El gráfico aparecerá después de registrar más de un punto.</div></div>}</div><div className="mt-3 flex items-center gap-2 border-t border-line pt-3 text-xs text-muted"><Info className="size-3.5" /><span>{evidenceLabel(evidence)}</span></div></section>;
+  return <section className="panel min-w-0 p-5"><SectionTitle icon={TrendingUp} title="Evolución del capital" subtitle="Capital virtual, costos y posiciones abiertas." /><div className="mt-4 h-56">{chart.length > 1 ? <ResponsiveContainer width="100%" height="100%"><LineChart data={chart} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}><CartesianGrid stroke="var(--line)" vertical={false} /><XAxis dataKey="date" type="number" domain={["dataMin", "dataMax"]} tickFormatter={(value) => new Date(value).toLocaleDateString("es-AR", { day: "2-digit", month: "short" })} tick={{ fill: "var(--muted)", fontSize: 11 }} axisLine={false} tickLine={false} /><YAxis tick={{ fill: "var(--muted)", fontSize: 11 }} axisLine={false} tickLine={false} /><Tooltip contentStyle={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 8, color: "var(--strong)" }} formatter={(value) => money(Number(value))} labelFormatter={(value) => shortDate(new Date(Number(value)).toISOString())} /><Line type="monotone" dataKey="value" stroke="var(--accent)" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} /></LineChart></ResponsiveContainer> : <div className="grid h-full place-items-center text-center text-sm text-muted"><div><ChartNoAxesCombined className="mx-auto mb-2 size-6" />El gráfico aparecerá después de registrar más de un punto.</div></div>}</div><div className="mt-3 flex items-center gap-2 border-t border-line pt-3 text-xs text-muted"><Info className="size-3.5" /><span>{evidenceLabel(evidence)}</span></div></section>;
 }
 
 function LatestPredictions({ items }: Readonly<{ items: PredictionListItem[] }>) {
@@ -302,12 +319,13 @@ function Kpi({ icon: Icon, label, value, help }: Readonly<{ icon: LucideIcon; la
 function SectionTitle({ icon: Icon, title, subtitle }: Readonly<{ icon: LucideIcon; title: string; subtitle: string }>) { return <div className="flex items-start gap-3"><Icon className="mt-0.5 size-4 text-accent" /><div><h2 className="font-bold text-strong">{title}</h2><p className="mt-0.5 text-xs leading-5 text-muted">{subtitle}</p></div></div>; }
 function PlainStep({ icon: Icon, title, text }: Readonly<{ icon: LucideIcon; title: string; text: string }>) { return <article className="border-l-2 border-accent px-4 py-2"><Icon className="size-4 text-accent" /><h2 className="mt-3 font-bold text-strong">{title}</h2><p className="mt-1 text-sm leading-6 text-muted">{text}</p></article>; }
 function MoneyPill({ icon: Icon, label, value, tone, help }: Readonly<{ icon: LucideIcon; label: string; value: string; tone: "positive" | "negative" | "neutral"; help: string }>) { const color = tone === "positive" ? "text-positive" : tone === "negative" ? "text-negative" : "text-neutral"; return <div className="flex shrink-0 items-center gap-2 rounded-lg border border-line bg-subtle px-2.5 py-2" title={help}><Icon className={`size-4 ${color}`} /><span><small className="block text-[9px] font-bold uppercase tracking-wider text-muted">{label}</small><strong className={`block font-mono text-xs ${color}`}>{value}</strong></span></div>; }
-function TimeLabel({ icon: Icon, label, value }: Readonly<{ icon: LucideIcon; label: string; value: string }>) { return <div className="hidden items-center gap-2 xl:flex"><Icon className="size-3.5" /><span><small className="block text-[9px] font-bold uppercase tracking-wider">{label}</small><strong suppressHydrationWarning={label === "Ahora"} className="block whitespace-nowrap font-medium text-default">{value}</strong></span></div>; }
+function TimeLabel({ icon: Icon, label, value, detail }: Readonly<{ icon: LucideIcon; label: string; value: string; detail?: string }>) { return <div className="hidden items-center gap-2 xl:flex"><Icon className="size-3.5" /><span><small className="block text-[9px] font-bold uppercase tracking-wider">{label}</small><strong suppressHydrationWarning={label.startsWith("Ahora")} className="block whitespace-nowrap font-medium text-default">{value}</strong>{detail && <small className="block text-[9px] text-muted">{detail}</small>}</span></div>; }
 function TradeRow({ trade, position }: Readonly<{ trade: PaperTrade; position: PaperPosition | null }>) { const pnl = Number(position?.status === "settled" ? position.realized_pnl : position?.unrealized_pnl ?? 0); return <div className="grid gap-2 border-b border-line px-4 py-4 last:border-0 md:grid-cols-[minmax(240px,1fr)_90px_110px_110px_130px] md:items-center"><div><strong className="line-clamp-2 text-sm text-strong">{trade.market_title}</strong><small className="mt-1 block text-muted">{shortDate(trade.executed_at)}</small></div><span className="text-sm font-bold uppercase text-accent">{trade.side}</span><span className="font-mono text-sm text-strong">{money(Number(trade.net_cost))}</span><span className={`font-mono text-sm font-bold ${pnl > 0 ? "text-positive" : pnl < 0 ? "text-negative" : "text-neutral"}`}>{signedMoney(pnl)}</span><span className={`status ${position?.status === "settled" ? "status-good" : "status-neutral"}`}>{position?.status === "settled" ? "Finalizada" : "Esperando resultado"}</span></div>; }
 function Loading() { return <div className="space-y-4">{[1, 2, 3].map((item) => <div key={item} className="h-32 animate-pulse rounded-xl bg-subtle" />)}</div>; }
 function StatePanel({ title, text }: Readonly<{ title: string; text: string }>) { return <section className="panel grid min-h-64 place-items-center p-8 text-center"><div><ShieldAlert className="mx-auto size-7 text-muted" /><h1 className="mt-3 font-bold text-strong">{title}</h1><p className="mt-1 max-w-md text-sm text-muted">{text}</p></div></section>; }
 
 function preferredPortfolio(items: PaperPortfolio[]) { return items.find((item) => item.experiment_run_id === null && item.name.toLowerCase().includes("autonomous")) ?? items.find((item) => item.experiment_run_id === null && !item.name.toLowerCase().includes("manual")) ?? null; }
+function eventTime(value: SyncRun) { return new Date(value.finished_at ?? value.started_at).getTime(); }
 function currentSection(value: string | undefined): Section { if (value === "predictions") return "predictions"; if (value === "trades" || value === "activity") return "activity"; return "overview"; }
 function operationalStatus(sources: SourceHealth[], latest: SyncRun | null, completed: SyncRun | null, automation: AutomationState | null) { if (automation?.paused) return { title: "Automatización pausada", description: "La recolección puede continuar, pero no se crearán nuevas predicciones ni operaciones hasta reanudarla." }; const sourceOk = sources.length > 0 && sources.every((item) => item.status !== "unhealthy"); const fresh = completed?.finished_at ? Date.now() - new Date(completed.finished_at).getTime() < 5 * 60_000 : false; if (sourceOk && fresh && latest?.status !== "failed") return { title: "El sistema está trabajando", description: "Los datos están actuales y la campaña automática está buscando oportunidades de corto plazo." }; return { title: "El sistema necesita atención", description: "Los procesos siguen activos, pero los datos están atrasados o la última actualización falló. Se reintentará automáticamente." }; }
 function evidenceLabel(value: string) { const labels: Record<string, string> = { insufficient_sample: "Muestra insuficiente: todavía no se puede afirmar que exista una ventaja.", preliminary_result: "Resultado preliminar: se necesitan más mercados resueltos.", under_observation: "Estrategia bajo observación; no cambiar parámetros durante la medición.", sufficient_to_expand_validation: "La muestra permite ampliar la validación, no usar dinero real." }; return labels[value] ?? labels.insufficient_sample; }
@@ -315,7 +333,8 @@ function money(value: number) { return `${formatCredits(value)} créditos`; }
 function signedMoney(value: number) { return `${value > 0 ? "+" : ""}${formatCredits(value)} créditos`; }
 function formatCredits(value: number) { return new Intl.NumberFormat("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value); }
 function percent(value: string | null) { return value === null ? "—" : `${Math.round(Number(value) * 100)}%`; }
-function shortDate(value: string | null) { return value ? new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: DISPLAY_TIME_ZONE }).format(new Date(value)) : "Sin datos"; }
-function fullDate(value: Date) { return new Intl.DateTimeFormat("es-AR", { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: DISPLAY_TIME_ZONE }).format(value); }
-function dayKey(value: Date) { return `${value.getFullYear()}-${value.getMonth()}-${value.getDate()}`; }
+function shortDate(value: string | null) { return value ? new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date(value)) : "Sin datos"; }
+function fullDate(value: Date | null) { return value ? new Intl.DateTimeFormat("es-AR", { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(value) : "Sincronizando…"; }
+function localTimeZone() { return Intl.DateTimeFormat().resolvedOptions().timeZone || "Hora local"; }
+function relativeAge(value: string | null, now: Date | null) { if (!value || !now) return ""; const seconds = Math.max(0, Math.floor((now.getTime() - new Date(value).getTime()) / 1000)); if (seconds < 60) return `hace ${seconds} s`; const minutes = Math.floor(seconds / 60); if (minutes < 60) return `hace ${minutes} min`; return `hace ${Math.floor(minutes / 60)} h`; }
 function startOfDay(value: Date) { const result = new Date(value); result.setHours(0, 0, 0, 0); return result.toISOString(); }

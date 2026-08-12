@@ -45,6 +45,11 @@ def create_paper_trading_orchestrator(
     minimum_entry_edge: Decimal | None = None,
     minimum_net_edge: Decimal = Decimal("0"),
 ) -> PaperTradingOrchestrator:
+    resolved_minimum_entry_edge = (
+        settings.paper_entry_minimum_edge
+        if minimum_entry_edge is None
+        else minimum_entry_edge
+    )
     sizing_configuration = PositionSizingConfiguration(
         base_equity_fraction=settings.paper_base_equity_fraction,
         minimum_stake=settings.paper_minimum_stake,
@@ -76,15 +81,13 @@ def create_paper_trading_orchestrator(
         entry_policy=ThresholdEntryPolicy(
             ThresholdEntryConfiguration(
                 minimum_absolute_edge=(
-                    settings.paper_entry_minimum_edge
-                    if minimum_entry_edge is None
-                    else minimum_entry_edge
+                    resolved_minimum_entry_edge
                 ),
                 minimum_confidence=settings.paper_entry_minimum_confidence,
                 maximum_data_age=timedelta(seconds=settings.paper_maximum_data_age_seconds),
                 allowed_opportunity_levels=(
                     frozenset(OpportunityLevel)
-                    if minimum_entry_edge == Decimal("0")
+                    if resolved_minimum_entry_edge < settings.prediction_weak_edge
                     else ThresholdEntryConfiguration().allowed_opportunity_levels
                 ),
                 allow_yes=settings.paper_allow_yes,
