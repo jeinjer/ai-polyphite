@@ -75,10 +75,12 @@ export function ExecutiveDashboard() {
   useEffect(() => {
     const stored = localStorage.getItem("ai-polyphite-theme");
     const preferred = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const updateClock = () => setNow(new Date());
+    updateClock();
     const frame = window.requestAnimationFrame(() => {
       setDark(stored ? stored === "dark" : preferred);
     });
-    const timer = window.setInterval(() => setNow(new Date()), 30_000);
+    const timer = window.setInterval(updateClock, 30_000);
     return () => {
       window.cancelAnimationFrame(frame);
       window.clearInterval(timer);
@@ -309,8 +311,9 @@ function preferredPortfolio(items: PaperPortfolio[]) { return items.find((item) 
 function currentSection(value: string | undefined): Section { if (value === "predictions") return "predictions"; if (value === "trades" || value === "activity") return "activity"; return "overview"; }
 function operationalStatus(sources: SourceHealth[], latest: SyncRun | null, completed: SyncRun | null, automation: AutomationState | null) { if (automation?.paused) return { title: "Automatización pausada", description: "La recolección puede continuar, pero no se crearán nuevas predicciones ni operaciones hasta reanudarla." }; const sourceOk = sources.length > 0 && sources.every((item) => item.status !== "unhealthy"); const fresh = completed?.finished_at ? Date.now() - new Date(completed.finished_at).getTime() < 5 * 60_000 : false; if (sourceOk && fresh && latest?.status !== "failed") return { title: "El sistema está trabajando", description: "Los datos están actuales y la campaña automática está buscando oportunidades de corto plazo." }; return { title: "El sistema necesita atención", description: "Los procesos siguen activos, pero los datos están atrasados o la última actualización falló. Se reintentará automáticamente." }; }
 function evidenceLabel(value: string) { const labels: Record<string, string> = { insufficient_sample: "Muestra insuficiente: todavía no se puede afirmar que exista una ventaja.", preliminary_result: "Resultado preliminar: se necesitan más mercados resueltos.", under_observation: "Estrategia bajo observación; no cambiar parámetros durante la medición.", sufficient_to_expand_validation: "La muestra permite ampliar la validación, no usar dinero real." }; return labels[value] ?? labels.insufficient_sample; }
-function money(value: number) { return `${value.toFixed(2)} M`; }
-function signedMoney(value: number) { return `${value > 0 ? "+" : ""}${value.toFixed(2)} M`; }
+function money(value: number) { return `${formatCredits(value)} créditos`; }
+function signedMoney(value: number) { return `${value > 0 ? "+" : ""}${formatCredits(value)} créditos`; }
+function formatCredits(value: number) { return new Intl.NumberFormat("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value); }
 function percent(value: string | null) { return value === null ? "—" : `${Math.round(Number(value) * 100)}%`; }
 function shortDate(value: string | null) { return value ? new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: DISPLAY_TIME_ZONE }).format(new Date(value)) : "Sin datos"; }
 function fullDate(value: Date) { return new Intl.DateTimeFormat("es-AR", { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: DISPLAY_TIME_ZONE }).format(value); }

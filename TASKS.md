@@ -5,6 +5,7 @@ completada hasta que su código, tests y documentación hayan sido validados.
 
 ## Completed
 
+- [x] Corregir el reloj del dashboard y expresar el saldo como créditos simulados.
 - [x] Adoptar razonamiento híbrido local para ReasoningAgent y SkepticAgent.
 - [x] Mantener consenso, evaluación comercial, riesgo y contabilidad deterministas.
 - [x] Rechazar bait, triviales, personales, circulares y horizontes fuera de 14 días.

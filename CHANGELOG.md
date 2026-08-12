@@ -27,6 +27,8 @@ versionada.
 
 ### Fixed
 
+- El reloj "Ahora" se sincroniza al montar el dashboard y continúa avanzando;
+  los saldos ya no usan la abreviatura ambigua `M`, sino "créditos" simulados.
 - Las recomendaciones YES/NO de cada agente vuelven a expresar el outcome y no
   la dirección comercial relativa al precio del mercado.
 - La calificación semántica puede vetar el consenso, evitando que dos agentes
