@@ -1,8 +1,8 @@
 # AI-Polyphite — Manifold Provider
 
-Versión: 1.0  
+Versión: 1.1
 Estado: implementado  
-Documentación oficial revisada: 2026-07-28
+Documentación oficial revisada: 2026-08-13
 
 ## Alcance
 
@@ -72,19 +72,27 @@ Manifold no anuncia `INCREMENTAL_MARKETS`; cada ciclo completo recorre el
 catálogo actual y delega la idempotencia a Application. Varios mercados creados
 en el mismo milisegundo del borde constituyen un riesgo de precisión externo.
 
-La operación autónoma usa `AI_POLYPHITE_MANIFOLD_SYNC_MODE=recent`:
+La operación autónoma usa `AI_POLYPHITE_MANIFOLD_SYNC_MODE=recent`. Cada ciclo
+realiza dos consultas acotadas y fusiona por `provider_market_id`:
 
 ```text
 sort=last-updated
 filter=all
 contractType=BINARY
-limit=1000
+limit=<tamaño solicitado>
+
+sort=last-updated
+filter=resolved
+contractType=BINARY
+limit=<tamaño solicitado>
 ```
 
-Ese modo consume una única página acotada por ciclo y no emite cursor. Así
-mantiene mercados activos y resoluciones recientes sin recorrer todo el
-histórico cada hora. El modo `catalog` conserva la paginación completa
-para importaciones explícitas.
+Ese modo no emite cursor. El primer barrido mantiene los mercados activos; el
+segundo recupera resoluciones recientes aunque Manifold no avance
+`lastUpdatedTime` al resolver y el mercado ya haya quedado fuera del listado
+general. Si un mercado aparece en ambos, prevalece el payload del barrido
+`resolved`. El modo `catalog` conserva la paginación completa para importaciones
+explícitas.
 
 ## Mapeo de estados
 
@@ -154,16 +162,17 @@ adaptador no decide ni reescribe este conflicto.
 - Timeout por request: 10 segundos por defecto.
 - Límite cooperativo local: 450 requests/minuto por defecto.
 - Límite oficial documentado: 500 requests/minuto por IP.
+- El modo `recent` usa dos requests de catálogo por ciclo: general y resueltos.
 - HTTP `429` genera `ProviderRateLimitError` y conserva un `Retry-After` válido.
 - timeouts, fallos de red y `5xx` generan `ProviderUnavailableError`.
 - JSON inválido, schemas incompatibles, cursores inválidos y `4xx` inesperados
   generan `ProviderProtocolError`.
 - `401` y `403` generan `ProviderAuthenticationError`.
 
-Retries y backoff permanecen en `MarketDataCollector`; el adaptador hace una
-sola llamada acotada por operación. El rate limiter es local al proceso. Antes
-de ejecutar collectors Manifold concurrentes será necesario coordinar el límite
-agregado.
+Retries y backoff permanecen en `MarketDataCollector`; cada request HTTP del
+adaptador es acotado y atraviesa el mismo rate limiter. El rate limiter es local
+al proceso. Antes de ejecutar collectors Manifold concurrentes será necesario
+coordinar el límite agregado.
 
 ## Health check
 
@@ -197,6 +206,7 @@ datos personales ni copiar contenido real. La cobertura incluye:
 - rate limiting, timeouts y errores HTTP tipados;
 - contract tests reutilizables de `MarketDataProvider`;
 - Manifold fixture → Collector → PostgreSQL → `GET /markets`;
+- resolución tardía visible sólo en `filter=resolved` → Collector → PostgreSQL;
 - persistencia de observaciones y outcomes YES/CANCEL;
 - reutilización del catálogo sin requests de detalle redundantes;
 - modo reciente acotado y verificación de que no se crean snapshots inventados.

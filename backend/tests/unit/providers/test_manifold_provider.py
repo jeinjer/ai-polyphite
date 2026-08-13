@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -209,6 +210,8 @@ async def test_recent_sync_is_bounded_to_latest_updated_page() -> None:
 
     def handler(request: httpx.Request) -> httpx.Response:
         requests.append(request)
+        if request.url.params.get("filter") == "resolved":
+            return httpx.Response(200, json=[], request=request)
         return _fixture_response(request)
 
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
@@ -224,7 +227,64 @@ async def test_recent_sync_is_bounded_to_latest_updated_page() -> None:
         await client.aclose()
 
     assert batch.next_cursor is None
-    assert requests[0].url.params["sort"] == "last-updated"
+    assert len(requests) == 2
+    assert {request.url.params["filter"] for request in requests} == {
+        "all",
+        "resolved",
+    }
+    assert all(request.url.params["sort"] == "last-updated" for request in requests)
+    assert all(request.url.params["limit"] == "3" for request in requests)
+
+
+@pytest.mark.asyncio
+async def test_recent_sync_merges_explicit_resolution_sweep() -> None:
+    requests: list[httpx.Request] = []
+    pending = json.loads(
+        (FIXTURES / "market_binary-late-resolution-open.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    resolved = json.loads(
+        (FIXTURES / "market_binary-late-resolution-resolved.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        payload = (
+            [resolved]
+            if request.url.params.get("filter") == "resolved"
+            else [pending]
+        )
+        return httpx.Response(200, json=payload, request=request)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    provider = ManifoldProvider(
+        http_client=client,
+        clock=lambda: NOW,
+        sleep=_no_sleep,
+        sync_mode="recent",
+    )
+    try:
+        batch = await provider.fetch_markets(FetchMarketsRequest(limit=300))
+    finally:
+        await client.aclose()
+
+    assert len(requests) == 2
+    assert len(batch.markets) == 1
+    assert batch.markets[0].provider_market_id == "binary-late-resolution"
+    assert batch.markets[0].status is ProviderMarketStatus.RESOLVED
+    assert batch.markets[0].resolution_outcome is ProviderResolutionOutcome.NO
+    assert batch.markets[0].resolved_at == datetime(
+        2024,
+        5,
+        6,
+        13,
+        53,
+        20,
+        tzinfo=UTC,
+    )
 
 
 @pytest.mark.asyncio

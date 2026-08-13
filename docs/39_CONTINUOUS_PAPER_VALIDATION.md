@@ -27,6 +27,13 @@ Cada ciclo usa un `scheduled_for` UTC alineado a la cadencia configurada. Su
 `cycle_key` incorpora ese timestamp y el hash de configuración congelada de
 predicción y paper trading.
 
+La fecha de cierre no decide el resultado. El settlement espera un outcome
+oficial `YES`, `NO` o `CANCELLED` ingerido desde el proveedor. En modo Manifold
+`recent`, el collector combina el catálogo general con un barrido explícito de
+mercados resueltos para no depender de que `lastUpdatedTime` cambie al publicar
+la resolución. Una vez persistido el outcome, el siguiente ciclo del validador
+liquida todas las posiciones abiertas correspondientes de forma idempotente.
+
 - `PredictionRun` evita duplicados por mercado, timestamp y configuración.
 - `TradeDecision` evita duplicados por portfolio y predicción.
 - settlement y snapshots conservan su idempotencia previa.

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Literal
 from uuid import uuid4
 
 import httpx
@@ -35,11 +37,18 @@ COLLECTOR_CLOCK = datetime(2026, 7, 28, 12, tzinfo=UTC)
 
 
 class FixtureManifoldProvider(ManifoldProvider):
-    def __init__(self, *, code: str, http_client: httpx.AsyncClient) -> None:
+    def __init__(
+        self,
+        *,
+        code: str,
+        http_client: httpx.AsyncClient,
+        sync_mode: Literal["catalog", "recent"] = "catalog",
+    ) -> None:
         super().__init__(
             http_client=http_client,
             clock=lambda: COLLECTOR_CLOCK,
             sleep=_no_sleep,
+            sync_mode=sync_mode,
         )
         self._fixture_code = code
 
@@ -197,6 +206,104 @@ async def test_manifold_fixture_flows_through_collector_postgres_and_api() -> No
             }
             assert all(item["source_created_at"] for item in payload["items"])
             assert all(item["ingested_at"] for item in payload["items"])
+        finally:
+            await _cleanup(session_factory, provider_code)
+            await engine.dispose()
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_recent_resolution_sweep_updates_market_missed_by_general_feed() -> None:
+    settings = Settings(
+        _env_file=None,
+        app_env=AppEnvironment.TESTING,
+        log_level=LogLevel.CRITICAL,
+    )
+    engine = create_async_engine(str(settings.database_url))
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    provider_code = f"manifold_{uuid4().hex[:12]}"
+    resolution_visible = [False]
+    pending = json.loads(
+        (FIXTURES / "market_binary-late-resolution-open.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    resolved = json.loads(
+        (FIXTURES / "market_binary-late-resolution-resolved.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        market_filter = request.url.params.get("filter")
+        if market_filter == "resolved":
+            payload = [resolved] if resolution_visible[0] else []
+        elif market_filter == "all":
+            payload = [pending]
+        else:
+            payload = []
+        return httpx.Response(200, json=payload, request=request)
+
+    def unit_of_work() -> SqlAlchemyMarketUnitOfWork:
+        return SqlAlchemyMarketUnitOfWork(session_factory)
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handler)
+    ) as provider_client:
+        provider = FixtureManifoldProvider(
+            code=provider_code,
+            http_client=provider_client,
+            sync_mode="recent",
+        )
+        collector = MarketDataCollector(
+            provider=provider,
+            application_dependencies=ServiceDependencies(
+                unit_of_work=unit_of_work,
+                clock=lambda: COLLECTOR_CLOCK,
+                id_factory=uuid4,
+            ),
+            checkpoint_store=SqlAlchemyCollectorCheckpointStore(session_factory),
+            collection_lock=PostgresProviderCollectionLock(engine),
+            config=CollectorConfig(page_size=300, max_pages_per_run=1),
+            clock=lambda: COLLECTOR_CLOCK,
+            sleep=_no_sleep,
+        )
+
+        try:
+            first = await collector.collect(correlation_id="late-resolution-pending")
+            async with session_factory() as session:
+                initial = await session.scalar(
+                    select(MarketModel)
+                    .join(ProviderModel)
+                    .where(
+                        ProviderModel.code == provider_code,
+                        MarketModel.provider_market_id == "binary-late-resolution",
+                    )
+                )
+
+            assert first.markets_created == 1
+            assert initial is not None
+            assert initial.status == "closed"
+            assert initial.resolution_outcome == "unresolved"
+
+            resolution_visible[0] = True
+            second = await collector.collect(correlation_id="late-resolution-resolved")
+            async with session_factory() as session:
+                updated = await session.scalar(
+                    select(MarketModel)
+                    .join(ProviderModel)
+                    .where(
+                        ProviderModel.code == provider_code,
+                        MarketModel.provider_market_id == "binary-late-resolution",
+                    )
+                )
+
+            assert second.markets_updated == 1
+            assert updated is not None
+            assert updated.status == "resolved"
+            assert updated.resolution_outcome == "no"
+            assert updated.resolved_at is not None
+            assert updated.resolution_source == "manifold_public_api"
         finally:
             await _cleanup(session_factory, provider_code)
             await engine.dispose()

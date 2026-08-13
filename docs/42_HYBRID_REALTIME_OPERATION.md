@@ -9,7 +9,8 @@ queden observables.
 
 ## Cadencia
 
-- Collector Manifold: 60 segundos, una página reciente de 300 mercados.
+- Collector Manifold: 60 segundos, barridos recientes general y de resueltos,
+  ambos acotados a 300 mercados y fusionados por identificador externo.
 - Validador paper: 60 segundos.
 - Lote generativo: un mercado nuevo por ciclo en la configuración local.
 - Dashboard: refresco de lecturas cada 30 segundos.

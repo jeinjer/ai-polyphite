@@ -5,6 +5,7 @@ completada hasta que su código, tests y documentación hayan sido validados.
 
 ## Completed
 
+- [x] Recuperar resoluciones Manifold omitidas por el feed general reciente.
 - [x] Unificar KPI y embudo en el portfolio live vigente.
 - [x] Adoptar un perfil paper balanceado y retirar la campaña paralela por defecto.
 - [x] Corregir hora local, contraste y explicación contable del encabezado.

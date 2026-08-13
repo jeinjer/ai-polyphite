@@ -32,6 +32,9 @@ versionada.
 
 ### Fixed
 
+- La ingesta reciente de Manifold combina el listado general con un barrido
+  explícito de resoluciones. Esto recupera outcomes oficiales que no avanzan
+  `lastUpdatedTime` y permite que el siguiente ciclo liquide posiciones vencidas.
 - El reloj usa la zona local del navegador, avanza cada segundo y diferencia
   explícitamente hora actual, última ingesta y último análisis.
 - Se corrige el contraste del logo y del aviso de simulación, y el encabezado

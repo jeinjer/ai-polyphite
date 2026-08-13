@@ -124,6 +124,16 @@ class ManifoldProvider(MarketDataProvider):
 
         raw = await self._get_json(_SEARCH_PATH, params=params)
         payloads = self._validate_list(raw)
+        invalid_payloads = self._invalid_payloads_last_batch
+        if self._sync_mode == "recent":
+            resolved_raw = await self._get_json(
+                _SEARCH_PATH,
+                params={**params, "filter": "resolved"},
+            )
+            resolved_payloads = self._validate_list(resolved_raw)
+            invalid_payloads += self._invalid_payloads_last_batch
+            payloads = _merge_market_payloads(payloads, resolved_payloads)
+            self._invalid_payloads_last_batch = invalid_payloads
         for payload in payloads:
             self._listed_payloads[payload.market_id] = payload
         now = self._now()
@@ -507,3 +517,15 @@ def _timestamp(milliseconds: int | None) -> datetime | None:
         return _EPOCH + timedelta(milliseconds=milliseconds)
     except OverflowError as exc:
         raise ProviderProtocolError("Manifold returned an invalid timestamp.") from exc
+
+
+def _merge_market_payloads(
+    catalog: list[ManifoldMarketPayload],
+    resolved: list[ManifoldMarketPayload],
+) -> list[ManifoldMarketPayload]:
+    """Prefer the explicit resolution sweep when a market appears in both lists."""
+
+    merged = {payload.market_id: payload for payload in catalog}
+    for payload in resolved:
+        merged[payload.market_id] = payload
+    return list(merged.values())

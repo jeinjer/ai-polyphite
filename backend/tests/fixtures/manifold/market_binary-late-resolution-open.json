@@ -1,0 +1,13 @@
+{
+  "id": "binary-late-resolution",
+  "question": "Did the delayed-resolution example event happen?",
+  "outcomeType": "BINARY",
+  "createdTime": 1710000000000,
+  "closeTime": 1715000000000,
+  "lastUpdatedTime": 1715000001000,
+  "probability": 0.4,
+  "volume": 50,
+  "isResolved": false,
+  "textDescription": "Sanitized market whose resolution is absent from the general recent feed.",
+  "groupSlugs": ["examples"]
+}

@@ -1,6 +1,6 @@
 # AI-Polyphite — Project Status
 
-Última actualización: 2026-08-12
+Última actualización: 2026-08-13
 
 ## Estado general
 
@@ -34,6 +34,8 @@ analizarse si es nueva para la versión configurada del pipeline.
 - Provider SDK neutral con Mock, Replay y Manifold read-only.
 - Ingesta incremental observable, tolerante a payloads incompatibles y con
   cuarentena por elemento.
+- Reconciliación de resoluciones recientes de Manifold mediante un barrido
+  explícito, incluso cuando el proveedor no actualiza `lastUpdatedTime`.
 - Predicciones limitadas a mercados binarios abiertos con resolución objetiva
   entre cinco minutos y catorce días.
 - Rechazo previo de preguntas triviales, bait, circulares, personales o no
